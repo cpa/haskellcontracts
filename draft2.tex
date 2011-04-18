@@ -1,0 +1,56 @@
+\documentclass{article}
+
+\usepackage{stmaryrd}
+\usepackage{fullpage}
+
+\begin{document}
+
+\section{Language}
+
+\newcommand{\unr}{\texttt{UNR}}
+\newcommand{\bad}{\texttt{BAD}}
+\newcommand{\any}{\texttt{Any}}
+\newcommand{\ok}{\texttt{Ok}}
+
+\begin{eqnarray*}
+  v,D &::=& String \\
+  e &::=& v \mid (e~e) \mid (D~e) \\
+  &&\mid \mbox{case $e$ of } [(p_1 \to e_1) \dots (p_n \to e_n)]    \\ 
+  p &::=& \mbox{let } f~\vec{x} = e \\
+  \Gamma &::=& (f \mapsto t),\Gamma \mid (f~\vec{x} \mapsto e), \Gamma \mid \epsilon\\
+\end{eqnarray*}
+$\vec{x}$ denotes a vector of variables and $\Gamma$ a context.
+$t > t' \iff \{ x | x \in t' \} \subset \{ x | x \in t \}$
+\section{Encoding}
+
+We define two different translations: one for expressions and one for programs.
+
+\subsection{Expressions}
+\begin{itemize}
+\item \begin{array}{rcll}
+  \llbracket \Gamma \vdash x \in t \rrbracket &=& \top & \mbox{ if } x^{t} \in \Gamma \\
+  && \llbracket \Gamma \vdash f x = e \in t_1 \rrbracket & \mbox{ if } f~x = e \in \Gamma \\
+  && \bot & \mbox{ otherwise.} 
+  \end{array}
+\item $\llbracket \Gamma \vdash x~e_2 \in t \rrbracket = lookup...$
+\item \begin{array}{rclll}
+  \llbracket \Gamma \vdash e_1 e_2 \in t \rrbracket &=&  e_1 \in t_1 \to t_2, e_2 \in t'_2 \in \Gamma & \to & \top \\
+  && e_2 \in t' (\neq \any) \in \Gamma  & \to & \llbracket \Gamma \vdash e_1 \in t' \to t \rrbracket \\
+  && e_1 \in t_1 \to t_2 \in \Gamma & \to & \llbracket \Gamma \vdash e_2 \in t_1 \rrbracket
+  \end{array}
+\item $\llbracket \Gamma \vdash e_1~e_2 \in t \rrbracket = \llbracket \Gamma \vdash e \in Ok \to t \rrbracket \land \llbracket \Gamma \vdash e_2 \in Ok \rrbracket$
+\item $\llbracket \Gamma \vdash \mbox{case } e \mbox{ of } (p_i \to e_i) \in t \rrbracket = e \neq \bad \land \forall \vec{z}~p_i[\vec{z}] = e \to \llbracket \Gamma, z \mapsto \{ a \mid \top \lor z=\unr \} \vdash e_i \in t \rrbracket$
+\item $\llbracket \Gamma \vdash D~e \rrbracket = e \neq \bad \leftrightarrow D~e \neq \bad$
+\end{itemize}
+
+
+\subsection{Programs}
+\begin{itemize}
+\item $\llbracket \Gamma \vdash f~x=e \in t_1 \to t_2 \rrbracket = \forall x,f^\star~\llbracket \Gamma \vdash x \in t_1 \rrbracket \to \llbracket \Gamma, x^{t_1}, f^{\star~t_1 \to t_2} \vdash e[f^\star/f] \in t_2 \rrbracket, (\Gamma, f \mapsto t_1 \to t_2)$
+\item $\llbracket \Gamma \vdash f=e \in t \rrbracket = \forall f \llbracket \Gamma, f^t \vdash e \in t \rrbracket, (\Gamma, f \mapsto t)$
+\item $\llbracket \Gamma \vdash f~x=e \rrbracket = \forall f \llbracket \Gamma, f~x \mapsto e \vdash e \in t \rrbracket, (\Gamma, f~x \mapsto e)$
+\end{itemize}
+
+\thispagestyle{empty}
+\end{document}
+
