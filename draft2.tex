@@ -1,6 +1,7 @@
 \documentclass{article}
 
 \usepackage{stmaryrd}
+\usepackage{amsmath}
 \usepackage{fullpage}
 
 \begin{document}
@@ -8,7 +9,9 @@
 \section{Language}
 
 \newcommand{\unr}{\texttt{UNR}}
+\newcommand{\unrphi}{\texttt{UNR}_\phi}
 \newcommand{\bad}{\texttt{BAD}}
+\newcommand{\badphi}{\texttt{BAD}_\phi}
 \newcommand{\any}{\texttt{Any}}
 \newcommand{\ok}{\texttt{Ok}}
 \newcommand{\mand}{\mbox{ and }}
@@ -16,10 +19,10 @@
 
 \begin{eqnarray*}
   x,D &::=& String & (Variables, Data)\\
-  e &::=& x \mid (f~\overline{e}) \mid (D~\overline{e}) & (Expressions) \\
-  &&\mid \mbox{case $e$ of } [(p_1 \to e_1) \dots (p_n \to e_n)]   & \\ 
+  e &::=& x \mid f(\overline{e}) \mid D(\overline{e}) & (Expressions) \\
   &&\mid \bad \mid \unr & \\
-  p &::=& \mbox{let } f~\overline{x} = e ::: t,p \mid \epsilon & (Programs) \\
+  p &::=& \mbox{let $f~\overline{x} = $ case $e$ of } [(p_1 \to e_1) \dots (p_n \to e_n)] ::: t,p   & (Programs) \\ 
+  &&\mid \mbox{let } f~\overline{x} = e ::: t,p \mid \epsilon \\
   \Gamma &::=& (f \mapsto t),\Gamma \mid (f~\vec{x} \mapsto e), \Gamma \mid \epsilon & (Contexts) \\
   t &::=& \{x \mid e \} \mid x:t \to t \mid \any & (Contracts) \\
   \phi &::=& \top \mid \bot \mid x \mid \lnot \phi \mid \phi \land \phi \mid \forall x, \phi & (FOF) \\
@@ -30,36 +33,55 @@ With the constraint that the Haskell expression in the contract must return a Bo
 $\vec{x}$ denotes a vector of variables and $\Gamma$ a context and multiset (which enables multiple contracts.)
 
 $t \geq t' \iff \{ e | x \in t' \} \subset \{ e | x \in t \}$ ($t$ is more restrictive than $t'$)
-\section{Encoding}
 
-We define two different translations: one for expressions and one for programs. 
+case-expression can't be nested (just as lambdas) which is simpler for the FOL translation.
+
+\section{Encoding}
 
 
 \subsection{Expressions}
+\subsubsection{Axioms}
+\begin{itemize}
+\item $\lVert x \rVert = x $
+\item $\lVert f(\overline{e}) \rVert = f(\lVert \overline{e} \rVert)  $
+\item $\lVert D(\overline{e}) \rVert = D(\lVert \overline{e} \rVert)  $
+\item $\lVert \bad \rVert = \badphi $ (maybe we must specify that $\badphi$ is not $\top$ or $\bot$)
+\item $\lVert \unr \rVert = \unrphi $ (same here)
+\end{itemize}
+
+\subsubsection{Contract satisfaction}
 \begin{itemize}
 \item $\llbracket \Gamma \vdash \bad \in t \rrbracket = \bot$
 \item $\llbracket \Gamma \vdash \unr \in t \rrbracket = \top$
 \item \begin{array}{rcll}
-  \llbracket \Gamma \vdash x \in t \rrbracket &=& \top & \mbox{ if } x \mapsto t' \in \Gamma \\
+  \llbracket \Gamma \vdash x \in t \rrbracket &=& \top & \mbox{ if } x \mapsto t \in \Gamma \\
   && \bot & \mbox{ otherwise.} 
   \end{array}
 \item \begin{array}{rcll}
-  \llbracket \Gamma \vdash f~\overline{(e_1,\dots,e_n)} ::: t_1 \to \dots \to t_n \to t_c \in t_c \rrbracket &=& \bigwedge_{1 \leq i \leq n}{\llbracket \Gamma \vdash e_i \in t_i \rrbracket} \\
-  \llbracket \Gamma \vdash f~\overline{(e_1,\dots,e_n)} ::: t \in t' \rrbracket &=& \bot \mbox{ ie type mismatch.}\\
+  \llbracket \Gamma \vdash f\overline{(e_1,\dots,e_n)} ::: t_1 \to \dots \to t_n \to t_c \in t_c \rrbracket &=& \bigwedge_{1 \leq i \leq n}{\llbracket \Gamma \vdash e_i \in t_i \rrbracket} \\
+  \llbracket \Gamma \vdash f\overline{(e_1,\dots,e_n)} ::: t \in t' \rrbracket &=& \bot \mbox{ ie type mismatch.}\\
   \end{array}
-\item $\llbracket \Gamma \vdash D~\overline{e} \in t \rrbracket = \overline{e} \neq \bad \to \llbracket \Gamma \vdash D~\overline{e} \in \ok \rrbracket \land ...$
-\item $\llbracket \Gamma \vdash \mbox{case } e \mbox{ of } [(p_1 \to e_1),\dots,(p_n \to e_n)] \in t \rrbracket = e \neq \bad \land \forall \vec{z}~p_i[\vec{z}] = e \to \llbracket \Gamma, TODO \vdash e_i \in t \rrbracket$
+\item $\llbracket \Gamma \vdash D(\overline{e}) \in t \rrbracket = (\lVert \overline{e} \rVert \neq \badphi \leftrightarrow \lVert D(\overline{e}) \rVert \neq \badphi) \land \mbox{ check $D$ as a function application}$
 \end{itemize}
 
-$$\llbracket \Gamma \vdash e \in t \rrbracket = \phi \iff (\phi = \top \iff \Gamma,e \mbox{ satisfies } t)$$
+Invariant:~$\llbracket \Gamma \vdash e \in t \rrbracket = \phi \iff (\phi = \top \iff \Gamma,e \mbox{ satisfies } t)$
+\thispagestyle{empty}
 
 \subsection{Programs}
 Assume $t = t_1 \to \dots \to t_n \to t_c$ and $\overline{x} = (x_1,\dots,x_n)$
 
-\begin{array}{rcl}
-\llbracket \Gamma \vdash \mbox{ let } f~\overline{x} = e:::t,p \rrbracket &=& \forall f^\star, \forall_{1 \leq i \leq n} x_i, \llbracket \Gamma, x_1 \mapsto t_1,\dots,x_n \mapsto t_n, f^\star \mapsto t \vdash e[f^\star/f] \in t_c \rrbracket \\
-&& \land \llbracket \Gamma, f \mapsto t \vdash p \rrbracket
+\begin{itemize}
+\item $\llbracket \Gamma \vdash \mbox{let $f(\overline{x}) = $ case } e \mbox{ of } [(p_1 \to e_1),\dots,(p_n \to e_n)] \in t \rrbracket = \lVert e \rVert \neq \badphi \land (\forall \vec{z}~p_i[\vec{z}] = e \to \llbracket \Gamma, \vec{z} \mapsto \ok \vdash e_i \in t \rrbracket \lor \lVert e' \rVert = \unrphi)$ \\
+  ($\vec{z}$ is a short hand for $(z_1,\dots,z_k)$ and $e'$ is the whole expression)
+\item \begin{array}{rcl}
+\llbracket \Gamma \vdash \mbox{ let } f(\overline{x}) = e:::t,p \rrbracket &=& \forall x_1, \dots, x_n, \{ x_1 \in t_1 \}, \dots, \{x_n \in t_n \} \\
+&& \llbracket \Gamma, x_1 \mapsto t_1,\dots,x_n \mapsto t_n, f^\star \mapsto t \vdash e[f^\star/f] \in t_c \rrbracket \\
+&& \land \llbracket \Gamma, f \mapsto t \vdash p \rrbracket\\
+\{ x \in t \} &=& t(x) \land \forall y, t(y) \iff (\llbracket \Gamma \vdash p(y) \in \{z | z = \texttt{True} \} \rrbracket)
 \end{array}
+\end{itemize}
+
+($t = \{ y | p(y) \}$ and \textt{True} refers to the Haskell boolean value (and not $\top$))
 
 
 \thispagestyle{empty}
