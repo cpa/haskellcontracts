@@ -6,51 +6,97 @@
 
 \begin{document}
 
-\section{Language}
+\newcommand{\etrans}[1]{\mathcal{E} \llbracket #1 \rrbracket}
+\newcommand{\dtrans}[1]{\mathcal{D} \llbracket #1 \rrbracket}
+\newcommand{\strans}[1]{\mathcal{S} \llbracket #1 \rrbracket}
+\newcommand{\trans}[1]{\llbracket #1 \rrbracket}
 
 \newcommand{\unr}{\texttt{UNR}}
-\newcommand{\unrphi}{\texttt{UNR}_\phi}
 \newcommand{\bad}{\texttt{BAD}}
-\newcommand{\badphi}{\texttt{BAD}_\phi}
 \newcommand{\any}{\texttt{Any}}
 \newcommand{\ok}{\texttt{Ok}}
-\newcommand{\let}{\mbox{let }}
-\newcommand{\mand}{\mbox{ and }}
-\newcommand{\motherwise}{\mbox{ otherwise.}}
-
-\begin{eqnarray*}
-  x,D &::=& String & (Variables, Data)\\
-  e &::=& x \mid e~e \mid D~e \mid \bad \mid \unr & (Expressions) \\
-  p &::=& \mbox{let $f~x_1,\dots,x_n = $ case $e$ of } [(p_1 \to e_1) \dots (p_n \to e_n)] ::: t,p   & (Programs) \\ 
-  &&\mid \mbox{let } f~x_1,\dots,x_n = e ::: t,p \mid \epsilon \\
-  t &::=& \{x \mid e \} \mid x:t \to t \mid \any & (Contracts) \\
-  \phi &::=& \top \mid \bot \mid x \mid \lnot \phi \mid \phi \land \phi \mid \forall x, \phi & (FOF) \\
-\end{eqnarray*}
-
-With the constraint that the Haskell expression in the contract must return a Bool.
-
-$t \geq t' \iff \{ e | x \in t' \} \subset \{ e | x \in t \}$ ($t$ is more restrictive than $t'$)
-
-case-expression can't be nested (just as lambdas) which is simpler for the FOL translation.
-
-\section{Encoding}
-
-
-\subsection{Expressions}
-\begin{itemize}
-\item $\llbracket e \in \{ x | p(x) \} \rrbracket = p(e)$
-\item $\llbracket e \in t_1 \to t_2 \rrbracket = \forall x, \llbracket x \in t_1 \rrbracket \to \llbracket e~x \in t_2 \rrbracket$
-\end{itemize}
 
 \thispagestyle{empty}
+\section{Grammars}
+\subsection{$\lambda$-lifted haskell subset}
+\begin{eqnarray*}
+  u,e &:=& x \mid f \mid e~e \mid D \mid \bad \mid n & (Expression)\\
+  p &:=& \Delta_1 \dots \Delta_n & (Program) \\
+  \Delta &:=& d \mid transp (d,c) \mid opaque (d,c) & (Defintion~and~contract) \\
+  d &:=& f~x_1 \dots x_n = e \mid f~x_1 \dots x_n = \mbox{ case } e \mbox{ of } [(pat_i,e_i)] & (Definition) \\
+  pat &:=&D~x_1 \dots x_n & (Pattern) \\
+\end{eqnarray*}
 
-\subsection{Programs}
-Assume $t = t_1 \to \dots \to t_n \to t_c$.
+\subsection{FOL}
+\begin{eqnarray*}
+  t &:=& x \mid \mbox{app}(t_1,t_2) \mid k & (Term) \\
+  k &:=& D \mid f \mid ? \mid \bad \mid \unr & (Constant) \\
+  \phi &:=& \forall x.\phi \mid \phi \to \phi \mid \lnot \phi \mid \phi \lor \phi \mid \phi \land \phi \mid true \mid t=t \mid \mbox{CF}(t)& (Formula) \\
+\end{eqnarray*}
 
-\begin{itemize}
-\item $\llbracket \mbox{let } f~x_1 \dots x_n = e ::: t \rrbracket = (\forall_{1 \leq i \leq n} x_i, \bigwedge_{1 \leq i \leq n} \llbracket x_i \in t_i \rrbracket~\forall f^\star \llbracket f^\star \in t \rrbracket) \to \llbracket e[f^\star/f] \in t_c \rrbracket$
-\item $\llbracket \mbox{let } f~x_1 \dots x_n = \mbox{ case } e \mbox{ of } [(p_i,e_i)] \in t \rrbracket = (\forall x_i, \bigwedge_{i \leq n} \llbracket x_i \in t_i \rrbracket~\forall f^\star \llbracket f^\star \in t \rrbracket) \to (\bigwedge_{j \leq k} p_j = e \to \llbracket e_j[f^\star/f] \in t_c \rrbracket)$
-\end{itemize}
+\subsection{Contracts}
+\begin{eqnarray*}
+  c &:=& x:c_1 \to c_2\\
+  &\mid& (c_1,c_2) \\
+  &\mid& \{ x \mid e \} \\
+  &\mid& \any \\
+\end{eqnarray*}
+We can consider CF as a user contract.
+
+\section{Translation}
+We define several translations: $\etrans{},\dtrans{},\strans{},\trans{}$.
+\begin{eqnarray*}
+  \etrans{} &::& Expression \to Term \\
+  \dtrans{} &::& Definition \to FOF  \\
+  \strans{} &::& Expression \to Contract \to FOF \\
+  \trans {} &::& Definition \to Contract \to FOF \\
+\end{eqnarray*}
+
+\subsection{$\etrans{}$}
+$\etrans{e}$ is a term. The translation is direct.
+
+\subsection{$\dtrans{}$}
+$\dtrans{d}$ is a first-order formula.
+
+\begin{eqnarray*}
+\dtrans{f~x_1 \dots x_n = e} &=& \forall x_1 \dots x_n.\etrans{f~x_1 \dots x_n} = \etrans{e} & \\
+\dtrans{f~x_1 \dots x_n = \mbox{case } e \mbox{ of } [D_i~\overline{z} \mapsto e_i]} &=& \forall x_1 \dots x_n~(\bigwedge_i (\forall \overline{z}~\etrans{e} = \etrans{D_i~\overline{z}} \to \etrans{f~x_1 \dots x_n} = \etrans{e_i}) & \\
+&& \land \etrans{e} = \bad \to \etrans{f~x_1 \dots x_n} = \bad)& \\ 
+&& \land \trans{f~x_1 \dots x_n} = \unr \bigvee_i (\texttt{HD}(e) = D_i) & (\varphi) \\
+\end{eqnarray*}
+
+\subsection{$\strans{}$}
+$\strans{e \in c}$ is a first-order formula.
+\begin{eqnarray*}
+\strans{e \in \any} &=& true \\
+\strans{e \in \{x \mid u \}} &=& \unr \lor (\mbox{CF}(\etrans{e}) \land \mbox{CF}(\etrans{u[e/x]} \neq \bad) \land (\etrans{u[e/x]} \neq False) \\
+\strans{e \in x:c_1 \to c_2}  &=& \forall x_1. \strans{x_1 \in c_1} \to \strans{e~x_1 \in c_2[x_1/x]} \\
+
+\end{eqnarray*}
+$False$ is a data constructor here.
+
+
+\subsection{$\trans{}$}
+It's the final translation, which takes a function definition and its contract and returns a first-order formula\\
+
+$\trans{f~x_1 \dots x_n = e \in c } = \dtrans{f~x_1 \dots x_n = e[f_p/f]} \land \strans{f \in c} \land \strans{f_p \in c}$
+
+We'd like a typical contract-checking session to go like this:
+\begin{enumerate}
+\item Start with an empty theory $T$.
+\item Let $f~x_1 \dots x_n = e \in c$ be a function definition to check wrt contract $c$. Check (with equinox) the consistency of the theory $T' = T \cup \trans{f~x_1 \dots x_n = e \in c}$
+\item If $T'$ is consistent then let $T = \strans{f \in c} \cup T$ and go to 2. with the next function definition; otherwise give a counter-example and ask the user for refinement of the contracts and/or lemmas(?)
+\end{enumerate}
+
+\section{Questions}
+
+Here are some open issues, design choices and equinox-related questions.
+
+\begin{enumerate}
+\item Nested implications may lead to existential quantification, is it troublesome in equinox? (altough we don't have this case here)
+\item More generally, does equinox accept any FOF the grammar here define?
+\item In the section $\dtrans{}$, we believe replacing $\varphi$ by $\lor \trans{f x_1 \dots x_n} = \unr$ is equivalent. What's better for equinox?
+\item Is the session stuff realistic? It looks like it can have a quadratic behaviour but maybe with the right API it's ok?
 
 \thispagestyle{empty}
 \end{document}
