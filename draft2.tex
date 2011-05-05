@@ -19,39 +19,60 @@
 
 \thispagestyle{empty}
 \section{Grammars}
+
+In the following, $D$ is a data constructor, $f$ a function symbol and we consider them as strings. $n$ represents an integer.
+
 \subsection{$\lambda$-lifted haskell subset}
-\begin{eqnarray*}
+\begin{center}
+\begin{array}{rclr}
   u,e &:=& x \mid f \mid e~e \mid D \mid \bad \mid n & (Expression)\\
   p &:=& \Delta_1 \dots \Delta_n & (Program)\\
   \Delta &:=& d \mid transp (d,c) \mid opaque (d,c) & (Defintion~and~contract)\\
   d &:=& f~x_1 \dots x_n = e \mid f~x_1 \dots x_n = \mbox{ case } e \mbox{ of } [(pat_i,e_i)] & (Definition)\\
   pat &:=&D~x_1 \dots x_n & (Pattern)\\
-\end{eqnarray*}
+\end{array}
+\end{center}
 
 \subsection{FOL}
-\begin{eqnarray*}
-  t &:=& x \mid \mbox{app}(t_1,t_2) \mid k & (Term)\\
-  k &:=& D \mid f \mid ? \mid \bad \mid \unr & (Constant)\\
+\begin{center}
+\begin{array}{rclr}
+  t &:=& x \mid \mbox{app}(t_1,t_2) \mid D \mid f \mid n \mid \bad \mid \unr \mid \mbox{CF}(t) & (Term)\\
   \phi &:=& \forall x.\phi \mid \phi \to \phi \mid \lnot \phi \mid \phi \lor \phi \mid \phi \land \phi \mid true \mid t=t \mid \mbox{CF}(t)& (Formula)\\
-\end{eqnarray*}
+\end{array}
+\end{center}
+CF$(t)$ holds iff $t$ satisfies $\ok$.
 
 \subsection{Contracts}
-\begin{eqnarray*}
+\begin{center}
+\begin{array}{rclr}
   c &:=& x:c_1 \to c_2\\
   &\mid& (c_1,c_2) \\
   &\mid& \{ x \mid e \}\\
   &\mid& \any \\
-\end{eqnarray*}
-We can consider CF as a user contract.
+\end{array}
+\end{center}
+
+Semantics of contract satisfaction:
+\begin{center}
+\begin{array}{rcl}
+  e \in \{x \mid p \} &\iff& e \mbox{ diverges or } (e \mbox{ is crash-free and } p[e/x] \not \to^\star \{\bad,\unr\})\\
+  e \in x:t_1 \to t_2 &\iff& \forall e_1 \in t_1, (e~e_1) \in t_2[e_1/x]\\
+  e \in (t_1,t_2) &\iff& e \mbox{ diverges or } (e \to^\star (e_1,e_2) \mbox{ and } e_1 \in t_1, e_2 \in t_2)\\
+  e \in \any &\iff& True  
+\end{array}
+\end{center}
+
 
 \section{Translation}
 We define several translations: $\etrans{},\dtrans{},\strans{},\trans{}$.
-\begin{eqnarray*}
+\begin{center}
+\begin{array}{rclr}
   \etrans{} &::& Expression \to Term\\
   \dtrans{} &::& Definition \to FOF\\
   \strans{} &::& Expression \to Contract \to FOF\\
   \trans {} &::& Definition \to Contract \to FOF\\
-\end{eqnarray*}
+\end{array}
+\end{center}
 
 \subsection{$\etrans{}$}
 $\etrans{e}$ is a term. The translation is direct.
@@ -59,19 +80,19 @@ $\etrans{e}$ is a term. The translation is direct.
 \subsection{$\dtrans{}$}
 $\dtrans{d}$ is a first-order formula.
 
-\begin{eqnarray*}
-\dtrans{f~x_1 \dots x_n = e} &=& \forall x_1 \dots x_n.\etrans{f~x_1 \dots x_n} = \etrans{e} &\\
-\dtrans{f~x_1 \dots x_n = \mbox{case } e \mbox{ of } [D_i~\overline{z} \mapsto e_i]} &=& \forall x_1 \dots x_n~(\bigwedge_i (\forall \overline{z}~\etrans{e} = \etrans{D_i~\overline{z}} \to \etrans{f~x_1 \dots x_n} = \etrans{e_i}) &\\
-&& \land \etrans{e} = \bad \to \etrans{f~x_1 \dots x_n} = \bad)&\\ 
-&& \land \etrans{f~x_1 \dots x_n} = \unr \bigvee_i (\texttt{HD}(e) = D_i) & (\varphi)\\
-\end{eqnarray*}
+\begin{eqnarray}
+\dtrans{f~x_1 \dots x_n = e} &=& \forall x_1 \dots x_n.\etrans{f~x_1 \dots x_n} = \etrans{e}\\
+\dtrans{f~x_1 \dots x_n = \mbox{case } e \mbox{ of } [D_i~\overline{z} \mapsto e_i]} &=& \forall x_1 \dots x_n~(\bigwedge_i (\forall \overline{z}~\etrans{e} = \etrans{D_i~\overline{z}} \to \etrans{f~x_1 \dots x_n} = \etrans{e_i})\\
+&& \land \etrans{e} = \bad \to \etrans{f~x_1 \dots x_n} = \bad)\\ 
+&& \land \etrans{f~x_1 \dots x_n} = \unr \bigvee_i (\texttt{HD}(e) = D_i) 
+\end{eqnarray}
 
 \subsection{$\strans{}$}
 $\strans{e \in c}$ is a first-order formula.
 \begin{eqnarray}
 \strans{e \in \any} &=& true\\
 \strans{e \in \{x \mid u \}} &=& \unr \lor (\mbox{CF}(\etrans{e}) \land \etrans{u[e/x]} \neq \bad \land \etrans{u[e/x]} \neq False)\\
-\strans{e \in x:c_1 \to c_2}  &=& \forall x_1. \strans{x_1 \in c_1} \to \strans{e~x_1 \in c_2[x_1/x]}\\
+\strans{e \in x:c_1 \to c_2}  &=& \forall x_1. \strans{x_1 \in c_1} \to \strans{e~x_1 \in c_2[x_1/x]}
 \end{eqnarray}
 $False$ is a data constructor here.
 
@@ -84,11 +105,11 @@ It's the final translation, which takes a function definition and its contract a
 
 \thispagestyle{empty}
 
-\begin{eqnarray*}
+\begin{eqnarray}
 \trans{opaque(f~x_1 \dots x_n = e,c)} &=& \dtrans{f~x_1 \dots x_n = e[f_p/f]} \land \strans{f \in c} \land \strans{f_p \in c}\\
 \trans{transp(f~x_1 \dots x_n = e,c)} &=& \dtrans{f~x_1 \dots x_n = e[f_p/f]} \land \strans{f \in c} \land \strans{f_p \in c}\\
-\trans{f~x_1 \dots x_n = e} &=& \trans{opaque(f~x_1\dots x_n) = e,Ok \to \dots \to Ok)}\\
-\end{eqnarray*}
+\trans{f~x_1 \dots x_n = e} &=& \trans{opaque(f~x_1\dots x_n) = e,Ok \to \dots \to Ok)}
+\end{eqnarray}
 
 We'd like a typical contract-checking session to go like this:
 \begin{enumerate}

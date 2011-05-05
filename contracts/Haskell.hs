@@ -6,13 +6,14 @@ module Haskell ( Expression (..)
                , Contract (..)
                , apps
                , subst
+               , substC
                , ok)
 where
 
 type Variable = String
 type Constructor = String
 
--- Integer not implemented
+-- TODO Integer not implemented
 data Expression = Var Variable
                 | Fun Variable
                 | Con Constructor
@@ -45,13 +46,19 @@ apps (x:xs) = x `App` (apps xs)
 
 subst :: Expression -> Expression -> Variable -> Expression -- e[x/y]
 subst (Var v) x y | v == y = x
-                  | False  = Var v
+                  | otherwise  = Var v
 subst (Fun f) x y | f == y = x
-                  | False  = Fun f
+                  | otherwise  = Fun f
 subst (Con c) x y | c == y = x
-                  | False  = Con c
+                  | otherwise  = Con c
 subst (App e1 e2) x y = App (subst e1 x y) (subst e2 x y)
 subst BAD _ _ = BAD
+
+substC :: Contract -> Expression -> Variable -> Contract
+substC (AppC u c1 c2) x y = AppC u (substC c1 x y) (substC c2 x y) -- TODO and if u==y?
+substC (Pair c1 c2) x y = Pair (substC c1 x y) (substC c2 x y)
+substC (Pred u e) x y = if u/=y then Pred u (subst e x y) else (Pred u e)
+substC Any _ _ = Any
 
 ok :: Contract
 ok = Pred "x" (Con "True")
