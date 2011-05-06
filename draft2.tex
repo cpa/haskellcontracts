@@ -75,7 +75,15 @@ We define several translations: $\etrans{},\dtrans{},\strans{},\trans{}$.
 \end{center}
 
 \subsection{$\etrans{}$}
-$\etrans{e}$ is a term. The translation is direct.
+$\etrans{e}$ is a term. 
+
+\begin{eqnarray}
+\etrans{x} &=& x\\
+\etrans{f} &=& f\\
+\etrans{e_1~e_2} &=& app(e_1,e_2)\\
+\etrans{D} &=& D\\
+\etrans{\bad} &=& \bad\\
+\etrans{n} &=& n\\
 
 \subsection{$\dtrans{}$}
 $\dtrans{d}$ is a first-order formula.
@@ -84,21 +92,23 @@ $\dtrans{d}$ is a first-order formula.
 \dtrans{f~x_1 \dots x_n = e} &=& \forall x_1 \dots x_n.\etrans{f~x_1 \dots x_n} = \etrans{e}\\
 \dtrans{f~x_1 \dots x_n = \mbox{case } e \mbox{ of } [D_i~\overline{z} \mapsto e_i]} &=& \forall x_1 \dots x_n~(\bigwedge_i (\forall \overline{z}~\etrans{e} = \etrans{D_i~\overline{z}} \to \etrans{f~x_1 \dots x_n} = \etrans{e_i})\\
 && \land \etrans{e} = \bad \to \etrans{f~x_1 \dots x_n} = \bad)\\ 
-&& \land \etrans{f~x_1 \dots x_n} = \unr \bigvee_i (\texttt{HD}(e) = D_i) 
+&& \land \etrans{f~x_1 \dots x_n} = \unr \bigvee_i (\texttt{HD}(e) = D_i) \lor e = \bad
 \end{eqnarray}
+
+Can't we just put a XOR instead of OR in the last line?
 
 \subsection{$\strans{}$}
 $\strans{e \in c}$ is a first-order formula.
 \begin{eqnarray}
 \strans{e \in \any} &=& true\\
-\strans{e \in \{x \mid u \}} &=& \unr \lor (\mbox{CF}(\etrans{e}) \land \etrans{u[e/x]} \neq \bad \land \etrans{u[e/x]} \neq False)\\
+\strans{e \in \{x \mid u \}} &=& e = \unr \lor (\mbox{CF}(\etrans{e}) \land \etrans{u[e/x]} \neq \bad \land \etrans{u[e/x]} \neq False)\\
 \strans{e \in x:c_1 \to c_2}  &=& \forall x_1. \strans{x_1 \in c_1} \to \strans{e~x_1 \in c_2[x_1/x]}
 \end{eqnarray}
 $False$ is a data constructor here.
 
 Remark: we follow the semantics of the POPL paper but it's a bit restrictive.
-e.g. in equation 2 we could use the alternate semantics (namely B1 in the POPL paper) : 
-$$\strans{e \in \{x \mid u \}} = \unr \lor (\etrans{u[e/x]} \neq \bad \land \etrans{u[e/x]} \neq False)$$
+e.g. in equation 13 we could use the alternate semantics (namely B1 in the POPL paper) : 
+$$\strans{e \in \{x \mid u \}} = e = \unr \lor (\etrans{u[e/x]} \neq \bad \land \etrans{u[e/x]} \neq False)$$
 
 \subsection{$\trans{}$}
 It's the final translation, which takes a function definition and its contract and returns a first-order formula\\
