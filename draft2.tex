@@ -1,5 +1,4 @@
 \documentclass{article}
-% Test comment
 
 \usepackage{stmaryrd}
 \usepackage{amsmath}
@@ -9,7 +8,9 @@
 
 \newcommand{\etrans}[1]{\mathcal{E} \llbracket #1 \rrbracket}
 \newcommand{\dtrans}[1]{\mathcal{D} \llbracket #1 \rrbracket}
+\newcommand{\ttrans}[1]{\mathcal{T} \llbracket #1 \rrbracket}
 \newcommand{\strans}[1]{\mathcal{S} \llbracket #1 \rrbracket}
+\newcommand{\cf}[1]{\mbox{CF}(#1)}
 \newcommand{\trans}[1]{\llbracket #1 \rrbracket}
 
 \newcommand{\unr}{\texttt{UNR}}
@@ -25,18 +26,19 @@ In the following, $D$ is a data constructor, $f$ a function symbol and we consid
 \subsection{$\lambda$-lifted haskell subset}
 \begin{center}
 \begin{array}{rclr}
-  u,e &:=& x \mid f \mid e~e \mid D \mid \bad \mid n & (Expression)\\
-  p &:=& \Delta_1 \dots \Delta_n & (Program)\\
-  \Delta &:=& d \mid transp (d,c) \mid opaque (d,c) & (Defintion~and~contract)\\
+  u,e &:=& x \mid f \mid e~e \mid D(e,\dots,e) \mid \bad \mid n & (Expression)\\
+  p &:=& \Delta,p \mid T,p \mid \epsilon & (Program)\\
+  %\Delta &:=& d \mid transp (d,c) \mid opaque (d,c) & (Defintion~and~contract)\\
   d &:=& f~x_1 \dots x_n = e \mid f~x_1 \dots x_n = \mbox{ case } e \mbox{ of } [(pat_i,e_i)] & (Definition)\\
-  pat &:=&D~x_1 \dots x_n & (Pattern)\\
+  T &:=& \mbox{data } x~\tau_1 \dots \tau_n = D_1 ; D_2 ; \dots ; D_n & (Data~type~definition)\\ %TODO make type clearer
+  pat &:=& D(x_1,\dots,x_n) & (Pattern)\\
 \end{array}
 \end{center}
 
 \subsection{FOL}
 \begin{center}
 \begin{array}{rclr}
-  t &:=& x \mid \mbox{app}(t_1,t_2) \mid D \mid f \mid n \mid \bad \mid \unr \mid \mbox{CF}(t) & (Term)\\
+  t &:=& x \mid \mbox{app}(t_1,t_2) \mid D(t,\dots,t) \mid f \mid n \mid \bad \mid \unr \mid \mbox{CF}(t) & (Term)\\
   \phi &:=& \forall x.\phi \mid \phi \to \phi \mid \lnot \phi \mid \phi \lor \phi \mid \phi \land \phi \mid true \mid t=t \mid \mbox{CF}(t)& (Formula)\\
 \end{array}
 \end{center}
@@ -64,13 +66,14 @@ Semantics of contract satisfaction:
 
 
 \section{Translation}
-We define several translations: $\etrans{},\dtrans{},\strans{},\trans{}$.
+We define several translations: $\etrans{},\dtrans{},\ttrans{},\strans{}$.
 \begin{center}
 \begin{array}{rclr}
   \etrans{} &::& Expression \to Term\\
   \dtrans{} &::& Definition \to FOF\\
+  \ttrans{} &::& Data~type  \to FOF\\
   \strans{} &::& Expression \to Contract \to FOF\\
-  \trans {} &::& Definition \to Contract \to FOF\\
+%  \trans {} &::& Definition \to Contract \to FOF\\
 \end{array}
 \end{center}
 
@@ -81,7 +84,7 @@ $\etrans{e}$ is a term.
 \etrans{x} &=& x\\
 \etrans{f} &=& f\\
 \etrans{e_1~e_2} &=& app(e_1,e_2)\\
-\etrans{D} &=& D\\
+\etrans{D(e_1,\dots,e_n)} &=& D(\etrans{e_1},\dots,\etrans{e_n}\\
 \etrans{\bad} &=& \bad\\
 \etrans{n} &=& n\\
 
@@ -92,7 +95,7 @@ $\dtrans{d}$ is a first-order formula.
 \dtrans{f~x_1 \dots x_n = e} &=& \forall x_1 \dots x_n.\etrans{f~x_1 \dots x_n} = \etrans{e}\\
 \dtrans{f~x_1 \dots x_n = \mbox{case } e \mbox{ of } [D_i~\overline{z} \mapsto e_i]} &=& \forall x_1 \dots x_n~(\bigwedge_i (\forall \overline{z}~\etrans{e} = \etrans{D_i~\overline{z}} \to \etrans{f~x_1 \dots x_n} = \etrans{e_i})\\
 && \land \etrans{e} = \bad \to \etrans{f~x_1 \dots x_n} = \bad)\\ 
-&& \land \etrans{f~x_1 \dots x_n} = \unr \bigvee_i (\texttt{HD}(e) = D_i) \lor e = \bad
+&& \land (\etrans{f~x_1 \dots x_n} = \unr \bigvee_i (\texttt{HD}(e) = D_i) \lor e = \bad)
 \end{eqnarray}
 
 Can't we just put a XOR instead of OR in the last line?
@@ -110,34 +113,20 @@ Remark: we follow the semantics of the POPL paper but it's a bit restrictive.
 e.g. in equation 13 we could use the alternate semantics (namely B1 in the POPL paper) : 
 $$\strans{e \in \{x \mid u \}} = e = \unr \lor (\etrans{u[e/x]} \neq \bad \land \etrans{u[e/x]} \neq False)$$
 
-\subsection{$\trans{}$}
-It's the final translation, which takes a function definition and its contract and returns a first-order formula\\
-
 \thispagestyle{empty}
 
-\begin{eqnarray}
-\trans{opaque(f~x_1 \dots x_n = e,c)} &=& \dtrans{f~x_1 \dots x_n = e[f_p/f]} \land \strans{f \in c} \land \strans{f_p \in c}\\
-\trans{transp(f~x_1 \dots x_n = e,c)} &=& \dtrans{f~x_1 \dots x_n = e[f_p/f]} \land \strans{f \in c} \land \strans{f_p \in c}\\
-\trans{f~x_1 \dots x_n = e} &=& \trans{opaque(f~x_1\dots x_n) = e,Ok \to \dots \to Ok)}
-\end{eqnarray}
+\section{Datatypes}
+$\ttrans{T}$ is a set of first-order formulae.
+$\ttrans{\mbox{data } T = D_1 ; \dots ; D_n} = S_1 \cup S_2 \cup S_3$.
 
-We'd like a typical contract-checking session to go like this:
-\begin{enumerate}
-\item Start with an empty theory $T$.
-\item Let $f~x_1 \dots x_n = e \in c$ be an opaque function definition to check wrt contract $c$. Check (with equinox) the consistency of the theory $T' = T \cup \trans{f~x_1 \dots x_n = e \in c}$
-\item If $T'$ is consistent then let $T = \strans{f \in c} \cup T$ and go to 2. with the next function definition; otherwise give a counter-example and ask the user for refinement of the contracts and/or lemmas(?)
-\end{enumerate}
+First, for each $D_i$ we introduce selectors $sel_{k,D_i}$, which are basically projections of $D_i(x_1,\dots,x_n)$ on its $k$-th composant, so that we can express that constructors are injective :
+$$S_1 := \{ \forall x_1,\dots,x_n . \bigwedge_{1 \leq i \leq n} sel_{i,D_i}(D_i(x_1,\dots,x_n)) = x_i \mid 1 \leq i \ n \}$$
 
-\section{Questions}
+For each pair of different constructors $D_i,D_j$, we state that they can never map to the same value: 
+$$S_2 := \{ \forall x_1,\dots,x_n~\forall y_1,\dots,y_k . D_i(x_1,\dots,x_n) \neq D_j(y_1,\dots,y_k) \mid 1 \leq i < j \leq n \}$$
 
-Here are some open issues, design choices and equinox-related questions.
-
-\begin{enumerate}
-\item Nested implications may lead to existential quantification, is it troublesome in equinox? (altough we don't have this case here)
-\item More generally, does equinox accept any FOF the grammar here defines?
-\item In the section $\dtrans{}$, we believe replacing $\varphi$ by $\lor \trans{f x_1 \dots x_n} = \unr$ is equivalent. What's better for equinox?
-\item Is the session stuff realistic? It looks like it can have a quadratic behaviour but maybe with the right API it's ok?
-\end{enumerate}
+Finally, we have to give crash-freeness conditions for each $D_i$:
+$$S_3 := \{ \forall x_1,\dots,x_n . (\cf{x_1} \land \dots \land \cf{x_n} \leftrightarrow \cf{D_i(x_1,\dots,x_n)}) \mid 1 \leq i \leq n \}$$
 
 \thispagestyle{empty}
 \end{document}
