@@ -8,7 +8,8 @@ import Control.Monad.State
 eTrans :: H.Expression -> F.Term
 dTrans :: H.Definition -> F.Formula
 sTrans :: H.Expression -> H.Contract -> Fresh F.Formula
-trans  :: H.DefCont    -> Fresh F.Formula
+tTrans :: H.DataType -> [F.Formula]
+trans  :: H.DefGeneral    -> Fresh F.Formula
 
 type Fresh = State (String,Int)
 
@@ -35,35 +36,16 @@ sTrans e (H.AppC x c1 c2) = do
   f2 <- sTrans (H.App e (H.Var freshX)) c2'
   return $ F.Forall freshX (f1 `F.Implies` f2)
 
-trans (H.Def d) = trans (H.Opaque d (okFromd d))
-trans (H.Transp (H.Let f vs e) c) = do
-  (s,k) <- get
-  put (s,k+1)
-  let freshF = H.Var $ s++(show k) 
-  return $ dTrans (H.Let f vs $ H.subst e freshF f) `F.And` (evalState (sTrans (H.Var f) c) (f,0)) `F.And` (evalState (sTrans freshF c) (f++"_",0))
-trans (H.Transp (H.LetCase f vs e pes) c) = do
-  (s,k) <- get
-  put (s,k+1)
-  let freshF = H.Var $ s++(show k) 
-  return $ dTrans (H.LetCase f vs (H.subst e freshF f) pes) `F.And` (evalState (sTrans (H.Var f) c) (f,0)) `F.And` (evalState (sTrans freshF c) (f++"_",0))
-trans (H.Opaque (H.Let f vs e) c) = do
-  (s,k) <- get
-  put (s,k+1)
-  let freshF = H.Var $ s++(show k) 
-  return $ dTrans (H.Let f vs $ H.subst e freshF f) `F.And` (evalState (sTrans (H.Var f) c) (f,0)) `F.And` (evalState (sTrans freshF c) (f++"_",0))
-trans (H.Opaque (H.LetCase f vs e pes) c) = do
-  (s,k) <- get
-  put (s,k+1)
-  let freshF = H.Var $ s++(show k) 
-  return $ dTrans (H.LetCase f vs (H.subst e freshF f) pes) `F.And` (evalState (sTrans (H.Var f) c) (f,0)) `F.And` (evalState (sTrans freshF c) (f++"_",0))
+tTrans (H.Data d dns) = undefined
 
+trans = undefined
 
 eTransfxi f vs = eTrans $ H.apps (H.Fun f:map H.Var vs)
 
 okFromd :: H.Definition -> H.Contract
 okFromd (H.Let _ vs _) = foldl' (\c _ -> H.AppC "dummy" c H.ok) H.ok vs
 
-
+{-
 test = trans $ H.Opaque d c
   where d = H.Let "f" ["x","y"] (H.Var "+" `H.App` (H.Var "x" `H.App` H.Var "y"))
         c = okFromd d
@@ -77,3 +59,4 @@ test3 = trans $ H.Opaque d c
         c = okFromd d
 
 main = putStrLn $ unlines $ map F.toLatex (F.splitOnAnd $ evalState test ("foo",0))
+-}

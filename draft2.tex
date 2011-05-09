@@ -18,7 +18,6 @@
 \newcommand{\any}{\texttt{Any}}
 \newcommand{\ok}{\texttt{Ok}}
 
-\thispagestyle{empty}
 \section{Grammars}
 
 In the following, $D$ is a data constructor, $f$ a function symbol and we consider them as strings. $n$ represents an integer.
@@ -27,13 +26,16 @@ In the following, $D$ is a data constructor, $f$ a function symbol and we consid
 \begin{center}
 \begin{array}{rclr}
   u,e &:=& x \mid f \mid e~e \mid D(e,\dots,e) \mid \bad \mid n & (Expression)\\
-  p &:=& \Delta,p \mid T,p \mid \epsilon & (Program)\\
-  %\Delta &:=& d \mid transp (d,c) \mid opaque (d,c) & (Defintion~and~contract)\\
+  p &:=& \Delta,p \mid T,p \mid f \in c,p \mid \epsilon & (Program)\\
+  \Delta &:=& d \mid opaque(d) & (Defintion~and~scope)\\
   d &:=& f~x_1 \dots x_n = e \mid f~x_1 \dots x_n = \mbox{ case } e \mbox{ of } [(pat_i,e_i)] & (Definition)\\
-  T &:=& \mbox{data } x~\tau_1 \dots \tau_n = D_1 ; D_2 ; \dots ; D_n & (Data~type~definition)\\ %TODO make type clearer
+  T &:=& \mbox{data } x = D_1 ; D_2 ; \dots ; D_n & (Data~type~definition)\\ %TODO make type clearer
   pat &:=& D(x_1,\dots,x_n) & (Pattern)\\
 \end{array}
 \end{center}
+
+For the moment we consider data constructors to be saturated, ie fully applied (hence the special application syntax).
+
 
 \subsection{FOL}
 \begin{center}
@@ -66,39 +68,56 @@ Semantics of contract satisfaction:
 
 
 \section{Translation}
-We define several translations: $\etrans{},\dtrans{},\ttrans{},\strans{}$.
+We define several translations: $\etrans{},\dtrans{},\ttrans{},\strans{},\trans{}$.
 \begin{center}
 \begin{array}{rclr}
   \etrans{} &::& Expression \to Term\\
   \dtrans{} &::& Definition \to FOF\\
   \ttrans{} &::& Data~type  \to FOF\\
   \strans{} &::& Expression \to Contract \to FOF\\
-%  \trans {} &::& Definition \to Contract \to FOF\\
+  \trans {} &::& Program    \to \{ FOF \}\\
 \end{array}
 \end{center}
 
 \subsection{$\etrans{}$}
-$\etrans{e}$ is a term. 
+$\etrans{e}$ is a term, the translation is really straightforward.
 
 \begin{eqnarray}
 \etrans{x} &=& x\\
 \etrans{f} &=& f\\
 \etrans{e_1~e_2} &=& app(e_1,e_2)\\
-\etrans{D(e_1,\dots,e_n)} &=& D(\etrans{e_1},\dots,\etrans{e_n}\\
+\etrans{D(e_1,\dots,e_n)} &=& D(\etrans{e_1},\dots,\etrans{e_n})\\
 \etrans{\bad} &=& \bad\\
 \etrans{n} &=& n\\
+
+
+\subsection{$\ttrans{}$}
+$\ttrans{T}$ is a set of first-order formulae which we break down in three parts:
+$\ttrans{\mbox{data } T = D_1 ; \dots ; D_n} = S_1 \cup S_2 \cup S_3$.
+
+First, for each $D_i$ of arity $n_i$ we introduce selectors $sel_{k,D_i}$, which are projections of $D_i(x_1,\dots,x_n_i)$ on its $k$-th composant, so that we can express that constructors are injective :
+$$S_1 := \{ \forall x_1,\dots,x_{n_i} . \bigwedge_{1 \leq j \leq n} sel_{j,D_i}(D_i(x_1,\dots,x_{n_i})) = x_j \mid 1 \leq i \leq n \}$$
+
+For each pair of different constructors $D_i,D_j$, we state that they can never map to the same value: 
+$$S_2 := \{ \forall x_1,\dots,x_{n_i}~\forall y_1,\dots,y_{n_j} . D_i(x_1,\dots,x_{n_i}) \neq D_j(y_1,\dots,y_{n_j}) \mid 1 \leq i < j \leq n \}$$
+
+Finally, we have to give crash-freeness conditions for each $D_i$:
+$$S_3 := \{ \forall x_1,\dots,x_{n_i} . (\cf{x_1} \land \dots \land \cf{x_{n_i}} \leftrightarrow \cf{D_i(x_1,\dots,x_{n_i})}) \mid 1 \leq i \leq n \}$$
+
 
 \subsection{$\dtrans{}$}
 $\dtrans{d}$ is a first-order formula.
 
 \begin{eqnarray}
-\dtrans{f~x_1 \dots x_n = e} &=& \forall x_1 \dots x_n.\etrans{f~x_1 \dots x_n} = \etrans{e}\\
-\dtrans{f~x_1 \dots x_n = \mbox{case } e \mbox{ of } [D_i~\overline{z} \mapsto e_i]} &=& \forall x_1 \dots x_n~(\bigwedge_i (\forall \overline{z}~\etrans{e} = \etrans{D_i~\overline{z}} \to \etrans{f~x_1 \dots x_n} = \etrans{e_i})\\
+\dtrans{f~\overline{x} = e} &=& \forall x_1 \dots x_n.\etrans{f~x_1 \dots x_n} = \etrans{e}\\
+\dtrans{f~\overline{x} = \mbox{case } e \mbox{ of } [D_i(\overline{z}) \mapsto e_i]} &=& \forall x_1 \dots x_n.(\bigwedge_i (\forall \overline{z}~\etrans{e} = \etrans{D_i(\overline{z})} \to \etrans{f~\overline{x}} = \etrans{e_i})\\
 && \land \etrans{e} = \bad \to \etrans{f~x_1 \dots x_n} = \bad)\\ 
-&& \land (\etrans{f~x_1 \dots x_n} = \unr \bigvee_i (\texttt{HD}(e) = D_i) \lor e = \bad)
+&& \land ((\bigwedge_i e \neq D_i(sel_{1,D_i}(e),\dots,sel_{n_i,D_i}(e)) \land \etrans{e} \neq \bad)\\
+&& ~~\to \etrans{f~x_1 \dots x_n} = \unr)
 \end{eqnarray}
 
-Can't we just put a XOR instead of OR in the last line?
+An alternative to using selectors would be to write something along the line of $\exists y_1,\dots,y_{D_i}. e \neq D_i(y_1,\dots,y_{D_i})$. It is equivalent but the skolemisation process of equinox will anyway turn those existentials in selectors functions. But if we pattern match $D_i$ in two different functions, we would get two different selectors (the same selector with two different names) so it's better (for the efficiency of the proof) to define selectors for each $D_i$ once in for all and use it as much as possible afterwards.
+
 
 \subsection{$\strans{}$}
 $\strans{e \in c}$ is a first-order formula.
@@ -113,21 +132,34 @@ Remark: we follow the semantics of the POPL paper but it's a bit restrictive.
 e.g. in equation 13 we could use the alternate semantics (namely B1 in the POPL paper) : 
 $$\strans{e \in \{x \mid u \}} = e = \unr \lor (\etrans{u[e/x]} \neq \bad \land \etrans{u[e/x]} \neq False)$$
 
-\thispagestyle{empty}
+\subsection{$\trans{}$}
+$\trans{p}$ defines the translation of a program to a theory (a set of FO formulae)
 
-\section{Datatypes}
-$\ttrans{T}$ is a set of first-order formulae.
-$\ttrans{\mbox{data } T = D_1 ; \dots ; D_n} = S_1 \cup S_2 \cup S_3$.
+\begin{eqnarray}
+\trans{\epsilon} &=& \emptyset\\
+\trans{d,p} &=& \dtrans{d} \cup \trans{p}\\
+\trans{opaque(d),p} &=& \dtrans{d} \cup \trans{p}\\
+\trans{T,p} &=& \ttrans{T} \cup \trans{p}\\
+\trans{f \in c,p} &=& \strans{f \in c} \cup \trans{p}\\
+\end{eqnarray}
 
-First, for each $D_i$ we introduce selectors $sel_{k,D_i}$, which are basically projections of $D_i(x_1,\dots,x_n)$ on its $k$-th composant, so that we can express that constructors are injective :
-$$S_1 := \{ \forall x_1,\dots,x_n . \bigwedge_{1 \leq i \leq n} sel_{i,D_i}(D_i(x_1,\dots,x_n)) = x_i \mid 1 \leq i \ n \}$$
+\section{User interaction}
 
-For each pair of different constructors $D_i,D_j$, we state that they can never map to the same value: 
-$$S_2 := \{ \forall x_1,\dots,x_n~\forall y_1,\dots,y_k . D_i(x_1,\dots,x_n) \neq D_j(y_1,\dots,y_k) \mid 1 \leq i < j \leq n \}$$
+The user provides a program $p$ which consists of functions definition (either opaque or transparent), data types definition and claims that functions satisfies contracts.
 
-Finally, we have to give crash-freeness conditions for each $D_i$:
-$$S_3 := \{ \forall x_1,\dots,x_n . (\cf{x_1} \land \dots \land \cf{x_n} \leftrightarrow \cf{D_i(x_1,\dots,x_n)}) \mid 1 \leq i \leq n \}$$
+Then, for each function definition $d_f := f~x_1 \dots x_n = e$ of a function $f$ that has to satisfy the set of contracts $C_f$, we construct the context $C = p \setminus ( d_f \cup C_f )$, which is basically the program $p$ without the definition of $f$ and the contracts it has to satisfy. 
 
-\thispagestyle{empty}
+We then want to check (with equinox) that:
+ $$\trans{C} \cup \{ \dtrans{f~x_1 \dots \x_n = e[f^\star/f]}, \bigwedge_{c \in C_f} \strans{f^\star \in c} \} \models \bigwedge_{c \in C_f} \strans{f \in c}$$
+
+Which we rewrite as:
+ $$\trans{C} \cup \{ \dtrans{f~x_1 \dots \x_n = e[f^\star/f]}, \bigwedge_{c \in C_f} \strans{f^\star \in c},  \bigvee_{c \in C_f} \lnot \strans{f \in c} \} \models \bot$$
+
+\section{Remarks}
+\begin{itemize}
+\item What to do with mutually recursive functions?
+\item Explore the variants translations (cf variants of the popl paper)
+\end{itemize}
+
 \end{document}
 

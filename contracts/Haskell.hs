@@ -1,9 +1,11 @@
 module Haskell ( Expression (..)
+               , DataType (..)
                , Program (..)
-               , DefCont (..)
                , Definition (..)
                , Pattern (..)
                , Contract (..)
+               , DefGeneral (..)
+               , ContSat (..)
                , apps
                , subst
                , substC
@@ -19,19 +21,24 @@ data Expression = Var Variable
                 | Con Constructor
                 | App Expression Expression
                 | BAD
-                deriving (Show,Eq)                  
+                deriving (Show,Eq)          
 
-type Program = [DefCont]
+type Program = [DefGeneral]
+data DefGeneral = Def Definition
+                | DataType DataType
+                | ContSat ContSat
+                deriving (Eq,Show)
 
-data DefCont = Def Definition
-             | Transp Definition Contract
-             | Opaque Definition Contract
+data ContSat = Satisfies Variable Contract
              deriving (Show,Eq)                  
                
 data Definition = Let Variable [Variable] Expression
                 | LetCase Variable [Variable] Expression [(Pattern,Expression)]
                 deriving (Show,Eq)                  
                   
+data DataType = Data Variable [(Variable,Int)] -- Data constructors + arity
+              deriving (Eq,Show)
+
 type Pattern = [Variable]
 
 data Contract = AppC Variable Contract Contract -- x : c -> c'
