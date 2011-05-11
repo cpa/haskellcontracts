@@ -1,6 +1,5 @@
 module Main where
-  
-import Grammar
+import Parser
 import Translation
 import Control.Monad
 import FOL

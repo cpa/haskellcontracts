@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -w #-}
-module Grammar where
+module Parser where
 import Data.Char
 import Haskell
 
@@ -357,7 +357,7 @@ happyReduction_7 ((HappyAbsSyn11  happy_var_4) `HappyStk`
 	(HappyTerminal (TokenVar happy_var_1)) `HappyStk`
 	happyRest)
 	 = HappyAbsSyn6
-		 (Def $ Let happy_var_1 happy_var_2 happy_var_4
+		 (Def $ Let (map toLower happy_var_1) happy_var_2 happy_var_4
 	) `HappyStk` happyRest
 
 happyReduce_8 = happyReduce 7 6 happyReduction_8
@@ -370,7 +370,7 @@ happyReduction_8 ((HappyAbsSyn7  happy_var_7) `HappyStk`
 	(HappyTerminal (TokenVar happy_var_1)) `HappyStk`
 	happyRest)
 	 = HappyAbsSyn6
-		 (Def $ LetCase happy_var_1 happy_var_2 happy_var_5 happy_var_7
+		 (Def $ LetCase (map toLower happy_var_1) happy_var_2 happy_var_5 happy_var_7
 	) `HappyStk` happyRest
 
 happyReduce_9 = happySpecReduce_3  6 happyReduction_9
@@ -378,7 +378,7 @@ happyReduction_9 (HappyAbsSyn12  happy_var_3)
 	_
 	(HappyTerminal (TokenVar happy_var_1))
 	 =  HappyAbsSyn6
-		 (ContSat $ Satisfies happy_var_1 happy_var_3
+		 (ContSat $ Satisfies (map toLower happy_var_1) happy_var_3
 	)
 happyReduction_9 _ _ _  = notHappyAtAll 
 
@@ -390,7 +390,7 @@ happyReduction_10 ((HappyAbsSyn9  happy_var_5) `HappyStk`
 	_ `HappyStk`
 	happyRest)
 	 = HappyAbsSyn6
-		 (DataType $ Data happy_var_2 happy_var_5
+		 (DataType $ Data (map toLower happy_var_2) happy_var_5
 	) `HappyStk` happyRest
 
 happyReduce_11 = happyReduce 5 7 happyReduction_11
@@ -448,7 +448,7 @@ happyReduce_16 = happySpecReduce_2  8 happyReduction_16
 happyReduction_16 (HappyAbsSyn8  happy_var_2)
 	(HappyTerminal (TokenVar happy_var_1))
 	 =  HappyAbsSyn8
-		 (happy_var_1:happy_var_2
+		 ((map toLower happy_var_1):happy_var_2
 	)
 happyReduction_16 _ _  = notHappyAtAll 
 
@@ -459,13 +459,13 @@ happyReduction_17 (_ `HappyStk`
 	(HappyTerminal (TokenVar happy_var_1)) `HappyStk`
 	happyRest)
 	 = HappyAbsSyn8
-		 (happy_var_1:happy_var_3
+		 ((map toLower happy_var_1):happy_var_3
 	) `HappyStk` happyRest
 
 happyReduce_18 = happySpecReduce_1  8 happyReduction_18
 happyReduction_18 (HappyTerminal (TokenVar happy_var_1))
 	 =  HappyAbsSyn8
-		 ([happy_var_1]
+		 ([map toLower happy_var_1]
 	)
 happyReduction_18 _  = notHappyAtAll 
 
@@ -474,7 +474,7 @@ happyReduction_19 _
 	(HappyTerminal (TokenVar happy_var_2))
 	_
 	 =  HappyAbsSyn8
-		 ([happy_var_2]
+		 ([map toLower happy_var_2]
 	)
 happyReduction_19 _ _ _  = notHappyAtAll 
 
@@ -490,7 +490,7 @@ happyReduction_21 ((HappyAbsSyn9  happy_var_4) `HappyStk`
 	(HappyTerminal (TokenVar happy_var_1)) `HappyStk`
 	happyRest)
 	 = HappyAbsSyn9
-		 ((happy_var_1,happy_var_2):happy_var_4
+		 ((map toLower happy_var_1,happy_var_2):happy_var_4
 	) `HappyStk` happyRest
 
 happyReduce_22 = happyReduce 6 9 happyReduction_22
@@ -502,14 +502,14 @@ happyReduction_22 ((HappyAbsSyn9  happy_var_6) `HappyStk`
 	_ `HappyStk`
 	happyRest)
 	 = HappyAbsSyn9
-		 ((happy_var_2,happy_var_3):happy_var_6
+		 ((map toLower happy_var_2,happy_var_3):happy_var_6
 	) `HappyStk` happyRest
 
 happyReduce_23 = happySpecReduce_2  9 happyReduction_23
 happyReduction_23 (HappyTerminal (TokenInt happy_var_2))
 	(HappyTerminal (TokenVar happy_var_1))
 	 =  HappyAbsSyn9
-		 ([(happy_var_1,happy_var_2)]
+		 ([(map toLower happy_var_1,happy_var_2)]
 	)
 happyReduction_23 _ _  = notHappyAtAll 
 
@@ -520,7 +520,7 @@ happyReduction_24 (_ `HappyStk`
 	_ `HappyStk`
 	happyRest)
 	 = HappyAbsSyn9
-		 ([(happy_var_2,happy_var_3)]
+		 ([(map toLower happy_var_2,happy_var_3)]
 	) `HappyStk` happyRest
 
 happyReduce_25 = happySpecReduce_0  9 happyReduction_25
@@ -532,7 +532,7 @@ happyReduce_26 = happySpecReduce_2  10 happyReduction_26
 happyReduction_26 (HappyAbsSyn10  happy_var_2)
 	(HappyTerminal (TokenVar happy_var_1))
 	 =  HappyAbsSyn10
-		 (happy_var_1:happy_var_2
+		 ((map toLower happy_var_1):happy_var_2
 	)
 happyReduction_26 _ _  = notHappyAtAll 
 
@@ -544,7 +544,7 @@ happyReduction_27  =  HappyAbsSyn10
 happyReduce_28 = happySpecReduce_1  11 happyReduction_28
 happyReduction_28 (HappyTerminal (TokenVar happy_var_1))
 	 =  HappyAbsSyn11
-		 (if isUpper $ head happy_var_1 then Con happy_var_1 else Var happy_var_1
+		 (if isUpper $ head happy_var_1 then Con (map toLower happy_var_1) else Var happy_var_1
 	)
 happyReduction_28 _  = notHappyAtAll 
 
@@ -574,7 +574,7 @@ happyReduction_31 (_ `HappyStk`
 	_ `HappyStk`
 	happyRest)
 	 = HappyAbsSyn12
-		 (Pred happy_var_2 happy_var_4
+		 (Pred (map toLower happy_var_2) happy_var_4
 	) `HappyStk` happyRest
 
 happyReduce_32 = happyReduce 5 12 happyReduction_32
@@ -585,7 +585,7 @@ happyReduction_32 ((HappyAbsSyn12  happy_var_5) `HappyStk`
 	(HappyTerminal (TokenVar happy_var_1)) `HappyStk`
 	happyRest)
 	 = HappyAbsSyn12
-		 (AppC happy_var_1 happy_var_3 happy_var_5
+		 (AppC (map toLower happy_var_1) happy_var_3 happy_var_5
 	) `HappyStk` happyRest
 
 happyReduce_33 = happyReduce 7 12 happyReduction_33
@@ -598,7 +598,7 @@ happyReduction_33 (_ `HappyStk`
 	_ `HappyStk`
 	happyRest)
 	 = HappyAbsSyn12
-		 (AppC happy_var_2 happy_var_4 happy_var_6
+		 (AppC (map toLower happy_var_2) happy_var_4 happy_var_6
 	) `HappyStk` happyRest
 
 happyNewToken action sts stk [] =
@@ -700,7 +700,7 @@ lexVar cs = case span isAlpha cs of
        ("case",rest) -> TokenCase : lexer rest
        ("of",rest) -> TokenOf : lexer rest       		     		    	  
        (var,rest)   -> TokenVar var : lexer rest
-grammar = getContents >>= print . haskell . lexer
+-- main = getContents >>= print . haskell . lexer
 {-# LINE 1 "templates\GenericTemplate.hs" #-}
 {-# LINE 1 "templates\\GenericTemplate.hs" #-}
 {-# LINE 1 "<built-in>" #-}

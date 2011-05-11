@@ -58,10 +58,10 @@ toTPTP f = header ++ "\n" ++ (aux f) ++ "\n" ++ footer
         aux True = "$true"
         aux False = "$false"
         aux (Eq t1 t2) = "((" ++ auxTerm t1 ++ ") = (" ++ auxTerm t2 ++ "))"
-        aux (CF t) = "(" ++ auxTerm t ++ ")"
+        aux (CF t) = "cf(" ++ auxTerm t ++ ")"
         
         auxTerm (Var v) = v
-        auxTerm (App t1 t2) = "(" ++ auxTerm t1 ++ "(" ++ auxTerm t2 ++ "))"
+        auxTerm (App t1 t2) = "( app(" ++ auxTerm t1 ++ "," ++ auxTerm t2 ++ "))"
         auxTerm (Fun f) = f
         auxTerm BAD = "bad"
         auxTerm UNR = "unr"
