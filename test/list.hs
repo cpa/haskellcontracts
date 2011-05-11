@@ -4,6 +4,9 @@ data List = Nil 0
 data Int = Zero 0
          | Succ 1;;
 
+data Bool = True 0
+          | False 0;;
+
 length x = case x of
   | Nil -> Zero
   | Cons a b -> Succ (length b);;
