@@ -49,7 +49,7 @@ toTPTP :: Formula -> String
 toTPTP f = header ++ "\n" ++ (aux f) ++ "\n" ++ footer
   where header = "fof(axiom,axiom,"
         footer = ").\n"
-        aux (Forall v f) = "![ " ++ (map toUpper v) ++ " ] : (" ++ aux f ++ ")"
+        aux (Forall v f) = "![ " ++ (map id v) ++ " ] : (" ++ aux f ++ ")"
         aux (Implies f1 f2) = "(" ++ aux f1 ++ ") => (" ++ aux f2 ++ ")"
         aux (Iff f1 f2) = "(" ++ aux f1 ++ ") <=> (" ++ aux f2 ++ ")"
         aux (Not f) = "~(" ++ aux f ++ ")"
