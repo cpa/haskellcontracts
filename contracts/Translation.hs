@@ -3,9 +3,7 @@ module Translation where
 import qualified Haskell as H
 import qualified FOL as F
 import Control.Monad.State
-import Control.Applicative
-
-import System.IO.Unsafe
+import Data.Char (toUpper)
 
 -- Type signatures:
 -- eTrans :: H.Expression -> F.Term
@@ -37,15 +35,15 @@ eTransfxi f vs = eTrans $ H.apps (H.Fun f:map H.Var vs)
 dTrans :: H.Definition -> F.Formula
 dTrans (H.Let f vs e) = F.foralls vs $ (eTransfxi f vs) `F.Eq` (eTrans e)
 dTrans (H.LetCase f vs e pes) = 
-  F.foralls vs $ (F.foralls zs $ (foldl (\fo (pi,ei)-> F.And fo $ ((eTrans e) `F.Eq` (eTrans (H.apps $ H.Var (head pi) : map H.Var zs))) `F.Implies` 
-                                                                        ((eTransfxi f vs) `F.Eq` eTrans ei)) F.True pes)) `F.And` 
-  ((eTrans e `F.Eq` F.BAD) `F.Implies` (eTransfxi f vs `F.Eq` F.BAD)) `F.And`  -- Eq 10
+  F.foralls vs' $ (F.foralls zs $ (foldl (\fo (pi,ei)-> F.And fo $ ((eTrans e) `F.Eq` (eTrans (H.apps $ H.Var (head pi) : map H.Var zs))) `F.Implies` 
+                                                                        ((eTransfxi f vs') `F.Eq` eTrans ei)) F.True pes)) `F.And` 
+  ((eTrans e `F.Eq` F.BAD) `F.Implies` (eTransfxi f vs' `F.Eq` F.BAD)) `F.And`  -- Eq 10
   (((F.Not $ eTrans e `F.Eq` F.BAD) `F.And` (foldl (\f (d,a) -> f `F.And` (F.Not $ F.Eq (eTrans e) $ F.apps (F.Var d:(sels d a)))) F.True context)) `F.Implies` -- Eq 11
-   (eTransfxi f vs `F.Eq` F.UNR)) -- Eq 12
+   (eTransfxi f vs' `F.Eq` F.UNR)) -- Eq 12
     where context = map (\p -> (head p, length $ tail p)) $ map fst pes :: [(String,Int)]
           sels d a = [(F.Var $ "sel_"++(show i)++"_"++d) `F.App` eTrans e | i <- [1..a]]
-          zs = ["z"++(show x) | x <- [1..(foldl1 max [snd y | y <- context])]]
-
+          zs = ["Zz"++(show x) | x <- [1..(foldl1 max [snd y | y <- context])]]
+          vs' = map (map toUpper) vs
 
 
 
@@ -56,7 +54,7 @@ sTrans :: H.Expression -> H.Contract -> Fresh F.Formula
 sTrans e H.Any = return F.True
 
 sTrans e (H.Pred x u) = return $ (eTrans e `F.Eq` F.UNR) `F.Or` ((F.CF $ eTrans e) `F.And` 
-                                                                  (F.CF $ eTrans u') `F.And` (F.Not $ eTrans u' `F.Eq` (F.Var "False")))
+                                                                  (F.CF $ eTrans u') `F.And` (F.Not $ eTrans u' `F.Eq` (F.Var "false")))
   where u' = H.subst u e x
 
 sTrans e (H.AppC x c1 c2) = do

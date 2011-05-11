@@ -1,5 +1,5 @@
 {
-module Main where
+module Parser where
 import Data.Char
 import Haskell
 }
@@ -35,10 +35,10 @@ Comm : var Comm {}
      | var {}
      | {- empty -} {}
 
-General : var Args '=' Expr {Def $ Let $1 $2 $4} 
-	| var Args '=' case Expr of PatExpr {Def $ LetCase $1 $2 $5 $7}
-        | var ':::' Contr { ContSat $ Satisfies $1 $3 }
-        | data var Args '=' DataArgs { DataType $ Data $2 $5 }
+General : var Args '=' Expr {Def $ Let (map toLower $1) $2 $4} 
+	| var Args '=' case Expr of PatExpr {Def $ LetCase (map toLower $1) $2 $5 $7}
+        | var ':::' Contr { ContSat $ Satisfies (map toLower $1) $3 }
+        | data var Args '=' DataArgs { DataType $ Data (map toLower $2) $5 }
 
 PatExpr : '|' Pattern '->' Expr PatExpr {($2,$4):$5}
 	| '|' Pattern '->' '('Expr')' PatExpr {($2,$5):$7}
@@ -46,29 +46,29 @@ PatExpr : '|' Pattern '->' Expr PatExpr {($2,$4):$5}
 	| '|' Pattern '->' '('Expr')' {[($2,$5)]}
 	| {- empty -} {[]}
 
-Pattern : var Pattern	{$1:$2}
-	| var '('Pattern')'	{$1:$3}
-	| var {[$1]}
-	| '('var')' {[$2]}
+Pattern : var Pattern	{(map toLower $1):$2}
+	| var '('Pattern')'	{(map toLower $1):$3}
+	| var {[map toLower $1]}
+	| '('var')' {[map toLower $2]}
 	| {- empty -} {[]}
 
-DataArgs : var int '|' DataArgs {($1,$2):$4}
-	 | '('var int')' '|' DataArgs {($2,$3):$6}
-	 | var int {[($1,$2)]}
-	 | '('var int')' {[($2,$3)]}
+DataArgs : var int '|' DataArgs {(map toLower $1,$2):$4}
+	 | '('var int')' '|' DataArgs {(map toLower $2,$3):$6}
+	 | var int {[(map toLower $1,$2)]}
+	 | '('var int')' {[(map toLower $2,$3)]}
 	 | {- empty -} {[]}
 
-Args : var Args {$1:$2}
+Args : var Args {(map toLower $1):$2}
      | {- empty -} {[]}
 
-Expr : var { if isUpper $ head $1 then Con $1 else Var $1 }
+Expr : var { if isUpper $ head $1 then Con (map toLower $1) else Var $1 }
      | '(' Expr Expr ')' { App $2 $3 }
      | Expr Expr { App $1 $2 }
 
 
-Contr : '{' var ':' Expr '}' { Pred $2 $4 }
-      | var ':' Contr '->' Contr { AppC $1 $3 $5 }
-      | '(' var ':' Contr '->' Contr ')' { AppC $2 $4 $6 }
+Contr : '{' var ':' Expr '}' { Pred (map toLower $2) $4 }
+      | var ':' Contr '->' Contr { AppC (map toLower $1) $3 $5 }
+      | '(' var ':' Contr '->' Contr ')' { AppC (map toLower $2) $4 $6 }
 
 {
 happyError :: [Token] -> a
