@@ -1,15 +1,17 @@
-module Main where
+module Translation where
 
 import qualified Haskell as H
 import qualified FOL as F
 import Data.List (foldl')
 import Control.Monad.State
 
+import System.IO.Unsafe
+
 eTrans :: H.Expression -> F.Term
 dTrans :: H.Definition -> F.Formula
 sTrans :: H.Expression -> H.Contract -> Fresh F.Formula
 tTrans :: H.DataType -> [F.Formula]
-trans  :: H.DefGeneral    -> Fresh F.Formula
+trans  :: H.DefGeneral    -> [F.Formula]
 
 type Fresh = State (String,Int)
 
@@ -36,27 +38,24 @@ sTrans e (H.AppC x c1 c2) = do
   f2 <- sTrans (H.App e (H.Var freshX)) c2'
   return $ F.Forall freshX (f1 `F.Implies` f2)
 
-tTrans (H.Data d dns) = undefined
+b = b
 
-trans = undefined
+tTrans (H.Data d dns) = s1 ++ s2 ++ s3
+  where s1 = map (\(d,a) -> F.foralls (xs a) $ (foldl (\f x -> ((F.Var ("sel" ++ x ++ d) `F.App` (foldl (\f y -> f `F.App` F.Var y) (F.Var d) (xs a))) `F.Eq` F.Var x) `F.And` f) F.True (xs a))) dns
+        s2 = map (\((dx,ax),(dy,ay)) -> F.foralls (xs ax)  $ F.foralls (ys ay) $  F.Not $ (foldl (\ f x -> f `F.App` F.Var x)  (F.Var dx) (xs ax)) `F.Eq` (foldl (\ f x -> f `F.App` F.Var x)  (F.Var dy) (ys ay))) [(a,b) | a <- dns, b <- dns, a /= b]
+        s3 = map (\(d,a) -> F.foralls (xs a) $ cfEq d (xs a)) dns
+        xs a = map (\n -> "X"++(show n)) [1..a]
+        ys a = map (\n -> "Y"++(show n)) [1..a]
+        cfEq d xs = foldl (\f x -> F.CF (F.Var x) `F.And` f) F.True (xs) `F.Iff`
+                      (F.CF $ foldl (\f x -> f `F.App` (F.Var x)) (F.Var d)  xs)
+        
+
+trans (H.Def d) = [dTrans d]
+trans (H.DataType t) = tTrans t
+trans (H.ContSat (H.Satisfies v c)) = [evalState (sTrans (H.Var v) c) ("Z",0)]
 
 eTransfxi f vs = eTrans $ H.apps (H.Fun f:map H.Var vs)
 
 okFromd :: H.Definition -> H.Contract
 okFromd (H.Let _ vs _) = foldl' (\c _ -> H.AppC "dummy" c H.ok) H.ok vs
 
-{-
-test = trans $ H.Opaque d c
-  where d = H.Let "f" ["x","y"] (H.Var "+" `H.App` (H.Var "x" `H.App` H.Var "y"))
-        c = okFromd d
-        
-test2 = trans $ H.Opaque d c
-  where d = H.Let "f" ["x","y"] (H.Var "q" `H.App` (H.Var "x" `H.App` H.Var "y"))
-        c = okFromd d
-
-test3 = trans $ H.Opaque d c
-  where d = H.Let "q" ["x","y"] (H.Con "Nil")
-        c = okFromd d
-
-main = putStrLn $ unlines $ map F.toLatex (F.splitOnAnd $ evalState test ("foo",0))
--}

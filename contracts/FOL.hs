@@ -22,6 +22,7 @@ data Term = Var Variable
       
 data Formula = Forall Variable Formula
              | Implies Formula Formula
+             | Iff Formula Formula
              | Not Formula
              | Or Formula Formula
              | And Formula Formula 
@@ -50,6 +51,7 @@ toTPTP f = header ++ "\n" ++ (aux f) ++ "\n" ++ footer
         footer = ").\n"
         aux (Forall v f) = "![ " ++ (map toUpper v) ++ " ] : (" ++ aux f ++ ")"
         aux (Implies f1 f2) = "(" ++ aux f1 ++ ") => (" ++ aux f2 ++ ")"
+        aux (Iff f1 f2) = "(" ++ aux f1 ++ ") <=> (" ++ aux f2 ++ ")"
         aux (Not f) = "~(" ++ aux f ++ ")"
         aux (Or f1 f2) = "(" ++ aux f1 ++ ") | (" ++ aux f2 ++ ")"
         aux (And f1 f2) = "(" ++ aux f1 ++ ") & (" ++ aux f2 ++ ")"
@@ -57,9 +59,10 @@ toTPTP f = header ++ "\n" ++ (aux f) ++ "\n" ++ footer
         aux False = "$false"
         aux (Eq t1 t2) = "((" ++ auxTerm t1 ++ ") = (" ++ auxTerm t2 ++ "))"
         aux (CF t) = "(" ++ auxTerm t ++ ")"
-        auxTerm (Var v) = map toLower v
+        
+        auxTerm (Var v) = v
         auxTerm (App t1 t2) = "(" ++ auxTerm t1 ++ "(" ++ auxTerm t2 ++ "))"
-        auxTerm (Fun f) = map toLower f
+        auxTerm (Fun f) = f
         auxTerm BAD = "bad"
         auxTerm UNR = "unr"
 
