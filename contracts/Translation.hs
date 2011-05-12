@@ -15,8 +15,10 @@ import Data.Maybe (fromJust)
 
 type Fresh = State (String,Int)
 
+
+
 -- Expression
-------------
+-------------
 
 eTrans :: H.Expression -> F.Term
 eTrans (H.Var v) = F.Var v
@@ -43,7 +45,7 @@ dTrans (H.LetCase f vs e pes) =
    (eTransfxi f vs' `F.Eq` F.UNR)) -- Eq 12
     where context = map (\p -> (head p, length $ tail p)) $ map fst pes :: [(String,Int)]
           sels d a = [(F.Var $ "sel_"++(show i)++"_"++d) `F.App` eTrans e | i <- [1..a]]
-          zs = ["Zz"++(show x) | x <- [1..(foldl1 max [snd y | y <- context])]]
+          zs = ["Zdef"++(show x) | x <- [1..(foldl1 max [snd y | y <- context])]]
           vs' = map (map toUpper) vs
 
 
@@ -54,8 +56,8 @@ dTrans (H.LetCase f vs e pes) =
 sTrans :: H.Expression -> H.Contract -> Fresh F.Formula
 sTrans e H.Any = return F.True
 
-sTrans e (H.Pred x u) = return $ (eTrans e `F.Eq` F.UNR) `F.Or` ((F.CF $ eTrans e) `F.And` 
-                                                                  (F.CF $ eTrans u') `F.And` (F.Not $ eTrans u' `F.Eq` (F.Var "false")))
+sTrans e (H.Pred x u) = return $ (eTrans e `F.Eq` F.UNR) `F.Or` ((F.CF $ eTrans e) `F.And`                                                    
+                                                                 (F.CF $ eTrans u') `F.And` (F.Not $ eTrans u' `F.Eq` (F.Var "false"))) -- The data constructor False.
   where u' = H.subst u e x
 
 sTrans e (H.AppC x c1 c2) = do
@@ -118,14 +120,15 @@ s3D (d,a) = do
 
 
 
+
+
 -- Final translation
 --------------------
 
 trans  :: H.DefGeneral -> [F.Formula]
 trans (H.Def d) = [dTrans d]
-trans (H.DataType t) = evalState (tTrans t) ("A",0)
-trans (H.ContSat (H.Satisfies v c)) = map F.Not [evalState (sTrans (H.Var v) c) ("Z",0)]
-
+trans (H.DataType t) = evalState (tTrans t) ("Dtype",0)
+trans (H.ContSat (H.Satisfies v c)) = map F.Not [evalState (sTrans (H.Var v) c) ("Zcont",0)]
 
 okFromd :: H.Definition -> H.Contract
 okFromd (H.Let _ vs _) = foldl (\c _ -> H.AppC "dummy" c H.ok) H.ok vs
