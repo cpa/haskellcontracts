@@ -9,7 +9,6 @@ module FOL ( Term (..)
        where
 
 import Prelude hiding (True,False)
-import Data.Char (toUpper,toLower)
 
 type Variable = String
 
@@ -37,7 +36,7 @@ foralls (x:xs) f = Forall x (foralls xs f)
 
 apps [] = error "Cannot apply nothing"
 apps [x] = x
-apps (x:xs) = (x `App` (apps xs))
+apps (x:xs) = App x $ apps xs
 
 splitOnAnd :: Formula -> [Formula]
 splitOnAnd (Forall x (And f1 f2)) = splitOnAnd (Forall x f1) ++ splitOnAnd (Forall x f2)

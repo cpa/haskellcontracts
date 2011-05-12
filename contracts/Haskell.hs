@@ -68,4 +68,4 @@ substC (Pred u e) x y = if u/=y then Pred u (subst e x y) else (Pred u e)
 substC Any _ _ = Any
 
 ok :: Contract
-ok = Pred "x" (Con "True")
+ok = Pred "dummy" (Con "True")
