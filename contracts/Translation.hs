@@ -133,7 +133,7 @@ s3D (d,a) = do
 trans  :: H.DefGeneral -> [F.Formula]
 trans (H.Def d) = [dTrans d]
 trans (H.DataType t) = evalState (tTrans t) ("Dtype",0)
-trans (H.ContSat (H.Satisfies v c)) = map F.Not [evalState (sTrans (H.Var v) c) ("Zcont",0)] ++ [(F.Forall "F" $ F.Forall "X" $ F.CF $ (F.App (F.Var "F") (F.Var "X"))),F.Not $ F.CF $ F.BAD]
+trans (H.ContSat (H.Satisfies v c)) = map F.Not [evalState (sTrans (H.Var v) c) ("Zcont",0)] ++ [(F.Forall "F" $ F.Forall "X" $ (F.And (F.CF $ F.Var "X") (F.CF $ F.Var "F")) `F.Implies` (F.CF $ (F.App (F.Var "F") (F.Var "X")))),F.Not $ F.CF $ F.BAD]
 
 okFromd :: H.Definition -> H.Contract
 okFromd (H.Let _ vs _) = foldl (\c _ -> H.AppC "dummy" c H.ok) H.ok vs
