@@ -1,6 +1,6 @@
 module Main where
   
-import Parser
+import Parser hiding (main)
 import Translation
 import Control.Monad
 import FOL

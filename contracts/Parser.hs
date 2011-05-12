@@ -700,7 +700,7 @@ lexVar cs = case span isAlpha cs of
        ("case",rest) -> TokenCase : lexer rest
        ("of",rest) -> TokenOf : lexer rest       		     		    	  
        (var,rest)   -> TokenVar var : lexer rest
--- main = getContents >>= print . haskell . lexer
+main = getContents >>= print . haskell . lexer
 {-# LINE 1 "templates\GenericTemplate.hs" #-}
 {-# LINE 1 "templates\\GenericTemplate.hs" #-}
 {-# LINE 1 "<built-in>" #-}

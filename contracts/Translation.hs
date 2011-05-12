@@ -4,6 +4,7 @@ import qualified Haskell as H
 import qualified FOL as F
 import Control.Monad.State
 import Data.Char (toUpper)
+import Data.Maybe (fromJust)
 
 -- Type signatures:
 -- eTrans :: H.Expression -> F.Term
@@ -35,7 +36,7 @@ eTransfxi f vs = eTrans $ H.apps (H.Fun f:map H.Var vs)
 dTrans :: H.Definition -> F.Formula
 dTrans (H.Let f vs e) = F.foralls vs $ (eTransfxi f vs) `F.Eq` (eTrans e)
 dTrans (H.LetCase f vs e pes) = 
-  F.foralls vs' $ (F.foralls zs $ (foldl (\fo (pi,ei)-> F.And fo $ ((eTrans e) `F.Eq` (eTrans (H.apps $ H.Var (head pi) : map H.Var zs))) `F.Implies` 
+  F.foralls vs' $ (F.foralls zs $ (foldl (\fo (pi,ei)-> F.And fo $ ((eTrans e) `F.Eq` (eTrans (H.apps $ H.Var (head pi) : map H.Var (take (fromJust $ lookup (head pi) context) zs)))) `F.Implies` 
                                                                         ((eTransfxi f vs') `F.Eq` eTrans ei)) F.True pes)) `F.And` 
   ((eTrans e `F.Eq` F.BAD) `F.Implies` (eTransfxi f vs' `F.Eq` F.BAD)) `F.And`  -- Eq 10
   (((F.Not $ eTrans e `F.Eq` F.BAD) `F.And` (foldl (\f (d,a) -> f `F.And` (F.Not $ F.Eq (eTrans e) $ F.apps (F.Var d:(sels d a)))) F.True context)) `F.Implies` -- Eq 11
