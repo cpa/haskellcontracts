@@ -1,16 +1,16 @@
 module Main where
-import Parser
+import Parser hiding (main)
 import Translation
 import Control.Monad
 import FOL
 import System.Environment
 
 
-fulltest f = do
+test f = do
   s <- readFile f
-  forM_ (map toTPTP $ (haskell $ lexer s) >>= trans) putStrLn
-  
+  forM_ (map toTPTP $ (haskell $ lexer s) >>= trans >>= simplify) putStrLn
+
 main = do
   f:_ <- getArgs
-  fulltest f
+  test f
   

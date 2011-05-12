@@ -12,6 +12,7 @@ import Haskell
 	any	{TokenAny}
         data	{TokenData}
 	'='	{TokenEquals}
+	bad     {TokenBad}
 	':::'	{TokenSatisfies}
 	':'	{TokenColon}
 	'{'	{TokenCurlyO}
@@ -64,13 +65,16 @@ Args : var Args {(map toLower $1):$2}
 Expr : var { if isUpper $ head $1 then Con (map toLower $1) else Var $1 }
      | '(' Expr Expr ')' { App $2 $3 }
      | Expr Expr { App $1 $2 }
-
+     | bad { BAD }
+     | '(' bad Expr ')' { App BAD $3 }
+     | bad Expr { App BAD $2 }
 
 Contr : '{' var ':' Expr '}' { Pred (map toLower $2) $4 }
       | var ':' Contr '->' Contr { AppC (map toLower $1) $3 $5 }
       | '(' var ':' Contr '->' Contr ')' { AppC (map toLower $2) $4 $6 }
 
 {
+
 happyError :: [Token] -> a
 happyError x = error $ "Parse error: " ++ show x
 
@@ -91,6 +95,7 @@ data Token = TokenCase
 	   | TokenParenC
 	   | TokenCurlyO
 	   | TokenCurlyC
+	   | TokenBad
 	   deriving (Eq,Show)
 
 lexer :: String -> [Token]
@@ -115,6 +120,8 @@ lexInt cs = TokenInt (read num) : lexer rest
 
 lexVar cs = case span isAlpha cs of
        ("any",rest) -> TokenAny : lexer rest
+       ("bad",rest) -> TokenBad : lexer rest
+       ("BAD",rest) -> TokenBad : lexer rest
        ("data",rest) -> TokenData : lexer rest
        ("case",rest) -> TokenCase : lexer rest
        ("of",rest) -> TokenOf : lexer rest       		     		    	  
