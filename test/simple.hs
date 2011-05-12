@@ -12,4 +12,4 @@ notNil x = case x of
   | Nil -> False
   | Cons a b -> True;;
 
-head ::: a:{blo : notNil blo} -> {blu : True};;
+head ::: a:{x : notNil x} -> {foo : True};;
