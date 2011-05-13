@@ -63,6 +63,7 @@ Args : var Args {(map toLower $1):$2}
      | {- empty -} {[]}
 
 Atom : var { if isUpper $ head $1 then Con (map toLower $1) else Var $1 }
+     | '(' Expr ')' { $2 }
 
 Expr : '(' Expr Atom ')' { App $2 $ $3 }
      | Expr Atom { App $1 $ $2 }
