@@ -62,7 +62,7 @@ DataArgs : var int '|' DataArgs {(map toLower $1,$2):$4}
 Args : var Args {(map toLower $1):$2}
      | {- empty -} {[]}
 
-Atom : var { if isUpper $ head $1 then Con (map toLower $1) else Var $1 }
+Atom : var { if isUpper $ head $1 then Con (map toLower $1) else Var (map toLower $1) }
      | '(' Expr ')' { $2 }
 
 Expr : '(' Expr Atom ')' { App $2 $ $3 }

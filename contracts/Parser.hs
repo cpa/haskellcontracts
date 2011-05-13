@@ -596,7 +596,7 @@ happyReduction_27  =  HappyAbsSyn10
 happyReduce_28 = happySpecReduce_1  11 happyReduction_28
 happyReduction_28 (HappyTerminal (TokenVar happy_var_1))
 	 =  HappyAbsSyn11
-		 (if isUpper $ head happy_var_1 then Con (map toLower happy_var_1) else Var happy_var_1
+		 (if isUpper $ head happy_var_1 then Con (map toLower happy_var_1) else Var (map toLower happy_var_1)
 	)
 happyReduction_28 _  = notHappyAtAll 
 

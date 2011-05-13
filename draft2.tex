@@ -66,7 +66,6 @@ Semantics of contract satisfaction:
 \end{array}
 \end{center}
 
-
 \section{Translation}
 We define several translations: $\etrans{},\dtrans{},\ttrans{},\strans{},\trans{}$.
 \begin{center}
@@ -92,8 +91,8 @@ $\etrans{e}$ is a term, the translation is really straightforward.
 
 
 \subsection{$\ttrans{}$}
-$\ttrans{T}$ is a set of first-order formulae which we break down in three parts:
-$\ttrans{\mbox{data } T = D_1 ; \dots ; D_n} = S_1 \cup S_2 \cup S_3$.
+$\ttrans{T}$ is a set of first-order formulae which we break down in four parts:
+$\ttrans{\mbox{data } T = D_1 ; \dots ; D_n} = S_1 \cup S_2 \cup S_3 \cup S_4$.
 
 First, for each $D_i$ of arity $n_i$ we introduce selectors $sel_{k,D_i}$, which are projections of $D_i(x_1,\dots,x_n_i)$ on its $k$-th composant, so that we can express that constructors are injective :
 $$S_1 := \{ \forall x_1,\dots,x_{n_i} . \bigwedge_{1 \leq j \leq n} sel_{j,D_i}(D_i(x_1,\dots,x_{n_i})) = x_j \mid 1 \leq i \leq n \}$$
@@ -101,9 +100,11 @@ $$S_1 := \{ \forall x_1,\dots,x_{n_i} . \bigwedge_{1 \leq j \leq n} sel_{j,D_i}(
 For each pair of different constructors $D_i,D_j$, we state that they can never map to the same value: 
 $$S_2 := \{ \forall x_1,\dots,x_{n_i}~\forall y_1,\dots,y_{n_j} . D_i(x_1,\dots,x_{n_i}) \neq D_j(y_1,\dots,y_{n_j}) \mid 1 \leq i < j \leq n \}$$
 
-Finally, we have to give crash-freeness conditions for each $D_i$:
+Then, we have to give crash-freeness conditions for each $D_i$:
 $$S_3 := \{ \forall x_1,\dots,x_{n_i} . (\cf{x_1} \land \dots \land \cf{x_{n_i}} \leftrightarrow \cf{D_i(x_1,\dots,x_{n_i})}) \mid 1 \leq i \leq n \}$$
 
+Finally, we have to say that none of the $D_i$ is unreachable:
+$$S_4 := \{ D_i \neq \unr \mid 1 \leq i \leq n \}$$
 
 \subsection{$\dtrans{}$}
 $\dtrans{d}$ is a first-order formula.
@@ -136,7 +137,7 @@ $$\strans{e \in \{x \mid u \}} = e = \unr \lor (\etrans{u[e/x]} \neq \bad \land 
 $\trans{p}$ defines the translation of a program to a theory (a set of FO formulae)
 
 \begin{eqnarray}
-\trans{\epsilon} &=& \emptyset\\
+\trans{\epsilon} &=& \{ \cf{\unr}, \lnot \cf{\bad}, \forall f,x~\cf{f} \land \cf{x} \implies \cf{app(f,x)} \}\\
 \trans{d,p} &=& \dtrans{d} \cup \trans{p}\\
 \trans{opaque(d),p} &=& \dtrans{d} \cup \trans{p}\\
 \trans{T,p} &=& \ttrans{T} \cup \trans{p}\\

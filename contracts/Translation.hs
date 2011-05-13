@@ -85,8 +85,8 @@ sTrans e (H.AppC x c1 c2) = do
 --------------------
 
 tTrans :: H.DataType -> Fresh [F.Formula]
-tTrans d = liftM3 (+++) (s1 d) (s2 d) (s3 d)
-  where (+++) a b c = a ++ b ++ c
+tTrans d = liftM4 (++++) (s1 d) (s2 d) (s3 d) (return $ s4 d)
+  where (++++) a b c d = a ++ b ++ c ++ d
 
 s1 :: H.DataType -> Fresh [F.Formula]
 s1 (H.Data _ dns) = sequence $ map s1D dns
@@ -124,7 +124,8 @@ s3D (d,a) = do
   let xs = map (\n -> s++(show k)++"_"++(show n)) [1..a]
   return $ F.foralls xs $ F.Iff (F.CF $ F.apps $ F.Var d : map F.Var xs) (foldl (\f x -> f `F.And` F.CF (F.Var x)) F.True xs)
 
-
+s4 :: H.DataType -> [F.Formula]
+s4 (H.Data _ dns) = map (\(d,a) -> F.Not (F.Var d `F.Eq` F.UNR)) dns
 
 
 
@@ -135,7 +136,7 @@ s3D (d,a) = do
 trans  :: H.DefGeneral -> [F.Formula]
 trans (H.Def d) = [dTrans d]
 trans (H.DataType t) = evalState (tTrans t) ("Dtype",0)
-trans (H.ContSat (H.Satisfies v c)) = map F.Not [evalState (sTrans (H.Var v) c) ("Zcont",0)] ++ [(F.Forall "F" $ F.Forall "X" $ (F.And (F.CF $ F.Var "X") (F.CF $ F.Var "F")) `F.Implies` (F.CF $ (F.App (F.Var "F") (F.Var "X")))),F.Not $ F.CF $ F.BAD]
+trans (H.ContSat (H.Satisfies v c)) = map F.Not [evalState (sTrans (H.Var v) c) ("Zcont",0)] ++ [(F.Forall "F" $ F.Forall "X" $ (F.And (F.CF $ F.Var "X") (F.CF $ F.Var "F")) `F.Implies` (F.CF $ (F.App (F.Var "F") (F.Var "X")))),F.Not $ F.CF F.BAD,F.CF F.UNR]
 
 okFromd :: H.Definition -> H.Contract
 okFromd (H.Let _ vs _) = foldl (\c _ -> H.AppC "dummy" c H.ok) H.ok vs
