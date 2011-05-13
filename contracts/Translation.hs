@@ -97,7 +97,7 @@ s1D (d,a) = do
   (s,k) <- get
   put (s,k+1)
   let xs = map (\n -> s++"_"++(show n)) [1..a]
-  return $ F.foralls xs $ foldl (\f (x,k) -> f `F.And` (F.Eq (F.Var x) $ F.apps $ F.Var ("sel_"++(show k)++"_"++d) : F.Var d : map F.Var xs)) F.True (zip xs [1..a])
+  return $ F.foralls xs $ foldl (\f (x,k) -> f `F.And` (F.Eq (F.Var x) $ F.App (F.Var ("sel_"++(show k)++"_"++d)) (F.apps $ F.Var d : map F.Var xs))) F.True (zip xs [1..a])
 
 
 s2 :: H.DataType -> Fresh [F.Formula]
