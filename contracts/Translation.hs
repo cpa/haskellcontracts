@@ -36,7 +36,9 @@ eTransfxi f vs = eTrans $ H.apps (H.Fun f:map H.Var vs)
 -------------
 
 dTrans :: H.Definition -> F.Formula
-dTrans (H.Let f vs e) = F.foralls vs $ (eTransfxi f vs) `F.Eq` (eTrans e)
+dTrans (H.Let f vs e) = F.foralls vs' $ (eTransfxi f vs') `F.Eq` (eTrans e')
+  where vs' = map (map toUpper) vs
+        e'  = foldl (\ e v -> H.subst e (H.Var $ map toUpper v) v) e vs
 dTrans (H.LetCase f vs e pes) = 
   F.foralls vs' $ (F.foralls zs $ (foldl (\fo (pi,ei)-> F.And fo $ ((eTrans e') `F.Eq` (eTrans (H.apps $ H.Var (head pi) : map H.Var (take (fromJust $ lookup (head pi) context) zs)))) `F.Implies` 
                                                                         ((eTransfxi f vs') `F.Eq` eTrans ei)) F.True pes')) `F.And` 
