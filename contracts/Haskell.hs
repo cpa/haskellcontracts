@@ -47,9 +47,8 @@ data Contract = AppC Variable Contract Contract -- x : c -> c'
               | Any
               deriving (Show,Eq)                  
 
-apps [] = error "Cannot apply nothing"
-apps [x] = x
-apps (x:xs) = x `App` (apps xs)
+apps xs = foldl1 (\w x -> App w x) xs
+
 
 subst :: Expression -> Expression -> Variable -> Expression -- e[x/y]
 subst (Var v) x y | v == y = x

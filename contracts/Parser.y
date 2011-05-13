@@ -48,7 +48,7 @@ PatExpr : '|' Pattern '->' Expr PatExpr {($2,$4):$5}
 	| {- empty -} {[]}
 
 Pattern : var Pattern	{(map toLower $1):$2}
-	| var '('Pattern')'	{(map toLower $1):$3}
+	| var '(' Pattern ')'	{(map toLower $1):$3}
 	| var {[map toLower $1]}
 	| '('var')' {[map toLower $2]}
 	| {- empty -} {[]}
@@ -62,12 +62,14 @@ DataArgs : var int '|' DataArgs {(map toLower $1,$2):$4}
 Args : var Args {(map toLower $1):$2}
      | {- empty -} {[]}
 
-Expr : var { if isUpper $ head $1 then Con (map toLower $1) else Var $1 }
-     | '(' Expr Expr ')' { App $2 $3 }
-     | Expr Expr { App $1 $2 }
+Atom : var { if isUpper $ head $1 then Con (map toLower $1) else Var $1 }
+
+Expr : '(' Expr Atom ')' { App $2 $ $3 }
+     | Expr Atom { App $1 $ $2 }
      | bad { BAD }
      | '(' bad Expr ')' { App BAD $3 }
      | bad Expr { App BAD $2 }
+     | Atom { $1 }
 
 Contr : '{' var ':' Expr '}' { Pred (map toLower $2) $4 }
       | var ':' Contr '->' Contr { AppC (map toLower $1) $3 $5 }

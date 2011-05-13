@@ -23,7 +23,7 @@ type Fresh = State (String,Int)
 eTrans :: H.Expression -> F.Term
 eTrans (H.Var v) = F.Var v
 eTrans (H.Fun f) = F.Fun f
-eTrans (H.App e1 e2) = F.App (eTrans e1) (eTrans e2)
+eTrans (H.App e1 e2) = F.App (eTrans e1) $ (eTrans e2)
 eTrans H.BAD = F.BAD
 eTrans (H.Con d) = F.Var d
 
