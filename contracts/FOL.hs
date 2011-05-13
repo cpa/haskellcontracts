@@ -34,9 +34,8 @@ data Formula = Forall Variable Formula
 foralls [] f = f
 foralls (x:xs) f = Forall x (foralls xs f)
 
-apps [] = error "Cannot apply nothing"
-apps [x] = x
-apps (x:xs) = App x $ apps xs
+apps xs = foldl1 (\w x -> App w x) xs
+
 
 splitOnAnd :: Formula -> [Formula]
 splitOnAnd (Forall x (And f1 f2)) = splitOnAnd (Forall x f1) ++ splitOnAnd (Forall x f2)
