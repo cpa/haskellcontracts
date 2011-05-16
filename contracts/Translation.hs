@@ -49,8 +49,8 @@ dTrans (H.LetCase f vs e pes) =
           sels d a = [(F.Var $ "sel_"++(show i)++"_"++d) `F.App` eTrans e' | i <- [1..a]]
           zs = ["Zdef"++(show x) | x <- [1..(foldl1 max [snd y | y <- context])]]
           vs' = map (map toUpper) vs
-          e' = foldl (\ e v -> H.subst e (H.Var $ map toUpper v) v) e vs
-          pes' = map (\(p,e) -> (bob p ,foldl (\ e (va,vn) -> H.subst e (H.Var $ vn) va) e (zip p $ bob p))) pes
+          e' = foldl (\ e v -> H.subst e (H.Var $ map toUpper v) v) e vs'
+          pes' = map (\(p,e) -> (bob p ,foldl (\ e (va,vn) -> H.subst e (H.Var $ vn) va) (foldl (\ e v -> H.subst e (H.Var $ map toUpper v) (v)) e vs) (zip p $ bob p))) pes
           bob p = (head p) : (take ((length p) - 1) zs)
 
 -- test = H.Def (H.LetCase "head" ["xyz"] (H.Var "xyz") [(["nil"],H.BAD),(["cons","a","b"],H.Var "a")])

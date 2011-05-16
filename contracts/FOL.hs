@@ -45,7 +45,7 @@ splitOnAnd f = [f]
 
 removeConstants :: Formula -> Formula
 removeConstants (Forall x f) = Forall x (removeConstants f)
-removeConstants (Implies False f2) = True
+removeConstants (Implies False _) = True
 removeConstants (Iff True f) = f
 removeConstants (Iff f True) = f
 removeConstants (Iff False f) = Not f
@@ -53,13 +53,13 @@ removeConstants (Iff f False) = Not f
 removeConstants (Not f) = Not $ removeConstants f
 removeConstants (Or f False) = removeConstants f
 removeConstants (Or False f) = removeConstants f
-removeConstants (Or True f) = True
-removeConstants (Or f True) = True
+removeConstants (Or True _) = True
+removeConstants (Or _ True) = True
 removeConstants (Or f1 f2) = Or (removeConstants f1) (removeConstants f2)
 removeConstants (And f True) = removeConstants f
 removeConstants (And True f) = removeConstants f
-removeConstants (And f False) = False
-removeConstants (And False f) = False
+removeConstants (And _ False) = False
+removeConstants (And False _) = False
 removeConstants (And f1 f2) = And (removeConstants f1) (removeConstants f2)
 removeConstants f = f
 
@@ -78,11 +78,11 @@ toTPTP f = header ++ "\n" ++ (aux f) ++ "\n" ++ footer
         aux (And f1 f2) = "(" ++ aux f1 ++ ") & (" ++ aux f2 ++ ")"
         aux True = "$true"
         aux False = "$false"
-        aux (Eq t1 t2) = "((" ++ auxTerm t1 ++ ") = (" ++ auxTerm t2 ++ "))"
+        aux (Eq t1 t2) = auxTerm t1 ++ " = " ++ auxTerm t2
         aux (CF t) = "cf(" ++ auxTerm t ++ ")"
         
         auxTerm (Var v) = v
-        auxTerm (App t1 t2) = "( app(" ++ auxTerm t1 ++ "," ++ auxTerm t2 ++ "))"
+        auxTerm (App t1 t2) = "app(" ++ auxTerm t1 ++ "," ++ auxTerm t2 ++ ")"
         auxTerm (Fun f) = f
         auxTerm BAD = "bad"
         auxTerm UNR = "unr"
