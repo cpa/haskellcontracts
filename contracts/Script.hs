@@ -19,5 +19,5 @@ main = do
   files <- getArgs
   forM_ files $ \f -> do
     cts <- toTheory f
-    writeFile (f++".tptp") cts
+    writeFile ("tptp/" ++ f ++ ".tptp") cts
   
