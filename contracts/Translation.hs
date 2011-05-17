@@ -5,7 +5,7 @@ import qualified FOL as F
 import Control.Monad.State
 import Data.Char (toUpper)
 import Data.Maybe (fromJust)
-
+import Data.List (sort)
 -- Type signatures:
 -- eTrans :: H.Expression -> F.Term
 -- dTrans :: H.Definition -> F.Formula
@@ -133,10 +133,24 @@ s4 (H.Data _ dns) = map (\(d,a) -> F.Not (F.Var d `F.Eq` F.UNR)) dns
 -- Final translation
 --------------------
 
-trans  :: H.DefGeneral -> [F.Formula]
-trans (H.Def d) = [dTrans d]
-trans (H.DataType t) = evalState (tTrans t) ("Dtype",0)
-trans (H.ContSat (H.Satisfies v c)) = map F.Not [evalState (sTrans (H.Var v) c) ("Zcont",0)] ++ [(F.Forall "F" $ F.Forall "X" $ (F.And (F.CF $ F.Var "X") (F.CF $ F.Var "F")) `F.Implies` (F.CF $ (F.App (F.Var "F") (F.Var "X")))),F.Not $ F.CF F.BAD,F.CF F.UNR]
+trans :: H.DefGeneral -> [F.Formula]
+trans = undefined
+-- trans (H.Def d) = [dTrans d]
+-- trans (H.DataType t) = evalState (tTrans t) ("Dtype",0)
+-- trans (H.ContSat (H.Satisfies v c)) = map F.Not [evalState (sTrans (H.Var v') c') ("Zcont",0)] ++ [(F.Forall "F" $ F.Forall "X" $ (F.And (F.CF $ F.Var "X") (F.CF $ F.Var "F")) `F.Implies` (F.CF $ (F.App (F.Var "F") (F.Var "X")))),F.Not $ F.CF F.BAD,F.CF F.UNR]
+--   where v' = v
+--         c' = H.subst 
+
+transExp = aux . sort
+
+aux (H.ContSat (H.Satisfies v c):ds) = map F.Not [evalState (sTrans (H.Var v) c) ("Z",0)] ++ [evalState (sTrans (H.Var v') c) ("Zp",0)] ++ concatMap treat ds ++ footer
+  where treat (H.DataType t) = evalState (tTrans t) ("D",0)
+        treat (H.Def d@(H.Let x xs e)) = [if x == v then dTrans $ H.Let x xs (H.subst e (H.Var v') x) else dTrans d]
+        treat (H.Def d@(H.LetCase x xs e pes)) = [if x == v then dTrans $ H.LetCase x xs (H.subst e (H.Var v') x) (map (\(p,e) -> (p,H.subst e (H.Var v') x)) pes) else dTrans d]
+        v' = v++"p"
+        footer = [(F.Forall "F" $ F.Forall "X" $ (F.And (F.CF $ F.Var "X") (F.CF $ F.Var "F")) `F.Implies` (F.CF $ (F.App (F.Var "F") (F.Var "X")))),F.Not $ F.CF F.BAD,F.CF F.UNR]
+aux _ = undefined
+
 
 okFromd :: H.Definition -> H.Contract
 okFromd (H.Let _ vs _) = foldl (\c _ -> H.AppC "dummy" c H.ok) H.ok vs

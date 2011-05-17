@@ -73,6 +73,7 @@ toTPTP f = header ++ "\n" ++ (aux f) ++ "\n" ++ footer
         aux (Forall v f) = "![ " ++ (map id v) ++ " ] : (" ++ aux f ++ ")"
         aux (Implies f1 f2) = "(" ++ aux f1 ++ ") => (" ++ aux f2 ++ ")"
         aux (Iff f1 f2) = "(" ++ aux f1 ++ ") <=> (" ++ aux f2 ++ ")"
+        aux (Not (Eq t1 t2)) =  auxTerm t1 ++ " != " ++ auxTerm t2
         aux (Not f) = "~(" ++ aux f ++ ")"
         aux (Or f1 f2) = "(" ++ aux f1 ++ ") | (" ++ aux f2 ++ ")"
         aux (And f1 f2) = "(" ++ aux f1 ++ ") & (" ++ aux f2 ++ ")"

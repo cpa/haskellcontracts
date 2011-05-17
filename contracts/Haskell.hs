@@ -21,23 +21,23 @@ data Expression = Var Variable
                 | Con Constructor
                 | App Expression Expression
                 | BAD
-                deriving (Show,Eq)          
+                deriving (Show,Eq,Ord)          
 
 type Program = [DefGeneral]
-data DefGeneral = Def Definition
+data DefGeneral = ContSat ContSat
+                | Def Definition
                 | DataType DataType
-                | ContSat ContSat
-                deriving (Eq,Show)
+                deriving (Eq,Show,Ord)
 
 data ContSat = Satisfies Variable Contract
-             deriving (Show,Eq)                  
+             deriving (Show,Eq,Ord)                  
                
 data Definition = Let Variable [Variable] Expression
                 | LetCase Variable [Variable] Expression [(Pattern,Expression)]
-                deriving (Show,Eq)                  
+                deriving (Show,Eq,Ord)                  
                   
 data DataType = Data Variable [(Variable,Int)] -- Data constructors + arity
-              deriving (Eq,Show)
+              deriving (Eq,Show,Ord)
 
 type Pattern = [Variable]
 
@@ -45,7 +45,7 @@ data Contract = AppC Variable Contract Contract -- x : c -> c'
               | Pair Contract Contract
               | Pred Variable Expression   -- {x:e}
               | Any
-              deriving (Show,Eq)                  
+              deriving (Show,Eq,Ord)                  
 
 apps xs = foldl1 (\w x -> App w x) xs
 
