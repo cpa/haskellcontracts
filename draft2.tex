@@ -44,7 +44,10 @@ For the moment we consider data constructors to be saturated, ie fully applied (
   \phi &:=& \forall x.\phi \mid \phi \to \phi \mid \lnot \phi \mid \phi \lor \phi \mid \phi \land \phi \mid true \mid t=t \mid \mbox{CF}(t)& (Formula)\\
 \end{array}
 \end{center}
-CF$(t)$ holds iff $t$ satisfies $\ok$.
+We give the following equations to define crash-freeness:
+$$\cf{\unr}, \lnot \cf{\bad}, \forall f,x~\cf{f} \land \cf{x} \implies \cf{app(f,x)}$$
+$$\forall D, \forall t_i~1 \leq i \leq n, \bigwedge_{1 \leq i \leq n} \cf{t_i} \implies \cf{D(t_1,\dots,t_n)}$$
+It does not follow exactly the semantics given by the popl paper
 
 \subsection{Contracts}
 \begin{center}
@@ -88,7 +91,7 @@ $\etrans{e}$ is a term, the translation is really straightforward.
 \etrans{D(e_1,\dots,e_n)} &=& D(\etrans{e_1},\dots,\etrans{e_n})\\
 \etrans{\bad} &=& \bad\\
 \etrans{n} &=& n\\
-
+As usual, we use left associativity.
 
 \subsection{$\ttrans{}$}
 $\ttrans{T}$ is a set of first-order formulae which we break down in four parts:
@@ -135,6 +138,8 @@ $$\strans{e \in \{x \mid u \}} = e = \unr \lor (\etrans{u[e/x]} \neq \bad \land 
 
 \subsection{$\trans{}$}
 $\trans{p}$ defines the translation of a program to a theory (a set of FO formulae)
+
+We have to give some semantics to $\cf{}$, $\bad$ and $\unr$, which are given below.
 
 \begin{eqnarray}
 \trans{\epsilon} &=& \{ \cf{\unr}, \lnot \cf{\bad}, \forall f,x~\cf{f} \land \cf{x} \implies \cf{app(f,x)} \}\\
