@@ -64,7 +64,7 @@ sTrans :: H.Expression -> H.Contract -> Fresh F.Formula
 sTrans e H.Any = return F.True
 
 sTrans e (H.Pred x u) = return $ (eTrans e `F.Eq` F.UNR) `F.Or` ((F.CF $ eTrans e) `F.And`                                                    
-                                                                 (F.CF $ eTrans u') `F.And` (F.Not $ eTrans u' `F.Eq` (F.Var "false"))) -- The data constructor False.
+                                                                 (F.Not $ F.Eq F.BAD $ eTrans u') `F.And` (F.Not $ eTrans u' `F.Eq` (F.Var "false"))) -- The data constructor False.
   where u' = H.subst u e x
 
 sTrans e (H.AppC x c1 c2) = do
