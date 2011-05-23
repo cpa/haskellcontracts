@@ -61,8 +61,7 @@ test = (H.LetCase "head" ["xyz"] (H.Var "xyz") [(["nil"],H.BAD),(["cons","a","b"
 sTrans :: H.Expression -> H.Contract -> Fresh (F.Formula (F.Term F.Variable))
 sTrans e H.Any = return F.True
 
-sTrans e (H.Pred x u) = return $ (eTrans e `F.Eq` F.UNR) `F.Or` ((F.CF $ eTrans e) `F.And`                                                    
-                                                                 (F.Not $ F.Eq F.BAD $ eTrans u') `F.And` (F.Not $ eTrans u' `F.Eq` (F.Var "false"))) -- The data constructor False.
+sTrans e (H.Pred x u) = return $ F.Or [(eTrans e `F.Eq` F.Var F.UNR) ,F.And [F.CF $ eTrans e ,             (F.Not $ F.Eq (F.Var F.BAD) $ eTrans u') , F.Not $ eTrans u' `F.Eq` (F.Var $ F.Regular "false")]] -- The data constructor False.
   where u' = H.subst u e x
 
 sTrans e (H.AppC x c1 c2) = do
