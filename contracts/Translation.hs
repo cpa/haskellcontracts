@@ -36,7 +36,7 @@ eTransfxi f vs = eTrans $ H.apps (H.Fun f:map H.Var vs)
 -------------
 
 dTrans :: H.Definition -> F.Formula (F.Term F.Variable)
-dTrans (H.Let f vs e) = F.Forall vvs $ F.Eq (F.App (eTrans (H.Var f):vvs)) (eTrans e)
+dTrans (H.Let f vs e) = F.Forall vvs $ F.Eq (F.App (eTrans (H.Var f):vvs)) (F.Weak $ eTrans e)
   where vvs = map (F.Var . F.Regular) vs
 dTrans (H.LetCase f vs e pes) = 
   F.Forall (vvs ++ zs) $ F.And (eq9++[eq10,eq11])
@@ -47,7 +47,7 @@ dTrans (H.LetCase f vs e pes) =
         eq10 = (eTrans e `F.Eq` (F.Var F.BAD)) `F.Implies` F.Not (F.App (eTrans (H.Var f):vvs) `F.Eq` F.Var F.BAD)
         eq11 = (F.And $ (F.Not $ eTrans e `F.Eq` F.Var F.BAD):bigAndSel ) `F.Implies` eq12
         eq12 = (F.App (eTrans (H.Var f):vvs) `F.Eq` F.Var F.UNR)
-        bigAndSel = [F.Not $ eTrans e `F.Eq` F.App ((F.Var (F.Regular di)):[F.App [(F.Var . F.Regular) ("sel_"++(show i)++"_"++di),eTrans e] | i <- [1..ai]]) | (di,ai) <- arities]
+        bigAndSel = [F.Not $ eTrans e `F.Eq` F.Weak (F.App ((F.Var (F.Regular di)):[F.App [(F.Var . F.Regular) ("sel_"++(show i)++"_"++di),eTrans e] | i <- [1..ai]])) | (di,ai) <- arities]
         zedify ei pi = foldl (\e (v,z) -> H.subst e (H.Var $ extractVR z) (v)) ei (take (length (tail pi)) $ zip (tail pi) zs)
         extractVR (F.Var (F.Regular v)) = v
 

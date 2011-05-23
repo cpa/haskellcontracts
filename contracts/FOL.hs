@@ -21,6 +21,7 @@ instance Show Variable where
 
 data Term a = Var a
             | App [Term a]
+            | Weak (Term a)
             deriving (Eq)
 
 instance Show a => Show (Term a) where
@@ -137,6 +138,7 @@ toTPTP f = header ++ "\n" ++ (aux $ upperIfy [] f) ++ "\n" ++ footer
         auxTerm (App []) = error "Cannot apply nothing"
         auxTerm (App [t]) = auxTerm t
         auxTerm (App ts) = "app(" ++ auxTerm (App (init ts)) ++ "," ++ auxTerm (last ts) ++ ")"
+        auxTerm (Weak t) = "$weak(" ++ auxTerm t ++")"
         -- TODO App fix
 -- toLatex (Forall v f) = " \\forall " ++ v ++ ". " ++ toLatex f
 -- toLatex (Implies f1 f2) = "(" ++ toLatex f1 ++ " \\implies " ++ toLatex f2 ++ ")"
