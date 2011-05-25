@@ -43,8 +43,8 @@ dTrans (H.LetCase f vs e pes) =
   where vvs = map (F.Var . F.Regular) vs
         arities = map (\p -> (head p, length $ tail p)) $ map fst pes :: [(String,Int)]
         zs = [F.Var $ F.Regular $ "Zdef" ++ show x | x <- [1..(foldl1 max [snd y | y <- arities])]]
-        eq9 = [(eTrans e `F.Eq` (F.App ((F.Var $ F.Regular $ head pi):(take (length pi - 1) [ z | (v,z) <- zip (tail pi) zs ])))) `F.Implies` (F.App (eTrans (H.Var f):vvs) `F.Eq` (eTrans (zedify ei pi))) | (pi,ei) <- pes]
-        eq10 = (eTrans e `F.Eq` (F.Var F.BAD)) `F.Implies` F.Not (F.App (eTrans (H.Var f):vvs) `F.Eq` F.Var F.BAD)
+        eq9 = [(eTrans e `F.Eq` (F.App ((F.Var $ F.Regular $ head pi):(take (length pi - 1) [ z | (v,z) <- zip (tail pi) zs ])))) `F.Implies` (F.App (eTrans (H.Var f):vvs) `F.Eq` (F.Weak $ eTrans (zedify ei pi))) | (pi,ei) <- pes]
+        eq10 = (eTrans e `F.Eq` (F.Var F.BAD)) `F.Implies` (F.App (eTrans (H.Var f):vvs) `F.Eq` F.Var F.BAD)
         eq11 = (F.And $ (F.Not $ eTrans e `F.Eq` F.Var F.BAD):bigAndSel ) `F.Implies` eq12
         eq12 = (F.App (eTrans (H.Var f):vvs) `F.Eq` F.Var F.UNR)
         bigAndSel = [F.Not $ eTrans e `F.Eq` F.Weak (F.App ((F.Var (F.Regular di)):[F.App [(F.Var . F.Regular) ("sel_"++(show i)++"_"++di),eTrans e] | i <- [1..ai]])) | (di,ai) <- arities]
@@ -61,7 +61,7 @@ test = (H.LetCase "head" ["xyz"] (H.Var "xyz") [(["nil"],H.BAD),(["cons","a","b"
 sTrans :: H.Expression -> H.Contract -> Fresh (F.Formula (F.Term F.Variable))
 sTrans e H.Any = return F.True
 
-sTrans e (H.Pred x u) = return $ F.Or [(eTrans e `F.Eq` F.Var F.UNR) ,F.And [F.CF $ eTrans e ,             (F.Not $ F.Eq (F.Var F.BAD) $ eTrans u') , F.Not $ eTrans u' `F.Eq` (F.Var $ F.Regular "false")]] -- The data constructor False.
+sTrans e (H.Pred x u) = return $ F.Or [(eTrans e `F.Eq` F.Var F.UNR) ,F.And [F.CF $ eTrans e ,(F.Not $ F.Eq (F.Var F.BAD) $ eTrans u') , F.Not $ eTrans u' `F.Eq` (F.Var $ F.Regular "false")]] -- The data constructor False.
   where u' = H.subst u e x
 
 sTrans e (H.AppC x c1 c2) = do
@@ -82,7 +82,7 @@ sTrans e (H.AppC x c1 c2) = do
 --------------------
 
 tTrans :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
-tTrans d = liftM4 (++++) (s1 d) (s2 d) (s3 d) (return $ s4 d)
+tTrans d = liftM4 (++++) (s1 d) (s2 d) (s3 d) (s4 d)
   where (++++) a b c d = a ++ b ++ c ++ d
 
 s1 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
@@ -123,9 +123,18 @@ s3D (d,a) = do
     then (return $ F.Forall (map (F.Var . F.Regular) xs) $ F.Iff (F.CF $ F.App $ (F.Var . F.Regular) d : map (F.Var . F.Regular) xs) (F.And [F.CF (F.Var $ F.Regular x) | x <- xs]))
     else return $ F.CF $ F.App [F.Var $ F.Regular d]
 
-s4 :: H.DataType -> [F.Formula (F.Term F.Variable)]
-s4 (H.Data _ dns) = map (\(d,a) -> F.Not ((F.Var . F.Regular) d `F.Eq` F.Var F.UNR)) dns
+s4 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
+--s4 (H.Data _ dns) = map (\(d,a) -> F.Not ((F.Var . F.Regular) d `F.Eq` F.Var F.UNR)) dns
+s4 (H.Data _ dns) = sequence $ map s4D dns
 
+s4D :: (String,Int) -> Fresh (F.Formula (F.Term F.Variable))
+s4D (d,a) = do
+  (s,k) <- get
+  put (s,k+1)
+  let xs = map (\n -> s++(show k)++"_"++(show n)) [1..a]
+  if xs /= [] 
+    then (return $ F.Forall (map (F.Var . F.Regular) xs) $ F.Implies ((eTrans $ H.apps $ H.Var d : (map H.Var xs)) `F.Eq` (F.Var F.UNR)) $ F.Or [F.Var F.UNR `F.Eq` (F.Var $ F.Regular x) | x <- xs])
+    else return $ F.Not ((F.Var $ F.Regular d) `F.Eq` F.Var F.UNR)
 
 
 
