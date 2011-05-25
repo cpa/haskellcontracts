@@ -34,8 +34,10 @@ In the following, $D$ is a data constructor, $f$ a function symbol and we consid
 \end{array}
 \end{center}
 
-For the moment we consider data constructors to be saturated, ie fully applied (hence the special application syntax).
+In the calculus, every definition is toplevel ($\lambda$-lifted) and there isn't any nested case.
 
+For the moment we consider data constructors to be saturated, ie fully applied (hence the special application syntax).
+That makes defining $\dtrans{}$ less painful, because we avoid a quadratic number (in the arity of the data contrustors) of axioms. cf to $S_4$ below, for example.
 
 \subsection{FOL}
 \begin{center}
@@ -44,10 +46,10 @@ For the moment we consider data constructors to be saturated, ie fully applied (
   \phi &:=& \forall x.\phi \mid \phi \to \phi \mid \lnot \phi \mid \phi \lor \phi \mid \phi \land \phi \mid true \mid t=t \mid \mbox{CF}(t)& (Formula)\\
 \end{array}
 \end{center}
-We give the following equations to define crash-freeness:
+We always give the following equations to define crash-freeness:
 $$\cf{\unr}, \lnot \cf{\bad}, \forall f,x~\cf{f} \land \cf{x} \implies \cf{app(f,x)}$$
-$$\forall D, \forall t_i~1 \leq i \leq n, \bigwedge_{1 \leq i \leq n} \cf{t_i} \implies \cf{D(t_1,\dots,t_n)}$$
-It does not follow exactly the semantics given by the popl paper
+Note that it's only the equation we \textit{always} give, but there some other equations that will arise from the translations below.
+It does not follow exactly the semantics given by the popl paper, but we hope it'll be a sufficient approximation!
 
 \subsection{Contracts}
 \begin{center}
@@ -59,7 +61,7 @@ It does not follow exactly the semantics given by the popl paper
 \end{array}
 \end{center}
 
-Semantics of contract satisfaction:
+Semantics of contract satisfaction (exactly the same as in the POPL paper):
 \begin{center}
 \begin{array}{rcl}
   e \in \{x \mid p \} &\iff& e \mbox{ diverges or } (e \mbox{ is crash-free and } p[e/x] \not \to^\star \{\bad,\unr\})\\
@@ -107,7 +109,10 @@ Then, we have to give crash-freeness conditions for each $D_i$:
 $$S_3 := \{ \forall x_1,\dots,x_{n_i} . (\cf{x_1} \land \dots \land \cf{x_{n_i}} \leftrightarrow \cf{D_i(x_1,\dots,x_{n_i})}) \mid 1 \leq i \leq n \}$$
 
 Finally, we have to say that none of the $D_i$ is unreachable:
-$$S_4 := \{ D_i \neq \unr \mid 1 \leq i \leq n \}$$
+$$S_4 := \{ D_i(x_1,\dots,x_n) = \unr \to x_1 = \unr \lor \dots \lor x_n = \unr \mid 1 \leq i \leq n \}$$
+
+
+NB: We first started with $S_4 := \{ D_i \neq \unr \mid 1 \leq i \leq n \}$, but we couldn't prove that the (add x y), defined with peano integers, satisfied ($x=0 \to y=0 \to add x y=0$). It always also bizarre to state that the function was $\unr$ but not its application.
 
 \subsection{$\dtrans{}$}
 $\dtrans{d}$ is a first-order formula.
@@ -122,6 +127,10 @@ $\dtrans{d}$ is a first-order formula.
 
 An alternative to using selectors would be to write something along the line of $\exists y_1,\dots,y_{D_i}. e \neq D_i(y_1,\dots,y_{D_i})$. It is equivalent but the skolemisation process of equinox will anyway turn those existentials in selectors functions. But if we pattern match $D_i$ in two different functions, we would get two different selectors (the same selector with two different names) so it's better (for the efficiency of the proof) to define selectors for each $D_i$ once in for all and use it as much as possible afterwards.
 
+Equation (10) is not restrictive even in the case of laziness because $e$ is always evaluated. (TODO, but not always fully evaluated...)
+
+Equation (11) and (12) state that if we have a type mismatch than the code is $\unr$. It should never occur because we're assuming that the code has already been typechecked.
+
 
 \subsection{$\strans{}$}
 $\strans{e \in c}$ is a first-order formula.
@@ -133,7 +142,7 @@ $\strans{e \in c}$ is a first-order formula.
 $False$ is a data constructor here.
 
 Remark: we follow the semantics of the POPL paper but it's a bit restrictive.
-e.g. in equation 13 we could use the alternate semantics (namely B1 in the POPL paper) : 
+e.g. in equation 14 we could use the alternate semantics (namely B1 in the POPL paper) : 
 $$\strans{e \in \{x \mid u \}} = e = \unr \lor (\etrans{u[e/x]} \neq \bad \land \etrans{u[e/x]} \neq False)$$
 
 \subsection{$\trans{}$}
@@ -161,11 +170,53 @@ We then want to check (with equinox) that:
 Which we rewrite as:
  $$\trans{C} \cup \{ \dtrans{f~x_1 \dots \x_n = e[f^\star/f]}, \bigwedge_{c \in C_f} \strans{f^\star \in c},  \bigvee_{c \in C_f} \lnot \strans{f \in c} \} \models \bot$$
 
-\section{Remarks}
-\begin{itemize}
-\item What to do with mutually recursive functions?
-\item Explore the variants translations (cf variants of the popl paper)
-\end{itemize}
+\section{Example}
+Consider the following program (the integer after a data constructor is its arity):
+\begin{verbatim}
+data List = Nil 0
+          | Cons 2;;
+
+data Bool = True 0
+          | False 0;;
+
+copy x = case x of
+  | Nil -> x
+  | Cons a b -> Cons a (copy b);;
+
+copy ::: a:{x : True} -> {y:True};;
+\end{verbatim}
+The contract states that if we give to copy a crash-free argument $x$, copy will return a crash-free result $y$.
+Note that [Just BAD] is not crash-free in our sense, so we can't say anything about it. TODO (or can we?)
+
+
+\begin{verbatim}
+data Nat = Zero 0
+         | Succ 1;;
+
+data Bool = True 0
+          | False 0;;
+
+add x y = case x of
+        | Zero -> y
+        | Succ z -> Succ (add z y);;
+
+isZero x = case x of
+         | Zero -> True
+         | Succ z -> False;;
+
+not x = case x of
+      | True -> False
+      | False -> True;;
+
+add ::: a:{x : True} -> {y:True} -> {z: True};;             -- C1
+add ::: a:{x : isZero x} -> {y:isZero y} -> {z: True};;     -- C2
+add ::: a:{x : isZero x} -> {y:isZero y} -> {z: isZero z};; -- C3
+\end{verbatim}
+
+As of today, we can prove C1 and C2 but not C3.
+Note that we can prove C2 only since the modification of $S_4$ in $\dtrans{}$.
+
+In the definition of $add$, if we replace $Succ (add z y)$ by $Succ (add y z)$, we can't prove anything which isn't very surprising because we're to do the recursion on the first variable, not on the second one. All the more so that they don't have the same contract.
 
 \end{document}
 
