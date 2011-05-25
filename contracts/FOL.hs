@@ -130,8 +130,8 @@ toTPTP f = header ++ "\n" ++ (aux $ upperIfy [] f) ++ "\n" ++ footer
         aux (Iff f1 f2) = "(" ++ aux f1 ++ ") <=> (" ++ aux f2 ++ ")"
         aux (Not (Eq t1 t2)) =  auxTerm t1 ++ " != " ++ auxTerm t2
         aux (Not f) = "~(" ++ aux f ++ ")"
-        aux (Or fs) = concat $ intersperse " | " (map aux fs)
-        aux (And fs) = concat $ intersperse " & " (map aux fs)
+        aux (Or fs) = "(" ++ (concat $ intersperse " | " (map aux fs)) ++ ")"
+        aux (And fs) = "(" ++ (concat $ intersperse " & " (map aux fs)) ++ ")"
         aux True = "$true"
         aux False = "$false"
         aux (Eq t1 t2) = auxTerm t1 ++ " = " ++ auxTerm t2
