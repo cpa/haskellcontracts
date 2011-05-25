@@ -37,7 +37,7 @@ In the following, $D$ is a data constructor, $f$ a function symbol and we consid
 In the calculus, every definition is toplevel ($\lambda$-lifted) and there isn't any nested case.
 
 For the moment we consider data constructors to be saturated, ie fully applied (hence the special application syntax).
-That makes defining $\dtrans{}$ less painful, because we avoid a quadratic number (in the arity of the data contrustors) of axioms. cf to $S_4$ below, for example.
+That makes defining $\dtrans{}$ less painful, because we avoid a quadratic number (in the arity of the data contrustors) of axioms. cf $S_4$ below, for example.
 
 \subsection{FOL}
 \begin{center}
@@ -93,13 +93,15 @@ $\etrans{e}$ is a term, the translation is really straightforward.
 \etrans{D(e_1,\dots,e_n)} &=& D(\etrans{e_1},\dots,\etrans{e_n})\\
 \etrans{\bad} &=& \bad\\
 \etrans{n} &=& n\\
+\end{eqnarray}
+
 As usual, we use left associativity.
 
 \subsection{$\ttrans{}$}
 $\ttrans{T}$ is a set of first-order formulae which we break down in four parts:
 $\ttrans{\mbox{data } T = D_1 ; \dots ; D_n} = S_1 \cup S_2 \cup S_3 \cup S_4$.
 
-First, for each $D_i$ of arity $n_i$ we introduce selectors $sel_{k,D_i}$, which are projections of $D_i(x_1,\dots,x_n_i)$ on its $k$-th composant, so that we can express that constructors are injective :
+First, for each $D_i$ of arity $n_i$ we introduce selectors $sel_{k,D_i}$, which are projections of $D_i(x_1,\dots,x_n_i)$ on its $k$-th component:
 $$S_1 := \{ \forall x_1,\dots,x_{n_i} . \bigwedge_{1 \leq j \leq n} sel_{j,D_i}(D_i(x_1,\dots,x_{n_i})) = x_j \mid 1 \leq i \leq n \}$$
 
 For each pair of different constructors $D_i,D_j$, we state that they can never map to the same value: 
@@ -107,12 +109,11 @@ $$S_2 := \{ \forall x_1,\dots,x_{n_i}~\forall y_1,\dots,y_{n_j} . D_i(x_1,\dots,
 
 Then, we have to give crash-freeness conditions for each $D_i$:
 $$S_3 := \{ \forall x_1,\dots,x_{n_i} . (\cf{x_1} \land \dots \land \cf{x_{n_i}} \leftrightarrow \cf{D_i(x_1,\dots,x_{n_i})}) \mid 1 \leq i \leq n \}$$
+Note that we have an equivalence in the case of a data constructor whereas we only have an (direct) implication for functions. It's because a function, due to laziness, could not use all its arguments. For example, $fst (1,BAD)$ is crash-free but its arguments aren't.
 
 Finally, we have to say that none of the $D_i$ is unreachable:
 $$S_4 := \{ D_i(x_1,\dots,x_n) = \unr \to x_1 = \unr \lor \dots \lor x_n = \unr \mid 1 \leq i \leq n \}$$
-
-
-NB: We first started with $S_4 := \{ D_i \neq \unr \mid 1 \leq i \leq n \}$, but we couldn't prove that the (add x y), defined with peano integers, satisfied ($x=0 \to y=0 \to add x y=0$). It always also bizarre to state that the function was $\unr$ but not its application.
+NB: We first started with $S_4 := \{ D_i \neq \unr \mid 1 \leq i \leq n \}$, but we couldn't prove that the (add x y), defined with peano integers, satisfied ($x=0 \to y=0 \to add~x~y=0$). It's also bizarre to state that the function was $\unr$ but not its application.
 
 \subsection{$\dtrans{}$}
 $\dtrans{d}$ is a first-order formula.
