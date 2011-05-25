@@ -27,6 +27,7 @@ data Term a = Var a
 instance Show a => Show (Term a) where
   show (Var v) = show v
   show (App v) = show v
+  show (Weak v) = show v
       
 instance Functor Term where
   fmap f (Var v) = Var (f v)
@@ -118,6 +119,7 @@ auxUpper :: [String] -> Term Variable -> Term Variable
 auxUpper c (Var (Regular v)) = if v `elem` c then (Var . Regular) (map toUpper v) else Var $ Regular v
 auxUpper c (Var v) = Var v
 auxUpper c (App ts) = App $ map (auxUpper c) ts
+auxUpper c (Weak t) = Weak $ auxUpper c t
 
 toTPTP :: Formula (Term Variable) -> String
 toTPTP f = header ++ "\n" ++ (aux $ upperIfy [] f) ++ "\n" ++ footer

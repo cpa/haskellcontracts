@@ -797,14 +797,14 @@ lexVar cs = case span isAlpha cs of
        ("of",rest) -> TokenOf : lexer rest       		     		    	  
        (var,rest)   -> TokenVar var : lexer rest
 main = getContents >>= print . haskell . lexer
-{-# LINE 1 "templates\GenericTemplate.hs" #-}
-{-# LINE 1 "templates\\GenericTemplate.hs" #-}
+{-# LINE 1 "templates/GenericTemplate.hs" #-}
+{-# LINE 1 "templates/GenericTemplate.hs" #-}
 {-# LINE 1 "<built-in>" #-}
 {-# LINE 1 "<command-line>" #-}
-{-# LINE 1 "templates\\GenericTemplate.hs" #-}
+{-# LINE 1 "templates/GenericTemplate.hs" #-}
 -- Id: GenericTemplate.hs,v 1.26 2005/01/14 14:47:22 simonmar Exp 
 
-{-# LINE 30 "templates\\GenericTemplate.hs" #-}
+{-# LINE 30 "templates/GenericTemplate.hs" #-}
 
 
 
@@ -813,11 +813,11 @@ main = getContents >>= print . haskell . lexer
 
 
 
-{-# LINE 51 "templates\\GenericTemplate.hs" #-}
+{-# LINE 51 "templates/GenericTemplate.hs" #-}
 
-{-# LINE 61 "templates\\GenericTemplate.hs" #-}
+{-# LINE 61 "templates/GenericTemplate.hs" #-}
 
-{-# LINE 70 "templates\\GenericTemplate.hs" #-}
+{-# LINE 70 "templates/GenericTemplate.hs" #-}
 
 infixr 9 `HappyStk`
 data HappyStk a = HappyStk a (HappyStk a)
@@ -841,7 +841,7 @@ happyAccept j tk st sts (HappyStk ans _) =
 -----------------------------------------------------------------------------
 -- Arrays only: do the next action
 
-{-# LINE 148 "templates\\GenericTemplate.hs" #-}
+{-# LINE 148 "templates/GenericTemplate.hs" #-}
 
 -----------------------------------------------------------------------------
 -- HappyState data type (not arrays)
@@ -932,7 +932,7 @@ happyDropStk n (x `HappyStk` xs) = happyDropStk (n - ((1)::Int)) xs
 -----------------------------------------------------------------------------
 -- Moving to a new state after a reduction
 
-{-# LINE 246 "templates\\GenericTemplate.hs" #-}
+{-# LINE 246 "templates/GenericTemplate.hs" #-}
 happyGoto action j tk st = action j j tk (HappyState action)
 
 
@@ -990,7 +990,7 @@ happyDontSeq a b = b
 -- of deciding to inline happyGoto everywhere, which increases the size of
 -- the generated parser quite a bit.
 
-{-# LINE 311 "templates\\GenericTemplate.hs" #-}
+{-# LINE 311 "templates/GenericTemplate.hs" #-}
 {-# NOINLINE happyShift #-}
 {-# NOINLINE happySpecReduce_0 #-}
 {-# NOINLINE happySpecReduce_1 #-}
