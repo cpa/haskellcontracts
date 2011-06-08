@@ -172,6 +172,9 @@ Which we rewrite as:
  $$\trans{C} \cup \{ \dtrans{f~x_1 \dots \x_n = e[f^\star/f]}, \bigwedge_{c \in C_f} \strans{f^\star \in c},  \bigvee_{c \in C_f} \lnot \strans{f \in c} \} \models \bot$$
 
 \section{Example}
+
+
+\subsection{Semantics}
 Consider the following program (the integer after a data constructor is its arity):
 \begin{verbatim}
 data List = Nil 0
@@ -187,9 +190,10 @@ copy x = case x of
 copy ::: a:{x : True} -> {y:True};;
 \end{verbatim}
 The contract states that if we give to copy a crash-free argument $x$, copy will return a crash-free result $y$.
-Note that [Just BAD] is not crash-free in our sense, so we can't say anything about it. TODO (or can we?)
+Note that [Just BAD] is not crash-free in our sense, so we can't say anything about it. TODO
 
 
+\subsection{Arguments order}
 \begin{verbatim}
 data Nat = Zero 0
          | Succ 1;;
@@ -209,15 +213,56 @@ not x = case x of
       | True -> False
       | False -> True;;
 
-add ::: a:{x : True} -> {y:True} -> {z: True};;             -- C1
-add ::: a:{x : isZero x} -> {y:isZero y} -> {z: True};;     -- C2
-add ::: a:{x : isZero x} -> {y:isZero y} -> {z: isZero z};; -- C3
+add ::: a:{x : isZero x} -> {y:isZero y} -> {z: isZero z};;
 \end{verbatim}
 
-As of today, we can prove C1 and C2 but not C3.
-Note that we can prove C2 only since the modification of $S_4$ in $\dtrans{}$.
-
 In the definition of $add$, if we replace $Succ (add z y)$ by $Succ (add y z)$, we can't prove anything which isn't very surprising because we're to do the recursion on the first variable, not on the second one. All the more so that they don't have the same contract.
+
+A lemma stating (+) commutativity would be helpful here.
+
+
+\subsection{Multiple contracts - Take 1}
+We suppose defined datatypes for Nat and Bool, just as in the example above.
+
+\begin{verbatim}
+add a b = case a of
+  | Zero -> b
+  | Succ x -> Succ (add x b);;
+
+mult a b = case a of
+  | Zero -> Zero
+  | Succ x -> add b (mult x b);;
+
+notZero x = case x of
+  | Zero -> False
+  | Succ a -> True;;
+
+notZero ::: a:{x:True} -> {y: True};;
+add  ::: a:{x: True} -> b:{y: True} -> {z: True};;
+add  ::: a:{x: notZero x} -> b:{y: True} -> {z: True};;
+mult ::: a:{x: notZero x} -> b:{y: notZero y} -> {z: True};;
+\end{verbatim}
+
+Equinox diverges when we try to check mult's contract.
+
+The reason stems from that $mult~(Succ~x)~b$ calls recursively
+$mult~x~b$ The induction hypothesis says that if $a$ is nonzero and
+$b$ is nonzero then the result is $\ok$. But in this case $x$ may be
+zero, so the induction hypothesis does not apply immediately. Now, the
+theorem prover could do a split on $x$ (either Zero or Succ$\_$) and
+in one case the result should follow from the induction hypothesis,
+but in the other case we are stuck! Because we don't actually know
+that $multp~0~b$ is $\ok$ ($multp$ is the recursive version of the
+function, whose contract we assumed but no further defining
+equations!)
+
+A possible fix, which is only possible when the function is total is
+to write $$f ::: a_1:\{x \mid p_1(x) \} \to \cdots \to a_n:\{x \mid
+p_n(x) \}$$ as $$f ::: \ok \to \cdots \to \ok \to \{x \mid
+if~(\bidWedge_{i < n} p_i(a_i))~then~p_n(x)~else~True)$$ And know we
+can prove $mult$'s contract, but it's not very satisfying.
+
+
 
 \end{document}
 
