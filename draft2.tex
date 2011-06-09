@@ -7,6 +7,8 @@
 \begin{document}
 
 \newcommand{\etrans}[1]{\mathcal{E} \llbracket #1 \rrbracket}
+\newcommand{\etranst}[1]{\mathcal{E}_t \llbracket #1 \rrbracket}
+\newcommand{\etransf}[1]{\mathcal{E}_{f} \llbracket #1 \rrbracket}
 \newcommand{\dtrans}[1]{\mathcal{D} \llbracket #1 \rrbracket}
 \newcommand{\ttrans}[1]{\mathcal{T} \llbracket #1 \rrbracket}
 \newcommand{\strans}[1]{\mathcal{S} \llbracket #1 \rrbracket}
@@ -22,22 +24,60 @@
 
 In the following, $D$ is a data constructor, $f$ a function symbol and we consider them as strings. $n$ represents an integer.
 
-\subsection{$\lambda$-lifted haskell subset}
+\subsection{$\mathcal{H}$: Haskell subset}
+Our source language $\mathcal{H}$ is defined below. Note that $\lambda$ abstractions and case expressions can appear anywhere in the code.
+
+assert $(e,c)$ in $e'$ means that if $e$ does not satisfy the contract $c$ then the compiler should return $\BAD$ and otherwise execute $e'$. % TODO return bad? Not really...
+
+$e$ `satisfies` $c$ is a boolean expression which is True iff the expression $e$ satisfies the contract $c$ in the current context. % TODO we talk about cotnract satisfaction in the first paragraph!
+
+
+
 \begin{center}
 \begin{array}{rclr}
-  u,e &:=& x \mid f \mid e~e \mid D(e,\dots,e) \mid \bad \mid n & (Expression)\\
+  u,e &:=& x \mid f \mid \lambda x.~e \mid e~e \mid D(e,\dots,e) \mid \bad \mid n \mid e \mbox{ `satisfies` } c \mid \mbox{assert } (e,c) \mbox{ in } e  & (Expression)\\
+  &\mid& \mbox{case } e \mbox{ of } [(p_i,e_i)] &\\
   p &:=& \Delta,p \mid T,p \mid f \in c,p \mid \epsilon & (Program)\\
   \Delta &:=& d \mid opaque(d) & (Defintion~and~scope)\\
-  d &:=& f~x_1 \dots x_n = e \mid f~x_1 \dots x_n = \mbox{ case } e \mbox{ of } [(pat_i,e_i)] & (Definition)\\
-  T &:=& \mbox{data } x = D_1 ; D_2 ; \dots ; D_n & (Data~type~definition)\\ %TODO make type clearer
+  d &:=& f~x_1 \dots x_n ::: c = e \mid f~x_1 \dots x_n ::: c = \mbox{ case } e \mbox{ of } [(pat_i,e_i)] & (Definition)\\
+  T &:=& \mbox{data } x = DCons  & (Data~type~definition)\\ %TODO make type clearer
+  DCons &:=& \epsilon \mid D ; DCons \mid D ::: c ; DCons & (List~of~data~constructors)\\
   pat &:=& D(x_1,\dots,x_n) & (Pattern)\\
 \end{array}
 \end{center}
 
-In the calculus, every definition is toplevel ($\lambda$-lifted) and there isn't any nested case.
+\subsection{$\mathcal{H'}$: $\lambda$-lifted haskell subset}
+This language is as expressive as $\mathcal{H}$ but contains fewer constructs. Compared to $\mathcal{H}$ the restrictions are:
+\begin{itemize}
+  \item No $\lambda$, ie every $\lambda$ is lifted to a function definition at the toplevel
+  \item No case expressions which are lifted out to the toplevel (ie pattern matching is only possible for a function declaration)
+  \item No $assert$ which are syntactic sugar for case expressions
+\end{itemize} % TODO describe preprocessing.
+From now on, expressions will always refer to $\mathcal{H'}$ expressions.
+
+\begin{center}
+\begin{array}{rclr}
+  u,e &:=& x \mid f \mid e~e \mid D(e,\dots,e) \mid \bad \mid n \mid e \mbox{ `satisfies` } c & (Expression)\\
+  p &:=& \Delta,p \mid T,p \mid f \in c,p \mid \epsilon & (Program)\\
+  \Delta &:=& d \mid opaque(d) & (Defintion~and~scope)\\
+  d &:=& f~x_1 \dots x_n ::: c = e\mid f~x_1 \dots x_n ::: c = \mbox{ case } e \mbox{ of } [(pat_i,e_i)] & (Definition)\\
+  T &:=& \mbox{data } x = DCons  & (Data~type~definition)\\ %TODO make type clearer
+  DCons &:=& \epsilon \mid D ; DCons \mid D ::: c ; DCons & (List~of~data~constructors)\\
+  pat &:=& D(x_1,\dots,x_n) & (Pattern)\\
+\end{array}
+\end{center}
 
 For the moment we consider data constructors to be saturated, ie fully applied (hence the special application syntax).
 That makes defining $\dtrans{}$ less painful, because we avoid a quadratic number (in the arity of the data contrustors) of axioms. cf $S_4$ below, for example.
+
+\subsection{From $\mathcal{H}$ to $\mathcal{H'}$}
+\subsubsection{Step 1: $assert$}
+We translate every expression $e = \mbox{assert } (e_c,c) \mbox{ in } e'$ in $\mbox{case } e_c `satisfies` c \mbox{ of } True -> e' | False -> \bad$.
+\subsubsection{Step 2: $\lambda-lifting$}
+GHC's API can do that.
+\subsubsection{Step 3: $case$ lifting}
+...
+
 
 \subsection{FOL}
 \begin{center}
@@ -75,31 +115,35 @@ Semantics of contract satisfaction (exactly the same as in the POPL paper):
 We define several translations: $\etrans{},\dtrans{},\ttrans{},\strans{},\trans{}$.
 \begin{center}
 \begin{array}{rclr}
-  \etrans{} &::& Expression \to Term\\
-  \dtrans{} &::& Definition \to FOF\\
+  \etrans{} &::& Expression \to (Term,FOF)\\
+  \dtrans{} &::& Definition \to \{ FOF \}\\
   \ttrans{} &::& Data~type  \to \{ FOF \}\\
-  \strans{} &::& Expression \to Contract \to FOF\\
+  \strans{} &::& Expression \to Contract \to \{ FOF \}\\
   \trans {} &::& Program    \to \{ FOF \}\\
 \end{array}
 \end{center}
 
 \subsection{$\etrans{}$}
-$\etrans{e}$ is a term, the translation is really straightforward.
+$\etrans{e}$ is a pair (term,formula), the only tricky translations is
+for satisfies.  We write $\etranst{}$ and $\etransf{}$ the projection
+of $\etrans{}$ on the first and second component.
 
 \begin{eqnarray}
-\etrans{x} &=& x\\
-\etrans{f} &=& f\\
-\etrans{e_1~e_2} &=& app(e_1,e_2)\\
-\etrans{D(e_1,\dots,e_n)} &=& D(\etrans{e_1},\dots,\etrans{e_n})\\
-\etrans{\bad} &=& \bad\\
-\etrans{n} &=& n\\
+\etrans{x} &=& (x,\emptyset)\\
+\etrans{f} &=& (f,\emptyset)\\
+\etrans{e_1~e_2} &=& (app(\etranst{e_1},\etranst{e_2}),\etransf{e_1} \cup \etransf{e_2})\\
+\etrans{D(e_1,\dots,e_n)} &=& (D(\etranst{e_1},\dots,\etranst{e_n}),\cup_{1 \leq i \leq n} \etransf{e_i})\\
+\etrans{\bad} &=& (\bad,\emptyset)\\
+\etrans{n} &=& (n,\emptyset)\\
+\etrans{e \mbox{ `satisfies` } c} &=& (\etranst{e},\etransf{e} \cup \forall x. \strans{x \in c} \leftrightarrow x~`satisfies`~c = True)\\
 \end{eqnarray}
 
+TODO: take car of the FV in c for satisfies.
 As usual, we use left associativity.
 
 \subsection{$\ttrans{}$}
-$\ttrans{T}$ is a set of first-order formulae which we break down in four parts:
-$\ttrans{\mbox{data } T = D_1 ; \dots ; D_n} = S_1 \cup S_2 \cup S_3 \cup S_4$.
+$\ttrans{T}$ is a set of first-order formulae which we break down in five parts:
+$\ttrans{\mbox{data } T = D_1 ; \dots ; D_n} = S_1 \cup S_2 \cup S_3 \cup S_4 \cup S_5$.
 
 First, for each $D_i$ of arity $n_i$ we introduce selectors $sel_{k,D_i}$, which are projections of $D_i(x_1,\dots,x_n_i)$ on its $k$-th component:
 $$S_1 := \{ \forall x_1,\dots,x_{n_i} . \bigwedge_{1 \leq j \leq n} sel_{j,D_i}(D_i(x_1,\dots,x_{n_i})) = x_j \mid 1 \leq i \leq n \}$$
@@ -111,20 +155,27 @@ Then, we have to give crash-freeness conditions for each $D_i$:
 $$S_3 := \{ \forall x_1,\dots,x_{n_i} . (\cf{x_1} \land \dots \land \cf{x_{n_i}} \leftrightarrow \cf{D_i(x_1,\dots,x_{n_i})}) \mid 1 \leq i \leq n \}$$
 Note that we have an equivalence in the case of a data constructor whereas we only have an (direct) implication for functions. It's because a function, due to laziness, could not use all its arguments. For example, $fst (1,BAD)$ is crash-free but its arguments aren't.
 
-Finally, we have to say that none of the $D_i$ is unreachable:
+We also have to say that none of the $D_i$ is unreachable:
 $$S_4 := \{ D_i(x_1,\dots,x_n) = \unr \to x_1 = \unr \lor \dots \lor x_n = \unr \mid 1 \leq i \leq n \}$$
 NB: We first started with $S_4 := \{ D_i \neq \unr \mid 1 \leq i \leq n \}$, but we couldn't prove that the (add x y), defined with peano integers, satisfied ($x=0 \to y=0 \to add~x~y=0$). It's also bizarre to state that the function was $\unr$ but not its application.
 
+Finally, we give contracts to each data constructors. It is the contract $c$ specified by the user. If no contract is given for a specific data constructor, then we assume that the contract is $\ok \to \dots \to \ok$.
+We write the contract $c$ as $c_1 \to \dots \to c_{n_i}}$
+$$S_5 := \{ \forall x_1,\dots,x_{n_i} \strans{D_i(x_1,\dots,x_{n_i}) \in c} \leftrightarrow \bigwedge_{1 \leq i \leq n_i} \strans{x_i \in c_i} \mid 1 \leq i \leq n \}$$
+
 \subsection{$\dtrans{}$}
-$\dtrans{d}$ is a first-order formula.
+$\dtrans{d}$ is a set first-order formula.
 
 \begin{eqnarray}
-\dtrans{f~\overline{x} = e} &=& \forall x_1 \dots x_n.\etrans{f~x_1 \dots x_n} = \etrans{e}\\
-\dtrans{f~\overline{x} = \mbox{case } e \mbox{ of } [D_i(\overline{z}) \mapsto e_i]} &=& \forall x_1 \dots x_n.(\bigwedge_i (\forall \overline{z}~\etrans{e} = \etrans{D_i(\overline{z})} \to \etrans{f~\overline{x}} = \etrans{e_i})\\
-&& \land \etrans{e} = \bad \to \etrans{f~x_1 \dots x_n} = \bad)\\ 
-&& \land ((\bigwedge_i e \neq D_i(sel_{1,D_i}(e),\dots,sel_{n_i,D_i}(e)) \land \etrans{e} \neq \bad)\\
-&& ~~\to \etrans{f~x_1 \dots x_n} = \unr)
+\dtrans{f~\overline{x} = e} &=& \forall x_1 \dots x_n.\etranst{f~x_1 \dots x_n} = \etranst{e} \cup \etransf{e}\\
+\dtrans{f~\overline{x} = \mbox{case } e \mbox{ of } [D_i(\overline{z}) \mapsto e_i]} &=& \forall x_1 \dots x_n.(\bigwedge_i (\forall \overline{z}~\etranst{e} = \etranst{D_i(\overline{z})} \to \etranst{f~\overline{x}} = \etranst{e_i})\\
+&& \land \etranst{e} = \bad \to \etranst{f~x_1 \dots x_n} = \bad)\\ 
+&& \land ((\bigwedge_i e \neq D_i(sel_{1,D_i}(e),\dots,sel_{n_i,D_i}(e)) \land \etranst{e} \neq \bad)\\
+&& ~~\to \etranst{f~x_1 \dots x_n} = \unr)\\
+&& \cup \etransf{e}
 \end{eqnarray}
+
+Note that in those equations, there is no $\etransf{f~x_1 \dots x_n}$ because it is always the empty set.
 
 An alternative to using selectors would be to write something along the line of $\exists y_1,\dots,y_{D_i}. e \neq D_i(y_1,\dots,y_{D_i})$. It is equivalent but the skolemisation process of equinox will anyway turn those existentials in selectors functions. But if we pattern match $D_i$ in two different functions, we would get two different selectors (the same selector with two different names) so it's better (for the efficiency of the proof) to define selectors for each $D_i$ once in for all and use it as much as possible afterwards.
 
@@ -134,17 +185,18 @@ Equation (11) and (12) state that if we have a type mismatch than the code is $\
 
 
 \subsection{$\strans{}$}
-$\strans{e \in c}$ is a first-order formula.
+$\strans{e \in c}$ is a set of first-order formulae.
 \begin{eqnarray}
 \strans{e \in \any} &=& true\\
-\strans{e \in \{x \mid u \}} &=& e = \unr \lor (\mbox{CF}(\etrans{e}) \land \etrans{u[e/x]} \neq \bad \land \etrans{u[e/x]} \neq False)\\
+\strans{e \in \{x \mid u \}} &=& e = \unr \lor (\mbox{CF}(\etranst{e}) \land \etranst{u[e/x]} \neq \bad \land \etranst{u[e/x]} \neq False)\\
+&& \cup \etransf{e} \cup \etransf{u[e/x]}\\
 \strans{e \in x:c_1 \to c_2}  &=& \forall x_1. \strans{x_1 \in c_1} \to \strans{e~x_1 \in c_2[x_1/x]}
 \end{eqnarray}
 $False$ is a data constructor here.
 
 Remark: we follow the semantics of the POPL paper but it's a bit restrictive.
 e.g. in equation 14 we could use the alternate semantics (namely B1 in the POPL paper) : 
-$$\strans{e \in \{x \mid u \}} = e = \unr \lor (\etrans{u[e/x]} \neq \bad \land \etrans{u[e/x]} \neq False)$$
+$$\strans{e \in \{x \mid u \}} = e = \unr \lor (\etrans{u[e/x]} \neq \bad \land \etrans{u[e/x]} \neq False) \cup \etransf{e} \cup \etransf{u[e/x]}$$
 
 \subsection{$\trans{}$}
 $\trans{p}$ defines the translation of a program to a theory (a set of FO formulae)
@@ -166,10 +218,10 @@ The user provides a program $p$ which consists of functions definition (either o
 Then, for each function definition $d_f := f~x_1 \dots x_n = e$ of a function $f$ that has to satisfy the set of contracts $C_f$, we construct the context $C = p \setminus ( d_f \cup C_f )$, which is basically the program $p$ without the definition of $f$ and the contracts it has to satisfy. 
 
 We then want to check (with equinox) that:
- $$\trans{C} \cup \{ \dtrans{f~x_1 \dots \x_n = e[f^\star/f]}, \bigwedge_{c \in C_f} \strans{f^\star \in c} \} \models \bigwedge_{c \in C_f} \strans{f \in c}$$
+ $$\trans{C} \cup \{ \dtrans{f~x_1 \dots x_n = e[f^\star/f]}, \dtrans{f^\star~x_1 \dots x_n = e[f^\star/f]}, \bigwedge_{c \in C_f} \strans{f^\star \in c} \} \models \bigwedge_{c \in C_f} \strans{f \in c}$$
 
 Which we rewrite as:
- $$\trans{C} \cup \{ \dtrans{f~x_1 \dots \x_n = e[f^\star/f]}, \bigwedge_{c \in C_f} \strans{f^\star \in c},  \bigvee_{c \in C_f} \lnot \strans{f \in c} \} \models \bot$$
+ $$\trans{C} \cup \{ \dtrans{f~x_1 \dots x_n = e[f^\star/f]}, \dtrans{f^\star~x_1 \dots x_n = e[f^\star/f]}, \bigwedge_{c \in C_f} \strans{f^\star \in c},  \bigvee_{c \in C_f} \lnot \strans{f \in c} \} \models \bot$$
 
 \section{Example}
 
