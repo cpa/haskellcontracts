@@ -53,10 +53,14 @@ Pattern : var Pattern	{(map toLower $1):$2}
 	| '('var')' {[map toLower $2]}
 	| {- empty -} {[]}
 
-DataArgs : var int '|' DataArgs {(map toLower $1,$2):$4}
-	 | '('var int')' '|' DataArgs {(map toLower $2,$3):$6}
-	 | var int {[(map toLower $1,$2)]}
-	 | '('var int')' {[(map toLower $2,$3)]}
+DataArgs : var int '|' DataArgs {(map toLower $1,$2,okContract $2):$4}
+	 | '('var int')' '|' DataArgs {(map toLower $2,$3, okContract $3):$6}
+	 | var int  {[(map toLower $1,$2,okContract $2)]}
+	 | '('var int')' {[(map toLower $2,$3,okContract $3)]}
+	 | var int ':::' Contr '|' DataArgs {(map toLower $1,$2,$4):$6}
+	 | '('var int')' ':::' Contr '|' DataArgs {(map toLower $2,$3,$6):$8}
+	 | var int ':::' Contr {[(map toLower $1,$2,$4)]}
+	 | '('var int')' ':::' Contr {[(map toLower $2,$3,$6)]}
 	 | {- empty -} {[]}
 
 Args : var Args {(map toLower $1):$2}

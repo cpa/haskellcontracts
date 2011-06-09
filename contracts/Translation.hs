@@ -89,8 +89,8 @@ s1 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
 s1 (H.Data _ dns) = sequence $ map s1D dns
 
 -- It's the set S1 but for only one data constructor
-s1D :: (String,Int) -> Fresh (F.Formula (F.Term F.Variable))
-s1D (d,a) = do
+s1D :: (String,Int,H.Contract) -> Fresh (F.Formula (F.Term F.Variable))
+s1D (d,a,c) = do
   (s,k) <- get
   put (s,k+1)
   let xs = map (\n -> s++"_"++(show n)) [1..a]
@@ -101,8 +101,8 @@ s2 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
 s2 (H.Data _ dns) = sequence $ map s2D [(a,b) | a <- dns, b <- dns, a < b]
 
 -- It's S2 for a pair of data constructors.
-s2D :: ((String,Int),(String,Int)) -> Fresh (F.Formula (F.Term F.Variable))
-s2D ((d1,a1),(d2,a2)) = do
+s2D :: ((String,Int,H.Contract),(String,Int,H.Contract)) -> Fresh (F.Formula (F.Term F.Variable))
+s2D ((d1,a1,c1),(d2,a2,c2)) = do
   (s,k) <- get
   put (s,k+2)
   let xs1 = map (\n -> s++(show k)++"_"++(show n)) [1..a1]
@@ -114,8 +114,8 @@ s3 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
 s3 (H.Data _ dns) = sequence $ map s3D dns
 
 -- It's S3 but only for one data constructor
-s3D :: (String,Int) -> Fresh (F.Formula (F.Term F.Variable))
-s3D (d,a) = do
+s3D :: (String,Int,H.Contract) -> Fresh (F.Formula (F.Term F.Variable))
+s3D (d,a,c) = do
   (s,k) <- get
   put (s,k+1)
   let xs = map (\n -> s++(show k)++"_"++(show n)) [1..a]
@@ -127,8 +127,8 @@ s4 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
 --s4 (H.Data _ dns) = map (\(d,a) -> F.Not ((F.Var . F.Regular) d `F.Eq` F.Var F.UNR)) dns
 s4 (H.Data _ dns) = sequence $ map s4D dns
 
-s4D :: (String,Int) -> Fresh (F.Formula (F.Term F.Variable))
-s4D (d,a) = do
+s4D :: (String,Int,H.Contract) -> Fresh (F.Formula (F.Term F.Variable))
+s4D (d,a,c) = do
   (s,k) <- get
   put (s,k+1)
   let xs = map (\n -> s++(show k)++"_"++(show n)) [1..a]

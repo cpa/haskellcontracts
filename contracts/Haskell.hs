@@ -9,7 +9,8 @@ module Haskell ( Expression (..)
                , apps
                , subst
                , substC
-               , ok)
+               , ok
+               , okContract)
 where
 
 type Variable = String
@@ -36,7 +37,7 @@ data Definition = Let Variable [Variable] Expression
                 | LetCase Variable [Variable] Expression [(Pattern,Expression)]
                 deriving (Show,Eq,Ord)                  
                   
-data DataType = Data Variable [(Variable,Int)] -- Data constructors + arity
+data DataType = Data Variable [(Variable,Int,Contract)] -- Data constructors + arity + contract
               deriving (Eq,Show,Ord)
 
 type Pattern = [Variable]
@@ -68,3 +69,6 @@ substC Any _ _ = Any
 
 ok :: Contract
 ok = Pred "dummy" (Con "True")
+
+okContract 0 = ok
+okContract n = AppC "okDummy" (okContract $ n-1) ok
