@@ -7,17 +7,14 @@ import FOL
 import System.Environment
 import System.IO
 
-test f = do
-  s <- readFile f
-  forM_ (map toTPTP $ (transExp $ haskell $ lexer s) >>= simplify) putStrLn
 
-toTheory f = do
+toTheory f c = do
   s <- readFile f
-  return $ concatMap toTPTP $ (transExp $ haskell $ lexer s) >>= simplify
+  return $ trans (haskell $ lexer s) c >>= simplify >>= toTPTP
 
 main = do
-  files <- getArgs
-  forM_ files $ \f -> do
-    cts <- toTheory f
-    writeFile (f ++ ".tptp") cts
+  files:c:_ <- getArgs
+  putStrLn $ files ++ " " ++ c
+  cts <- toTheory files c
+  writeFile (files ++ ".tptp") cts
   

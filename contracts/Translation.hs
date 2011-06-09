@@ -1,17 +1,19 @@
 module Translation where
 
+import Debug.Trace
+
 import qualified Haskell as H
 import qualified FOL as F
 import Control.Monad.State
 import Data.Char (toUpper)
 import Data.Maybe (fromJust)
-import Data.List (sort)
+import Data.List (sort,partition)
 -- Type signatures:
 -- eTrans :: H.Expression -> F.Term
 -- dTrans :: H.Definition -> F.Formula
 -- sTrans :: H.Expression -> H.Contract -> Fresh F.Formula
 -- tTrans :: H.DataType -> Fresh [F.Formula]
--- trans  :: H.DefGeneral -> [F.Formula]
+-- trans  :: [H.DefGeneral] -> [F.Formula (F.Term F.Variable)]
 
 type Fresh = State (String,Int)
 
@@ -61,7 +63,7 @@ test = (H.LetCase "head" ["xyz"] (H.Var "xyz") [(["nil"],H.BAD),(["cons","a","b"
 sTrans :: H.Expression -> H.Contract -> Fresh (F.Formula (F.Term F.Variable))
 sTrans e H.Any = return F.True
 
-sTrans e (H.Pred x u) = return $ F.Or [(eTrans e `F.Eq` F.Var F.UNR) ,F.And [F.CF $ eTrans e ,(F.Not $ F.Eq (F.Var F.BAD) $ eTrans u') , F.Not $ eTrans u' `F.Eq` (F.Var $ F.Regular "false")]] -- The data constructor False.
+sTrans e (H.Pred x u) =  return $ F.Or [(eTrans e `F.Eq` F.Var F.UNR) ,F.And [F.CF $ eTrans e ,(F.Not $ F.Eq (F.Var F.BAD) $ eTrans u') , F.Not $ eTrans u' `F.Eq` (F.Var $ F.Regular "false")]] -- The data constructor False.
   where u' = H.subst u e x
 
 sTrans e (H.AppC x c1 c2) = do
@@ -133,7 +135,7 @@ s4D (d,a,c) = do
   put (s,k+1)
   let xs = map (\n -> s++(show k)++"_"++(show n)) [1..a]
   if xs /= [] 
-    then (return $ F.Forall (map (F.Var . F.Regular) xs) $ F.Implies ((eTrans $ H.apps $ H.Var d : (map H.Var xs)) `F.Eq` (F.Var F.UNR)) $ F.Or [F.Var F.UNR `F.Eq` (F.Var $ F.Regular x) | x <- xs])
+    then (return $ F.Forall (map (F.Var . F.Regular) xs) $ F.Not ((eTrans $ H.apps $ H.Var d : (map H.Var xs)) `F.Eq` (F.Var F.UNR)))
     else return $ F.Not ((F.Var $ F.Regular d) `F.Eq` F.Var F.UNR)
 
 
@@ -141,23 +143,22 @@ s4D (d,a,c) = do
 -- Final translation
 --------------------
 
-trans :: H.DefGeneral -> [F.Formula (F.Term F.Variable)]
-trans = undefined
--- trans (H.Def d) = [dTrans d]
--- trans (H.DataType t) = evalState (tTrans t) ("Dtype",0)
--- trans (H.ContSat (H.Satisfies v c)) = map F.Not [evalState (sTrans (H.Var v') c') ("Zcont",0)] ++ [(F.Forall "F" $ F.Forall "X" $ (F.And (F.CF $ F.Var "X") (F.CF $ F.Var "F")) `F.Implies` (F.CF $ (F.App (F.Var "F") (F.Var "X")))),F.Not $ F.CF F.BAD,F.CF F.UNR]
---   where v' = v
---         c' = H.subst 
+trans :: [H.DefGeneral] -> String -> [F.Formula (F.Term F.Variable)]
+trans ds fcheck = aux fcheck ds
 
-transExp = aux . sort
+isContToCheck fcheck (H.ContSat (H.Satisfies v c)) = v==fcheck
+isContToCheck _ _ = False
 
-aux (H.ContSat (H.Satisfies v c):ds) = map F.Not [evalState (sTrans (H.Var v) c) ("Z",0)] ++ [evalState (sTrans (H.Var v') c) ("Zp",0)] ++ concatMap treat ds ++ footer
-  where treat (H.DataType t) = evalState (tTrans t) ("D",0)
+
+aux fcheck ds = map F.Not [evalState (sTrans (H.Var v) c) ("Z",0)] ++ [evalState (sTrans (H.Var v') c) ("Zp",0)] ++ concatMap treat ds' ++ footer
+  where ([H.ContSat (H.Satisfies v c)],ds') = partition (isContToCheck fcheck) ds
+        treat (H.DataType t) = evalState (tTrans t) ("D",0)
         treat (H.Def d@(H.Let x xs e)) = [if x == v then dTrans $ H.Let x xs (H.subst e (H.Var v') x) else dTrans d]
         treat (H.Def d@(H.LetCase x xs e pes)) = [if x == v then dTrans $ H.LetCase x xs (H.subst e (H.Var v') x) (map (\(p,e) -> (p,H.subst e (H.Var v') x)) pes) else dTrans d]
+        treat (H.ContSat (H.Satisfies x y)) = [evalState (sTrans (H.Var x) y) ("Y",0)]
         v' = v++"p"
         footer = [(F.Forall (map (F.Var . F.Regular) ["F","X"]) $ (F.And [F.CF $ F.Var $ F.Regular "X", F.CF $ F.Var $ F.Regular "F"]) `F.Implies` (F.CF $ (F.App [(F.Var $ F.Regular "F"), (F.Var $ F.Regular "X")]))),F.Not $ F.CF $ F.Var $ F.BAD,F.CF $ F.Var $ F.UNR]
-aux _ = undefined
+
 
 
 -- okFromd :: H.Definition -> H.Contract
