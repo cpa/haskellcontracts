@@ -157,6 +157,21 @@ s4D (d,a,c) = do
     then (return $ F.Forall (map (F.Var . F.Regular) xs) $ F.Not (et `F.Eq` (F.Var F.UNR)))
     else return $ F.Not ((F.Var $ F.Regular d) `F.Eq` F.Var F.UNR)
 
+s5 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
+s5 (H.Data _ dns) = sequence $ map s5D dns
+
+s5D :: (String,Int,H.Contract) -> Fresh (F.Formula (F.Term F.Variable))
+s5D (d,a,c) = do
+  (s,k,fs) <- get
+  put (s,k+1,fs)
+  let xs = map (\n -> s++(show k)++"_"++(show n)) [1..a]
+      cs = H.toList c
+      dapp = H.apps [H.Var x | x <- d:xs]
+  sxs <- sequence $ [sTrans (H.Var xi) ci | (xi,ci) <- zip xs cs]
+  st <- sTrans dapp c
+  return $ F.Forall (map (F.Var . F.Regular) xs) $ F.Iff st (F.And sxs)
+
+
 
 
 

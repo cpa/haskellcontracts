@@ -9,6 +9,7 @@ module Haskell ( Expression (..)
                , apps
                , subst
                , substC
+               , toList
                , ok
                , okContract)
 where
@@ -49,7 +50,7 @@ data Contract = AppC Variable Contract Contract -- x : c -> c'
               | Any
               deriving (Show,Eq,Ord)                  
 
-apps xs = foldl1 (\w x -> App w x) xs
+apps xs = foldl1 App xs
 
 
 subst :: Expression -> Expression -> Variable -> Expression -- e[x/y]
@@ -73,3 +74,7 @@ ok = Pred "dummy" (Con "True")
 
 okContract 0 = ok
 okContract n = AppC "okDummy" (okContract $ n-1) ok
+
+
+toList (AppC _ c1 c2) = toList c1 ++ toList c2
+toList x = [x]
