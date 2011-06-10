@@ -103,8 +103,8 @@ sTrans e (H.AppC x c1 c2) = do
 --------------------
 
 tTrans :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
-tTrans d = liftM4 (++++) (s1 d) (s2 d) (s3 d) (s4 d)
-  where (++++) a b c d = a ++ b ++ c ++ d
+tTrans d = liftM5 (+++++) (s1 d) (s2 d) (s3 d) (s4 d) (s5 d)
+  where (+++++) a b c d e = a ++ b ++ c ++ d ++ e
 
 s1 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
 s1 (H.Data _ dns) = sequence $ map s1D dns
