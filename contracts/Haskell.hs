@@ -21,6 +21,7 @@ data Expression = Var Variable
                 | Fun Variable
                 | Con Constructor
                 | App Expression Expression
+                | Sat Expression Contract -- e `satisfies` c --> True iff e \in c
                 | BAD
                 deriving (Show,Eq,Ord)          
 
