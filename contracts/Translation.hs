@@ -169,7 +169,8 @@ s5D (d,a,c) = do
       dapp = H.apps [H.Var x | x <- d:xs]
   sxs <- sequence $ [sTrans (H.Var xi) ci | (xi,ci) <- zip xs cs]
   st <- sTrans dapp c
-  return $ F.Forall (map (F.Var . F.Regular) xs) $ F.Iff st (F.And sxs)
+  if xs /= [] then return $ F.Forall (map (F.Var . F.Regular) xs) $ F.Iff st (F.And sxs)
+    else sTrans (H.Var d) c
 
 
 
@@ -190,10 +191,10 @@ isContToCheck _ _ = False
 aux fcheck ds = map F.Not [evalState (sTrans (H.Var v) c) ("Z",0,[])] ++ [evalState (sTrans (H.Var v') c) ("Zp",0,[])] ++ concatMap treat ds' ++ footer
   where ([H.ContSat (H.Satisfies v c)],ds') = partition (isContToCheck fcheck) ds
         treat (H.DataType t) = evalState (tTrans t) ("D",0,[])
-        treat (H.Def d@(H.Let x xs e)) = [if x == v then evalState (dTrans $ H.Let x xs (H.subst e (H.Var v') x)) ("O",0,[]) else evalState (dTrans d) ("P",0,[])] ++ (
-                                         if x == v then [evalState (dTrans $ H.Let v' xs (H.subst e (H.Var v') x)) ("O",0,[])] else [])
-        treat (H.Def d@(H.LetCase x xs e pes)) = [if x == v then evalState (dTrans $ H.LetCase x xs (H.subst e (H.Var v') x) (map (\(p,e) -> (p,H.subst e (H.Var v') x)) pes)) ("O",0,[]) else evalState (dTrans d) ("P",0,[])] ++ (
-                                                 if x == v then [evalState (dTrans $ H.LetCase v' xs (H.subst e (H.Var v') x) (map (\(p,e) -> (p,H.subst e (H.Var v') x)) pes)) ("O",0,[])] else [])
+        treat (H.Def d@(H.Let x xs e)) = [if x == v then evalState (dTrans $ H.Let x xs (H.subst e (H.Var v') x)) ("O",0,[]) else evalState (dTrans d) ("P",0,[])] ++
+                                         [if x == v then evalState (dTrans $ H.Let v' xs (H.subst e (H.Var v') x)) ("O",0,[]) else evalState (dTrans d) ("P",0,[])]
+        treat (H.Def d@(H.LetCase x xs e pes)) = [if x == v then evalState (dTrans $ H.LetCase x xs (H.subst e (H.Var v') x) (map (\(p,e) -> (p,H.subst e (H.Var v') x)) pes)) ("O",0,[]) else evalState (dTrans d) ("P",0,[])] ++
+                                                 [if x == v then evalState (dTrans $ H.LetCase v' xs (H.subst e (H.Var v') x) (map (\(p,e) -> (p,H.subst e (H.Var v') x)) pes)) ("O",0,[]) else evalState (dTrans d) ("P",0,[])]
         treat (H.ContSat (H.Satisfies x y)) = [evalState (sTrans (H.Var x) y) ("Y",0,[])]
         v' = v++"p"
         footer = [(F.Forall (map (F.Var . F.Regular) ["F","X"]) $ (F.And [F.CF $ F.Var $ F.Regular "X", F.CF $ F.Var $ F.Regular "F"]) `F.Implies` (F.CF $ (F.App [(F.Var $ F.Regular "F"), (F.Var $ F.Regular "X")]))),F.Not $ F.CF $ F.Var $ F.BAD,F.CF $ F.Var $ F.UNR]
