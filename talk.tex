@@ -1,0 +1,358 @@
+\documentclass{beamer}
+\usepackage{stmaryrd}
+\usepackage{amsmath}
+\usepackage{graphicx}
+
+\usetheme{Warsaw}
+
+
+\newcommand{\etrans}[1]{\mathcal{E} \llbracket #1 \rrbracket}
+\newcommand{\etranst}[1]{\mathcal{E}_t \llbracket #1 \rrbracket}
+\newcommand{\etransf}[1]{\mathcal{E}_{f} \llbracket #1 \rrbracket}
+\newcommand{\dtrans}[1]{\mathcal{D} \llbracket #1 \rrbracket}
+\newcommand{\ttrans}[1]{\mathcal{T} \llbracket #1 \rrbracket}
+\newcommand{\strans}[1]{\mathcal{S} \llbracket #1 \rrbracket}
+\newcommand{\cf}[1]{\mbox{CF}(#1)}
+\newcommand{\trans}[1]{\llbracket #1 \rrbracket}
+
+\newcommand{\unr}{\texttt{UNR}}
+\newcommand{\bad}{\texttt{BAD}}
+\newcommand{\any}{\texttt{Any}}
+\newcommand{\ok}{\texttt{Ok}}
+
+\title{Contracts for Haskell}   
+\author{Simon (PJ), Dimitrios, Koen, Charles-Pierre} 
+\date{} 
+
+\begin{document}
+
+\frame{\titlepage} 
+
+\section{Goals}  
+\frame{
+\frametitle{Goals}
+We would like to write things like:\\
+\ \\
+\texttt{head ::: \{ x | not (null x) \} -> \ok\\
+  head xs = case xs of\\
+  | [] -> \bad \\
+  | x:\_ -> x
+}\\
+\ \\ \ \\
+ 
+\texttt{map ::: (Ok -> Ok) -> xs:Ok ->\\
+  \quad \quad \quad \quad \quad \quad \{ ys | length ys = length xs \} }
+\ \\ \ \\
+Note: $\ok$ is just syntactic sugar for $\{ x \mid True \}$
+}
+
+\frame{
+  \frametitle{Contract syntax}
+  \begin{center}
+  \begin{array}{rclr}
+        c &:=& \{ x \mid e \}\\
+        &\mid& \any \\
+        &\mid& (c,c) \\
+        &\mid& x{:}c_1 \to c_2\\
+      \end{array}
+  \end{center}
+      \begin{itemize}
+      \item Predicates should be any boolean Haskell expression.
+      \item Everything (even errors!) satisfies $\any$\\
+        \texttt{ fst ::: ($\ok,\any$) -> $\ok$ }
+      \item Named arguments: $x$ is any value satisfying $c_1$.
+      \end{itemize}
+}
+
+\frame{\frametitle{Crash-freeness}
+
+  Morally, an expression $e$ is crash-free (cf) iff any \bad-free
+  context in which we execute the expression in does not yield \bad.\\
+  \ \\
+
+  Laziness makes things tricky:
+  \begin{itemize}
+  \item \texttt{Just BAD}: not CF
+  \item \texttt{(3,error ''foo'')}: not CF
+  \item \texttt{fst (3,error ''foo'')}: \alert{CF}
+  \end{itemize}
+  \ \\
+  And now to the operational semantics of contracts!
+}
+
+\frame{\frametitle{Contract semantics}
+\begin{array}{rcl}
+  e :::\{x \mid p \} &\iff& e \mbox{ diverges or } \\
+  && (e \mbox{ is crash-free and } p[e/x] \not \to^\star \{\bad,False\})\\
+  e ::: x:t_1 \to t_2 &\iff& \mbox{for all } e_1, e_1 ::: t_1 \mbox{ implies } (e~e_1) ::: t_2[e_1/x]\\
+  e ::: (t_1,t_2) &\iff& e \mbox{ diverges or } \\
+  && (e \to^\star (e_1,e_2) \mbox{ and } e_1 ::: t_1 \mbox{ and } e_2 ::: t_2)\\
+  e ::: \any &\iff& True  
+\end{array}
+}
+
+
+\frame{\frametitle{Contract checking}
+  Two roads: runtime checking and static checking.
+  \begin{itemize}
+  \item Runtime: Findler \& Felleisen, many others ... 
+  \item The road less taken: static checking
+  \end{itemize}
+  Our simple plan: 
+  \begin{center}
+    Haskell + Contracts $\to$ First-order logic $\to$ Automated Theorem Prover (equinox)
+  \end{center}
+
+  Equinox is Koen's automated theorem prover. It's a FO theorem
+  prover with equality and is under active development.
+
+}
+  
+\section{How we do it}
+
+\frame{\frametitle{Our language}
+  Ok, not really Haskell. Wlog we make these asumptions:
+  \begin{itemize}
+  \item Top-level only pattern-matching 
+  \item $\lambda$-lifting (top-level function definitions)
+  \item Saturated data constructors (l.o.g. here but only for the sake of clarity)
+  \end{itemize}
+  From now on, we only consider well-typed expressions.
+}
+
+\frame{\frametitle{Our syntax}
+  \begin{array}{rcl}
+    u,e &:=& x \mid f \mid e~e \mid D(e,\dots,e) \mid \bad\\
+    mod &:=& def,mod \mid tdecl,mod \mid f ::: c,mod \mid \epsilon\\
+    def &:=& f~x_1 \dots x_n = e \mid f~x_1 \dots x_n = \mbox{ case } e \mbox{ of } [(pat_i,e_i)]\\
+    pat &:=& D(x_1,\dots,x_n)\\
+    tdecl &:=& \mbox{data } T = dcons\\
+    dcons &:=& \epsilon \mid D ; dcons \mid D ::: c ; dcons
+  \end{array}
+}
+
+\frame{\frametitle{The big picture} Recall that $mod := def,mod \mid
+  T,mod \mid f ::: c,mod \mid \epsilon$; a module is a list of
+  function definitions, data definitions and claims that functions
+  satisfy their contracts.
+}
+
+\section{The plan}
+\frame{\frametitle{The big picture}
+  \includegraphics[scale=0.4]{plan.pdf}
+}
+
+\frame{\frametitle{What we need}
+  \begin{block}{Theorem (unproven)}
+    $T_p \vdash T_c \implies f ::: c$
+  \end{block}
+  Unfortunately, so far we're only believers.
+
+  Given this theorem we can use Koen's theorem prover to decide if
+  $T_p \vdash T_c$.
+
+}
+
+\section{Translations}
+\frame{\frametitle{Expressions become first-order logic terms}
+  \begin{eqnarray*}
+    \etrans{x} &=& x\\
+    \etrans{f} &=& f\\
+    \etrans{e_1~e_2} &=& app(\etrans{e_1},\etrans{e_2})\\
+    \etrans{D(e_1,\dots,e_n)} &=& D(\etrans{e_1},\dots,\etrans{e_n})\\
+    \etrans{\bad} &=& \bad
+  \end{eqnarray*}
+  \begin{itemize}
+  \item Looks reasonable... But what's this ``app'' ?
+  \item Why not $\etrans{e_1~e_2} = e_1(e_2)$ with $e_1$ being a FO function?
+  \item To keep things first-order...
+  \item Because we will need to quantify over an arbitrary
+    expression (that includes functions)
+  \end{itemize}
+}
+
+\frame{\frametitle{Formulae in the preamble}  
+  We gave an (informal) definition of crash-freeness with the
+  semantics of contract satisfaction. But here, we use CF as a logic
+  predicate.
+
+  We always add to our theory the following formulae, only
+  approximating the intended semantics:
+  $$ \forall f,x.~\cf{f} \land \cf{x} \implies \cf{app(f,x)} $$
+  $$ \lnot \cf{\bad} $$
+}
+
+\frame{\frametitle{Translating modules}
+  \begin{center}
+    \begin{array}{rclr}
+      \etrans{} &::& Expression \to Term\\
+      \dtrans{} &::& Definition \to \{ FOF \}\\
+      \ttrans{} &::& Data~type~declaration  \to \{ FOF \}\\
+      \strans{} &::& Expression \to Contract \to \{ FOF \}\\
+    \end{array}
+  \end{center}
+  
+}
+
+\frame{\frametitle{$\dtrans{}$ -- Definition translation (easy case)}
+  Let $f$ be defined as $f~x = (x,x)$. It gives rise to the formula $\forall x.~app(f,x) = \mbox{Pair}(x,x)$.
+
+  \begin{itemize}
+  \item In the formula $f$ is an uninterpreted constant symbol.
+  \item Pair is a function in FO logic.\\ \alert{We will give formulae for it soon!}
+  \end{itemize}
+
+  In general:
+  $$\dtrans{f~x~y = e} = \forall x~y.~\etrans{f~x~y} = \etrans{e}$$
+}
+
+\subsection{Data constructors}
+\frame{\frametitle{$\ttrans{}$ -- Data declaration translation}
+  $\ttrans{\mobx{data } T = D_1 \mid \dots \mid D_n} = ?$
+  
+  Reasonable requirements:
+  \begin{itemize}
+  \item Injectivity
+  \item CF conditions
+  \end{itemize}
+  
+  Let's give some details...
+}
+
+\frame{\frametitle{$\ttrans{}$ -- Data constructor injectivity}
+  $\ttrans{\mobx{data } T = D_1 \mid D_2} = ?$
+  
+  Assume the following arities: $D_1$:2, $D_2$:1.
+
+  $$ \forall x_1,x_2 .~\forall y .~ D_1(x_1,x_2) \neq D_2(y) $$
+
+  Do this for every pair of constructors!
+}
+
+\frame{\frametitle{$\ttrans{}$ -- Data constructor crash-freeness}
+  $\ttrans{\mobx{data } T = D_1 \mid D_2} = ?$
+  
+  $$ \forall x_1,x_2.~\cf{x_1} \land \cf{x_2} \leftrightarrow \cf{D_1(x_1,x_2)} $$
+  $$ \forall y.~\cf{y} \leftrightarrow \cf{D_2(y)}$$
+
+  Values of type $T$ are crash-free iff they are created with crash-free values.
+
+  \begin{itemize}
+  \item $\rightarrow$ also true for cf function application
+  \item $\leftarrow$  not true even for cf functions\\ (recall that \texttt{fst (3,$\bad$)} is crash-free)
+  \end{itemize}
+}
+
+\subsection{Pattern matching}
+\frame{\frametitle{$\dtrans{}$ -- The case of case}
+  \texttt{
+    head xs = case xs of\\
+    ~~| Nil -> $\bad$\\
+    ~~| Cons(y,ys) -> y
+  }
+  translates to:
+  \begin{center}
+  \begin{array}{rl}
+    $       &app(head,Nil) = \bad\\
+     \land &\forall y,ys.~app(head,Cons(y,ys)) = y\\
+     \land & app(head,\bad) = \bad\\
+     \land & \forall xs.~xs \neq Nil \land (\forall a~b.~xs \neq Cons(a,b))\\
+     & ~~~\land xs \neq \bad \implies app(head,xs) = \unr$
+  \end{array}
+  \end{center}
+
+  What is $\unr$? What is it for?
+}
+\subsection{Unreachability}
+\frame{\frametitle{$\strans{}$ -- Contract satisfaction and the role of $\unr$}
+  How do we translate that $e ::: c$?
+  \begin{eqnarray*}
+    \strans{e \in \any} &=& true\\
+    \strans{e \in \{x \mid u \}} &=& e = \unr \lor (\mbox{CF}(\etrans{e}) \land \etrans{u[e/x]} \neq \bad\\
+    &&~\land \etrans{u[e/x]} \neq False)\\
+    \strans{e \in x:c_1 \to c_2}  &=& \forall x_1. \strans{x_1 \in c_1} \to \strans{e~x_1 \in c_2[x_1/x]}
+  \end{eqnarray*}
+
+  \begin{block}{$\unr$}
+  Used to represent divergence or things that should not happen.
+
+  $$fst ::: \ok \to \ok \mbox{ and }3 ::: \ok$$
+  Thus, $fst~3$ should satisfy $\ok$!
+
+  But it cannot happen (it's ill-typed), so we map $fst~3$ to a
+  special value which satisfies $\ok$. (FOL is untyped!)
+  \end{block}
+}
+
+\subsection{Recursion} 
+\frame{\frametitle{$\dtrans{}$ -- Recursive functions: Take 1}
+  Assume that we want to prove the claim $add ::: c$ where $c=\ok \to \ok \to \ok$.\\
+  \texttt{add~x~y = case x of\\
+    | Zero -> y\\
+    | Succ a -> Succ (add a y)
+  }\\
+  
+  Naively, we would do as usual: ask the theorem prover if
+  $$\dtrans{add=e} \vdash \strans{add,c}$$
+  But $add$ is recursive, so we would not go very far!
+
+  \alert{Fix:} define a function $add\_rec$ that we use as IH. We now ask the theorem prover:
+  $$\dtrans{add=e[add/add\_rec]},\strans{add\_rec,c} \vdash \strans{add,c}$$
+}
+
+\frame{\frametitle{$\dtrans{}$ -- Recursive functions: Take 1}
+  That yields the following formula:
+  \begin{center}
+    \begin{array}{rl}
+      $\forall x~y.&app(app(add,Zero),y) = y\\
+      \land & \forall a.app(app(add,Succ(a)),y) = Succ(app(app(\alert{add\_rec},a),y))\\
+      \land & app(app(add,\bad),y) = \bad\\
+      \land & x \neq Zero \land (\forall c.~x \neq Succ(c))\\
+      & ~~~\land x \neq \bad \implies app(app(add,x),y) = \unr$
+    \end{array}
+  \end{center}
+  \ \\
+  How about: $app(app(add,x),\bad) = \bad$?
+}
+
+\frame{\frametitle{$\dtrans{}$ -- Recursive functions: Take 2}
+  A more complicated example: $mult ::: c$ where 
+  $$c = \{x \mid x \neq 0\} \to \{y \mid y \neq 0\} \to \{z \mid z \neq 0\}$$
+
+  \texttt{
+    mult x y = case x of\\
+    ~~| Zero -> Zero\\
+    ~~| Succ a -> add (mult a y) y
+    }
+
+  $$\dtrans{mult=e[mult/mult\_rec]},\strans{mult\_rec,c} \not \vdash \strans{mult,c}$$
+}
+
+\frame{\frametitle{$\dtrans{}$ -- Recursive functions: Take 2}
+  \texttt{
+    mult x y = case x of\\
+    ~~| Zero -> Zero\\
+    ~~| Succ a -> add (mult a y) y
+    }
+  $$\dtrans{mult=e[mult/mult\_rec]},\strans{mult\_rec,c} \not \vdash \strans{mult,c}$$
+  Why? Because the IH is too restrictive!\\
+  \alert{Fix:}\\
+  \begin{array}{rcl}
+    $\dtrans{mult=e[mult/mult\_rec]}$&&\\
+    $\strans{mult\_rec,c} & \vdash & \strans{mult,c}$\\\
+    $\dtrans{mult\_rec=e[mult/mult\_rec]}$&&\\
+  \end{array}
+}
+
+\frame{\frametitle{Questions}
+  \begin{itemize}
+  \item \emph{Proof that $T_p \vdash T_c \implies f ::: c$}
+  \item Speed-up the theorem prover (by giving strategies)
+  \item The user should be able to specify lemmas. How?
+  \item Hoare Logic view of contracts (partial spec) vs. liquid types (complete spec)
+  \item Contracts on datatypes
+  \item Not all contracts expressible as Haskell predicates. Need special operator: \texttt{`satisfies` c}?
+  \end{itemize}
+}
+
+\end{document}
