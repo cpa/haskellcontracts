@@ -29,6 +29,7 @@ instance Show a => Show (Term a) where
   show (Var v) = show v
   show (App v) = show v
   show (Weak v) = show v
+  show (FullApp f []) = show f
   show (FullApp f as) = show f ++ "(" ++ (concat $ intersperse "," $ map show as) ++ ")"
 
 

@@ -47,9 +47,9 @@ eTrans (H.Sat e c) = do
 -- Definition
 -------------
 
-dTrans :: H.Definition -> Fresh F.Formula (F.Term F.Variable)
+dTrans :: H.Definition -> Fresh (F.Formula (F.Term F.Variable))
 dTrans (H.Let f vs e) = do
-  et <- eTrans e                      
+  et <- eTrans e
   return $ (F.Forall vvs $ F.Eq (F.FullApp (F.Regular f) vvs) (F.Weak $ et))
   where vvs = map (F.Var . F.Regular) vs
 
@@ -82,7 +82,7 @@ sTrans e H.Any = return F.True
 sTrans e (H.Pred x u) =  do
   et <- eTrans e
   ut' <- eTrans u'
-  return $ F.Or [(et `F.Eq` F.Var F.UNR) ,F.And [F.CF $ et ,(F.Not $ F.Eq (F.Var F.BAD) $ ut') , F.Not $ ut' `F.Eq` (F.Var $ F.Regular "false")]] -- The data constructor False.
+  return $ F.Or [(et `F.Eq` F.Var F.UNR) ,F.And [(F.Not $ F.Eq (F.Var F.BAD) $ ut') , F.Not $ ut' `F.Eq` (F.Var $ F.Regular "false")]] -- The data constructor False.
   where u' = H.subst u e x
 
 sTrans e (H.AppC x c1 c2) = do
@@ -134,17 +134,8 @@ s2D ((d1,a1,c1),(d2,a2,c2)) = do
 
 
 s3 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
-s3 (H.Data _ dns) = sequence $ map s3D dns
+s3 (H.Data _ dns) = return []
 
--- It's S3 but only for one data constructor
-s3D :: (String,Int,H.Contract) -> Fresh (F.Formula (F.Term F.Variable))
-s3D (d,a,c) = do
-  (s,k,fs) <- get
-  put (s,k+1,fs)
-  let xs = map (\n -> s++(show k)++"_"++(show n)) [1..a]
-  if xs /= [] 
-    then (return $ F.Forall (map (F.Var . F.Regular) xs) $ F.Iff (F.CF $ F.FullApp (F.Regular d) (map (F.Var . F.Regular) xs)) (F.And [F.CF (F.Var $ F.Regular x) | x <- xs]))
-    else return $ F.CF $ F.Var $ F.Regular d
 
 s4 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
 s4 (H.Data _ dns) = sequence $ map s4D dns
