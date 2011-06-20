@@ -26,6 +26,7 @@ import Haskell
 	of 	{TokenOf}
 	'('	{TokenParenO}
 	')'	{TokenParenC}
+ 	','	{TokenComma}
 %%
 
 ListGeneral : General ';;' ListGeneral {$1:$3}
@@ -75,6 +76,11 @@ Expr : '(' Expr Atom ')' { App $2 $ $3 }
      | '(' bad Expr ')' { App BAD $3 }
      | bad Expr { App BAD $2 }
      | Atom { $1 }
+     | var '(' commaArgs ')' { FullApp $1 $ $3 }
+
+commaArgs : Expr ',' commaArgs { $1:$3 }
+	  | Expr { [$1] }
+	  | {- empty -} { [] }
 
 Contr : '{' var ':' Expr '}' { Pred (map toLower $2) $4 }
       | var ':' Contr '->' Contr { AppC (map toLower $1) $3 $5 }
@@ -103,6 +109,7 @@ data Token = TokenCase
 	   | TokenCurlyO
 	   | TokenCurlyC
 	   | TokenBad
+	   | TokenComma
 	   deriving (Eq,Show)
 
 lexer :: String -> [Token]
@@ -121,6 +128,7 @@ lexer ('(':cs) = TokenParenO : lexer cs
 lexer (')':cs) = TokenParenC : lexer cs
 lexer (';':';':cs) = TokenSep : lexer cs
 lexer ('|':cs) = TokenPipe : lexer cs
+lexer (',':cs) = TokenComma : lexer cs
 
 lexInt cs = TokenInt (read num) : lexer rest
       where (num,rest) = span isDigit cs
