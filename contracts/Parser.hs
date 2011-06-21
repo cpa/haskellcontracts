@@ -780,7 +780,7 @@ happyReduction_40 (_ `HappyStk`
 	(HappyTerminal (TokenVar happy_var_1)) `HappyStk`
 	happyRest)
 	 = HappyAbsSyn12
-		 (FullApp happy_var_1 $ happy_var_3
+		 (FullApp (map toLower happy_var_1) $ happy_var_3
 	) `HappyStk` happyRest
 
 happyReduce_41 = happySpecReduce_3  13 happyReduction_41

@@ -76,7 +76,7 @@ Expr : '(' Expr Atom ')' { App $2 $ $3 }
      | '(' bad Expr ')' { App BAD $3 }
      | bad Expr { App BAD $2 }
      | Atom { $1 }
-     | var '(' commaArgs ')' { FullApp $1 $ $3 }
+     | var '(' commaArgs ')' { FullApp (map toLower $1) $ $3 }
 
 commaArgs : Expr ',' commaArgs { $1:$3 }
 	  | Expr { [$1] }
