@@ -107,6 +107,7 @@ toTPTP f = header ++ "\n" ++ (aux $ upperIfy [] f) ++ "\n" ++ footer
         auxTerm (App []) = error "Cannot apply nothing"
         auxTerm (App [t]) = auxTerm t
         auxTerm (App ts) = "app(" ++ auxTerm (App (init ts)) ++ "," ++ auxTerm (last ts) ++ ")"
+        auxTerm (FullApp f []) = show f
         auxTerm (FullApp f as) = show f ++ "(" ++ (concat $ intersperse "," $ map show as) ++ ")"
         auxTerm (Weak t) = "$weak(" ++ auxTerm t ++")"
         -- TODO App efficiency fix
