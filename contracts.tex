@@ -3,6 +3,7 @@
 \usepackage{stmaryrd}
 \usepackage{amsmath}
 \usepackage{fullpage}
+\usepackage{graphicx}
 
 \begin{document}
 
@@ -104,7 +105,7 @@ It does not follow exactly the semantics given by the popl paper, but we hope it
 Semantics of contract satisfaction (exactly the same as in the POPL paper):
 \begin{center}
 \begin{array}{rcl}
-  e \in \{x \mid p \} &\iff& e \mbox{ diverges or } (e \mbox{ is crash-free and } p[e/x] \not \to^\star \{\bad,\unr\})\\
+  e \in \{x \mid p \} &\iff& e \mbox{ diverges or } (e \mbox{ is crash-free and } p[e/x] \not \to^\star \{\bad,False\})\\
   e \in x:t_1 \to t_2 &\iff& \forall e_1 \in t_1, (e~e_1) \in t_2[e_1/x]\\
   e \in (t_1,t_2) &\iff& e \mbox{ diverges or } (e \to^\star (e_1,e_2) \mbox{ and } e_1 \in t_1, e_2 \in t_2)\\
   e \in \any &\iff& True  
@@ -314,6 +315,95 @@ p_n(x) \}$$ as $$f ::: \ok \to \cdots \to \ok \to \{x \mid
 if~(\bidWedge_{i < n} p_i(a_i))~then~p_n(x)~else~True)$$ And know we
 can prove $mult$'s contract, but it's not very satisfying.
 
+A stupid fix was to provide defining equations for $multp$ (the same
+as for $mult$). Indeed, we could prove that $mult$ satisfied its
+contract, but it was trivially true...
+
+Current idea is to unfold the definition a fixed number of times.
+
+\section{De-appification and removed CFness}
+\subsection{De-appification}
+Instead of always using the $app$ function when doing function
+application, we now use directly the function name if it is fully
+applied. For example, if $f$ is of arity 2, $f x y$ is now translated
+to $f(x,y)$ instead of $app(app(f,x),y)$.  To deal with partially
+applied functions, we can use $f\_ptr$ and some extra axioms. 
+
+This transformation makes things much faster for equinox, especially
+given that in most cases, function are totally applied.
+
+\subsection{Removing CFness}
+In the POPL paper, CF was introduced in the contract satisfaction
+semantics because it was required in order to define the
+wrapping. Given that we do not use any wrapping, we can remove it from
+the semantics.
+
+In fact, it's probably better to decouple crash-freeness and predicate
+satisfaction.
+
+Here the new version of the semantics : $e \in \{x \mid p \} \iff e
+\mbox{ diverges or } (p[e/x] \not \to^\star \{\bad,False\})$
+
+
+But it leads to some tricky cases:
+
+Assume a reasonable definition of $add$. Then, this contract does not
+hold.
+$$add ::: a:\{ x \mid True \} \to \{ y \mid True \} \to \{ z \mid z
+\geq a \}$$
+
+Why? Because now that we have removed crash-freeness, we can have $x$
+and $y$ instantiated to $\bad$. And then, $ add~x~y \geq z $ becomes
+$\bad$. Or the semantics say that the predicate should not evaluate to
+$\bad$. 
+
+A possible fix is to provide, directly in the source language a $cf$
+predicate, so that one can write contract like:
+
+$$add ::: a:\{ x \mid cf(x) \} \to \{ y \mid cf(y) \} \to \{ z \mid z
+\geq a \}$$
+
+Note that in this setting $\{ x \mid True \} = \any$ and $\{ x \mid
+cf(x) \} = \ok$.
+
+\subsection{Dimitrios point}
+Dimitrios isn't convinced that we keep the consistency of the whole
+module when checking one function after the other.
+
+Assume that we have a module that contains two functions defintion $f$
+and $g$ and two contracts : $f ::: Any -> Ok$ and $g ::: Any ->
+Ok$. We assume that those contract do not hold, for example if $f$ is
+$not$ and $g$ is $id$.
+
+Now, we want to check $f$'s contract. We take out $f$'s contract,
+translate the function definition for $f$ and $g$ and add the contract
+satisfation formulae for $g$'s contract.
+
+But, given that $g$'s contract does not hold, we can derive $\bot$ and
+then prove that $f$'s contract hold.
+
+Now the user is happy, and does the same thing for $g$'s contract. It
+holds too, given that we can also derive $\bot$ for $f$'s contract.
+
+Finally, the user is really happy, but in fact he has proved nothing.
+
+
+I think that it's not an actual issue, if we only give to equinox
+useful formulae. Ie, if $f$ does not use $g$ we do not include $g$ in
+the translation. Obviously it slows down the proof and, breaks the
+consistency.
+
+Consider the following graph, an arrow from $a$ to $b$ meaning that
+$b$ uses $a$ in its definition.
+
+\begin{center}
+\includegraphics[scale=0.5]{flow.png}
+\end{center}
+
+We (D and I) believe that if we check a function by only giving the
+formulae coming from the ancestors, then we do not break consistency.
+Eg, to check $a$'s contract we need to give the contract and
+definition for $f$ and $g$ too, but not for $h$.
 
 
 \end{document}
