@@ -48,7 +48,7 @@ dTrans (H.Let f vs e) = do
   et <- eTrans e
   return $ [F.Forall vvs $ F.Eq (F.FullApp (F.Regular f) vvs) (F.Weak $ et),fptr1,fptr2]
   where vvs = map (F.Var . F.Regular) vs
-        fptr1 = F.Forall vvs $ F.Iff (F.CF (F.FullApp (F.Regular f) vvs)) (F.CF $ F.Var $ F.Regular (f++"_ptr"))
+        fptr1 = F.Forall vvs $ F.Iff (F.Implies (F.And [F.CF v | v <- vvs]) $ F.CF (F.FullApp (F.Regular f) vvs)) (F.CF $ F.Var $ F.Regular (f++"_ptr"))
         fptr2 = F.Forall vvs $ F.Eq (F.FullApp (F.Regular (f)) vvs) (F.App $ (F.Var . F.Regular) (f++"_ptr") : vvs)
 
 dTrans (H.LetCase f vs e pes) = do
@@ -65,7 +65,7 @@ dTrans (H.LetCase f vs e pes) = do
       eq11 = (F.And $ (F.Not $ et `F.Eq` F.Var F.BAD):bigAndSel ) `F.Implies` eq12
       eq12 = (F.FullApp (F.Regular f) vvs `F.Eq` F.Var F.UNR)
       bigAndSel = [F.Not $ et `F.Eq` F.Weak (F.FullApp (F.Regular di) [F.FullApp (F.Regular ("sel_"++(show i)++"_"++di)) [et] | i <- [1..ai]]) | (di,ai) <- arities]
-      fptr1 = F.Forall vvs $ F.Iff (F.CF (F.FullApp (F.Regular f) vvs)) (F.CF $ F.Var $ F.Regular (f++"_ptr"))
+      fptr1 = F.Forall vvs $ F.Iff (F.Implies (F.And [F.CF v | v <- vvs]) $ F.CF (F.FullApp (F.Regular f) vvs)) (F.CF $ F.Var $ F.Regular (f++"_ptr"))
       fptr2 = F.Forall vvs $ F.Eq (F.FullApp (F.Regular f) vvs) (F.App $ (F.Var . F.Regular) (f++"_ptr") : vvs)
   return $ [F.Forall (vvs ++ zs) $ F.And (eq9++[eq10,eq11]),fptr1,fptr2]
 
