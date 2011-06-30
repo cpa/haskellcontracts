@@ -23,6 +23,7 @@ data Expression = Var Variable
                 | App Expression Expression
                 | FullApp Variable [Expression]
                 | Sat Expression Contract -- e `satisfies` c --> True iff e \in c
+                | CF Expression
                 | BAD
                 deriving (Show,Eq,Ord)          
 
@@ -47,6 +48,8 @@ type Pattern = [Variable]
 data Contract = AppC Variable Contract Contract -- x : c -> c'
               | Pair Contract Contract
               | Pred Variable Expression   -- {x:e}
+              | And Contract Contract
+              | Or  Contract Contract
               | Any
               deriving (Show,Eq,Ord)                  
 
@@ -62,11 +65,14 @@ subst (App e1 e2) x y = App (subst e1 x y) (subst e2 x y)
 subst (FullApp f es) x y = let Var x' = (subst (Var f) x y) in 
   FullApp x' $ map (\e -> subst e x y) es
 subst BAD _ _ = BAD
+subst (CF e) x y = CF (subst e x y)
 
 substC :: Contract -> Expression -> Variable -> Contract
 substC (AppC u c1 c2) x y = AppC u (substC c1 x y) (substC c2 x y) -- TODO and if u==y?
 substC (Pair c1 c2) x y = Pair (substC c1 x y) (substC c2 x y)
 substC (Pred u e) x y = if u/=y then Pred u (subst e x y) else (Pred u e)
+--substC (And cs) x y = And $ map (\c -> substC c x y) cs
+--substC (Or cs) x y = Or $ map (\c -> substC c x y) cs
 substC Any _ _ = Any
 
 ok :: Contract
