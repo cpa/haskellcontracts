@@ -1,19 +1,12 @@
 module Translation where
 
 import Debug.Trace
-
 import qualified Haskell as H
 import qualified FOL as F
 import Control.Monad.State
 import Data.Char (toUpper)
 import Data.Maybe (fromJust)
 import Data.List (sort,partition)
--- Type signatures:
--- eTrans :: H.Expression -> Fresh F.Term
--- dTrans :: H.Definition -> Fresh F.Formula
--- sTrans :: H.Expression -> H.Contract -> Fresh F.Formula
--- tTrans :: H.DataType -> Fresh [F.Formula]
--- trans  :: [H.DefGeneral] -> [F.Formula (F.Term F.Variable)]
 
 type Fresh = State (String,Int,[F.Formula (F.Term F.Variable)])
 
@@ -39,7 +32,10 @@ eTrans (H.Sat e c) = do
   let fe = F.Forall [F.Var $ F.Regular "x"] $ F.Iff ts $ F.Eq (F.Var $ F.Regular "true") te
   modify (\(a,b,c) ->(a,b,fe:c))
   eTrans e
-
+eTrans (H.CF e) = do
+  te <- eTrans e
+  modify (\(a,b,c) -> (a,b,F.CF te:c))
+  return $ F.Var $ F.Regular "true"
 
 
 
@@ -82,7 +78,9 @@ sTrans e H.Any = return F.True
 sTrans e (H.Pred x u) =  do
   et <- eTrans e
   ut' <- eTrans u'
-  return $ F.Or [(et `F.Eq` F.Var F.UNR) ,F.And [(F.Not $ F.Eq (F.Var F.BAD) $ ut') , F.Not $ ut' `F.Eq` (F.Var $ F.Regular "false")]] -- The data constructor False.
+  (a,b,fs) <- get
+  put (a,b,[])
+  return $ F.And $ [F.Or [(et `F.Eq` F.Var F.UNR) ,F.And [(F.Not $ F.Eq (F.Var F.BAD) $ ut') , F.Not $ ut' `F.Eq` (F.Var $ F.Regular "false")]]]++fs -- The data constructor False.
   where u' = H.subst u e x
 
 sTrans e (H.AppC x c1 c2) = do
@@ -97,7 +95,15 @@ sTrans e (H.AppC x c1 c2) = do
     _ -> sTrans (H.App e (H.Var freshX)) c2'
   return $ F.Forall [F.Var $ F.Regular $ freshX] (f1 `F.Implies` f2)
 
-
+sTrans e (H.And c1 c2) = do
+  f1 <- sTrans e c1
+  f2 <- sTrans e c2
+  return $ F.And [f1,f2]
+  
+sTrans e (H.Or c1 c2) = do
+  f1 <- sTrans e c1
+  f2 <- sTrans e c2
+  return $ F.Or [f1,f2]
 
 
 
@@ -134,8 +140,17 @@ s2D ((d1,a1,c1),(d2,a2,c2)) = do
 
 
 s3 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
-s3 (H.Data _ dns) = return []
+s3 (H.Data _ dns) = sequence $ map s3D dns
 
+--- It's S3 but only for one data constructor
+s3D :: (String,Int,H.Contract) -> Fresh (F.Formula (F.Term F.Variable))
+s3D (d,a,c) = do
+  (s,k,fs) <- get
+  put (s,k+1,fs)
+  let xs = map (\n -> s++(show k)++"_"++(show n)) [1..a]
+  if xs /= []
+    then (return $ F.Forall (map (F.Var . F.Regular) xs) $ F.Iff (F.CF $ F.FullApp (F.Regular d) (map (F.Var . F.Regular) xs)) (F.And [F.CF (F.Var $ F.Regular x) | x <- xs]))
+    else return $ F.CF $ F.App [F.Var $ F.Regular d]
 
 s4 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
 s4 (H.Data _ dns) = sequence $ map s4D dns

@@ -37,7 +37,7 @@ $e$ `satisfies` $c$ is a boolean expression which is True iff the expression $e$
 \begin{center}
 \begin{array}{rclr}
   u,e &:=& x \mid f \mid \lambda x.~e \mid e~e \mid D(e,\dots,e) \mid \bad \mid n \mid e \mbox{ `satisfies` } c \mid \mbox{assert } (e,c) \mbox{ in } e  & (Expression)\\
-  &\mid& \mbox{case } e \mbox{ of } [(p_i,e_i)] &\\
+  &\mid& \mbox{case } e \mbox{ of } [(p_i,e_i)] \mid \cf{e}&\\
   p &:=& \Delta,p \mid T,p \mid f \in c,p \mid \epsilon & (Program)\\
   \Delta &:=& d \mid opaque(d) & (Defintion~and~scope)\\
   d &:=& f~x_1 \dots x_n ::: c = e \mid f~x_1 \dots x_n ::: c = \mbox{ case } e \mbox{ of } [(pat_i,e_i)] & (Definition)\\
@@ -58,7 +58,7 @@ From now on, expressions will always refer to $\mathcal{H'}$ expressions.
 
 \begin{center}
 \begin{array}{rclr}
-  u,e &:=& x \mid f \mid e~e \mid D(e,\dots,e) \mid \bad \mid n \mid e \mbox{ `satisfies` } c & (Expression)\\
+  u,e &:=& x \mid f \mid e~e \mid D(e,\dots,e) \mid \bad \mid n \mid e \mbox{ `satisfies` } c \mid \cf{e} & (Expression)\\
   p &:=& \Delta,p \mid T,p \mid f \in c,p \mid \epsilon & (Program)\\
   \Delta &:=& d \mid opaque(d) & (Defintion~and~scope)\\
   d &:=& f~x_1 \dots x_n ::: c = e\mid f~x_1 \dots x_n ::: c = \mbox{ case } e \mbox{ of } [(pat_i,e_i)] & (Definition)\\
@@ -99,7 +99,8 @@ It does not follow exactly the semantics given by the popl paper, but we hope it
   c &:=& x:c_1 \to c_2\\
   &\mid& (c_1,c_2) \\
   &\mid& \{ x \mid e \}\\
-  &\mid& \{ !x \mid e \}\\
+  &\mid& c_1 \land c_2 \\
+  &\mid& c_1 \lor c_2 \\
 \end{array}
 \end{center}
 
@@ -107,9 +108,10 @@ Semantics of contract satisfaction (exactly the same as in the POPL paper):
 \begin{center}
 \begin{array}{rcl}
   e \in \{x \mid p \} &\iff& e \mbox{ diverges or } p[e/x] \not \to^\star \{\bad,False\}\\
-  e \in \{!x \mid p \} &\iff& e \mbox{ diverges or } (e \mbox{ is crash-free and } p[e/x] \not \to^\star \{\bad,False\})\\
   e \in x:t_1 \to t_2 &\iff& \forall e_1 \in t_1, (e~e_1) \in t_2[e_1/x]\\
   e \in (t_1,t_2) &\iff& e \mbox{ diverges or } (e \to^\star (e_1,e_2) \mbox{ and } e_1 \in t_1, e_2 \in t_2)\\
+  e \in c_1 \land c_2 &\iff& e \in c_1 \mbox{ and } e \in c_2\\
+  e \in c_1 \lor c_2 &\iff& e \in c_1 \mbox{ or } e \in c_2\\
 \end{array}
 \end{center}
 
@@ -163,6 +165,7 @@ of $\etrans{}$ on the first and second component.
 \etrans{\bad} &=& (\bad,\emptyset)\\
 \etrans{n} &=& (n,\emptyset)\\
 \etrans{e \mbox{ `satisfies` } c} &=& (\etranst{e},\etransf{e} \cup \forall x. \strans{x \in c} \leftrightarrow x~`satisfies`~c = True)\\
+\etrans{\cf{e}} &=& \cf{e}\\
 \end{eqnarray}
 
 TODO: take car of the FV in c for satisfies.
@@ -214,9 +217,11 @@ Equation (11) and (12) state that if we have a type mismatch than the code is $\
 \subsection{$\strans{}$}
 $\strans{e \in c}$ is a set of first-order formulae.
 \begin{eqnarray}
-\strans{e \in \{x \mid u \}} &=& e = \unr \lor (\mbox{CF}(\etranst{e}) \land \etranst{u[e/x]} \neq \bad \land \etranst{u[e/x]} \neq False)\\
+\strans{e \in \{x \mid u \}} &=& e = \unr \lor (\etranst{u[e/x]} \neq \bad \land \etranst{u[e/x]} \neq False)\\
 && \cup \etransf{e} \cup \etransf{u[e/x]}\\
-\strans{e \in x:c_1 \to c_2}  &=& \forall x_1. \strans{x_1 \in c_1} \to \strans{e~x_1 \in c_2[x_1/x]}
+\strans{e \in x:c_1 \to c_2}  &=& \forall x_1. \strans{x_1 \in c_1} \to \strans{e~x_1 \in c_2[x_1/x]}\\
+\strans{e \in c_1 \land c_2} &=& \strans{e \in c_1} \land \strans{e \in c_2}\\
+\strans{e \in c_1 \lor c_2} &=& \strans{e \in c_1} \lor \strans{e \in c_2}\\
 \end{eqnarray}
 $False$ is a data constructor here.
 
