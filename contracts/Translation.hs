@@ -43,11 +43,13 @@ eTrans (H.CF e) = do
 -- Definition
 -------------
 
-dTrans :: H.Definition -> Fresh (F.Formula (F.Term F.Variable))
+dTrans :: H.Definition -> Fresh [F.Formula (F.Term F.Variable)]
 dTrans (H.Let f vs e) = do
   et <- eTrans e
-  return $ (F.Forall vvs $ F.Eq (F.FullApp (F.Regular f) vvs) (F.Weak $ et))
+  return $ [F.Forall vvs $ F.Eq (F.FullApp (F.Regular f) vvs) (F.Weak $ et),fptr1,fptr2]
   where vvs = map (F.Var . F.Regular) vs
+        fptr1 = F.Forall vvs $ F.Iff (F.CF (F.FullApp (F.Regular f) vvs)) (F.CF $ F.Var $ F.Regular (f++"_ptr"))
+        fptr2 = F.Forall vvs $ F.Eq (F.FullApp (F.Regular (f++"_ptr")) vvs) (F.App $ (F.Var . F.Regular) f : vvs)
 
 dTrans (H.LetCase f vs e pes) = do
   et <- eTrans e
@@ -63,7 +65,9 @@ dTrans (H.LetCase f vs e pes) = do
       eq11 = (F.And $ (F.Not $ et `F.Eq` F.Var F.BAD):bigAndSel ) `F.Implies` eq12
       eq12 = (F.FullApp (F.Regular f) vvs `F.Eq` F.Var F.UNR)
       bigAndSel = [F.Not $ et `F.Eq` F.Weak (F.FullApp (F.Regular di) [F.FullApp (F.Regular ("sel_"++(show i)++"_"++di)) [et] | i <- [1..ai]]) | (di,ai) <- arities]
-  return $ F.Forall (vvs ++ zs) $ F.And (eq9++[eq10,eq11])
+      fptr1 = F.Forall vvs $ F.Iff (F.CF (F.FullApp (F.Regular f) vvs)) (F.CF $ F.Var $ F.Regular (f++"_ptr"))
+      fptr2 = F.Forall vvs $ F.Eq (F.FullApp (F.Regular (f ++ "_ptr")) vvs) (F.App $ (F.Var . F.Regular) f : vvs)
+  return $ [F.Forall (vvs ++ zs) $ F.And (eq9++[eq10,eq11]),fptr1,fptr2]
 
 test = (H.LetCase "head" ["xyz"] (H.Var "xyz") [(["nil"],H.BAD),(["cons","a","b"],H.Var "a")])
 -- t = putStrLn $ (trans test) >>= (F.simplify) >>= F.toTPTP
@@ -200,8 +204,8 @@ isContToCheck _ _ = False
 aux fcheck ds = map F.Not [evalState (sTrans (H.Var v) c) ("Z",0,[])] ++ [evalState (sTrans (H.Var v') c) ("Zp",0,[])] ++ concatMap treat ds' ++ footer
   where ([H.ContSat (H.Satisfies v c)],ds') = partition (isContToCheck fcheck) ds
         treat (H.DataType t) = evalState (tTrans t) ("D",0,[])
-        treat (H.Def d@(H.Let x xs e)) = [if x == v then evalState (dTrans $ H.Let x xs (H.subst e (H.Var v') x)) ("O",0,[]) else evalState (dTrans d) ("P",0,[])] 
-        treat (H.Def d@(H.LetCase x xs e pes)) = [if x == v then evalState (dTrans $ H.LetCase x xs (H.subst e (H.Var v') x) (map (\(p,e) -> (p,H.subst e (H.Var v') x)) pes)) ("O",0,[]) else evalState (dTrans d) ("P",0,[])] 
+        treat (H.Def d@(H.Let x xs e)) = if x == v then evalState (dTrans $ H.Let x xs (H.subst e (H.Var v') x)) ("O",0,[]) else evalState (dTrans d) ("P",0,[])
+        treat (H.Def d@(H.LetCase x xs e pes)) = if x == v then evalState (dTrans $ H.LetCase x xs (H.subst e (H.Var v') x) (map (\(p,e) -> (p,H.subst e (H.Var v') x)) pes)) ("O",0,[]) else evalState (dTrans d) ("P",0,[])
         treat (H.ContSat (H.Satisfies x y)) = [evalState (sTrans (H.Var x) y) ("Y",0,[])]
         v' = v++"p"
         footer = [(F.Forall (map (F.Var . F.Regular) ["F","X"]) $ (F.And [F.CF $ F.Var $ F.Regular "X", F.CF $ F.Var $ F.Regular "F"]) `F.Implies` (F.CF $ (F.App [(F.Var $ F.Regular "F"), (F.Var $ F.Regular "X")]))),F.Not $ F.CF $ F.Var $ F.BAD,F.CF $ F.Var $ F.UNR]
