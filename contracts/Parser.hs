@@ -785,7 +785,7 @@ happyReduction_31  =  HappyAbsSyn10
 happyReduce_32 = happySpecReduce_1  11 happyReduction_32
 happyReduction_32 (HappyTerminal (TokenVar happy_var_1))
 	 =  HappyAbsSyn11
-		 (if isUpper $ head happy_var_1 then Con (map toLower happy_var_1) else Var (map toLower happy_var_1)
+		 (if isUpper $ head happy_var_1 then Con ((map toLower happy_var_1)) else Var ((map toLower happy_var_1))
 	)
 happyReduction_32 _  = notHappyAtAll 
 
@@ -1056,7 +1056,7 @@ lexer (',':cs) = TokenComma : lexer cs
 lexInt cs = TokenInt (read num) : lexer rest
       where (num,rest) = span isDigit cs
 
-lexVar cs = case span isAlpha cs of
+lexVar cs = case span (\x -> isAlpha x || x == '_') cs of
        ("any",rest) -> TokenAny : lexer rest
        ("bad",rest) -> TokenBad : lexer rest
        ("BAD",rest) -> TokenBad : lexer rest

@@ -70,7 +70,7 @@ DataArgs : var int '|' DataArgs {(map toLower $1,$2,okContract $2):$4}
 Args : var Args {(map toLower $1):$2}
      | {- empty -} {[]}
 
-Atom : var { if isUpper $ head $1 then Con (map toLower $1) else Var (map toLower $1) }
+Atom : var { if isUpper $ head $1 then Con ((map toLower $1)) else Var ((map toLower $1)) }
      | '(' Expr ')' { $2 }
 
 Expr : '(' Expr Atom ')' { App $2 $ $3 }
@@ -145,7 +145,7 @@ lexer (',':cs) = TokenComma : lexer cs
 lexInt cs = TokenInt (read num) : lexer rest
       where (num,rest) = span isDigit cs
 
-lexVar cs = case span isAlpha cs of
+lexVar cs = case span (\x -> isAlpha x || x == '_') cs of
        ("any",rest) -> TokenAny : lexer rest
        ("bad",rest) -> TokenBad : lexer rest
        ("BAD",rest) -> TokenBad : lexer rest
