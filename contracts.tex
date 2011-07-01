@@ -37,7 +37,7 @@ $e$ `satisfies` $c$ is a boolean expression which is True iff the expression $e$
 \begin{center}
 \begin{array}{rclr}
   u,e &:=& x \mid f \mid \lambda x.~e \mid e~e \mid D(e,\dots,e) \mid \bad \mid n \mid e \mbox{ `satisfies` } c \mid \mbox{assert } (e,c) \mbox{ in } e  & (Expression)\\
-  &\mid& \mbox{case } e \mbox{ of } [(p_i,e_i)] \mid \cf{e}&\\
+  &\mid& \mbox{case } e \mbox{ of } [(p_i,e_i)] \mid \cf{e} \mid f(e,\dots,e)&\\
   p &:=& \Delta,p \mid T,p \mid f \in c,p \mid \epsilon & (Program)\\
   \Delta &:=& d \mid opaque(d) & (Defintion~and~scope)\\
   d &:=& f~x_1 \dots x_n ::: c = e \mid f~x_1 \dots x_n ::: c = \mbox{ case } e \mbox{ of } [(pat_i,e_i)] & (Definition)\\
@@ -58,7 +58,7 @@ From now on, expressions will always refer to $\mathcal{H'}$ expressions.
 
 \begin{center}
 \begin{array}{rclr}
-  u,e &:=& x \mid f \mid e~e \mid D(e,\dots,e) \mid \bad \mid n \mid e \mbox{ `satisfies` } c \mid \cf{e} & (Expression)\\
+  u,e &:=& x \mid f \mid e~e \mid D(e,\dots,e) \mid \bad \mid n \mid e \mbox{ `satisfies` } c \mid \cf{e} \mid f(e,\dots,e) & (Expression)\\
   p &:=& \Delta,p \mid T,p \mid f \in c,p \mid \epsilon & (Program)\\
   \Delta &:=& d \mid opaque(d) & (Defintion~and~scope)\\
   d &:=& f~x_1 \dots x_n ::: c = e\mid f~x_1 \dots x_n ::: c = \mbox{ case } e \mbox{ of } [(pat_i,e_i)] & (Definition)\\
@@ -83,7 +83,7 @@ GHC's API can do that.
 \subsection{FOL}
 \begin{center}
 \begin{array}{rclr}
-  t &:=& x \mid \mbox{app}(t_1,t_2) \mid D(t,\dots,t) \mid f \mid n \mid \bad \mid \unr \mid \mbox{CF}(t) & (Term)\\
+  t &:=& x \mid \mbox{app}(t_1,t_2) \mid D(t,\dots,t) \mid f(t,\dots,t) \mid f \mid n \mid \bad \mid \unr & (Term)\\
   \phi &:=& \forall x.\phi \mid \phi \to \phi \mid \lnot \phi \mid \phi \lor \phi \mid \phi \land \phi \mid true \mid t=t \mid \mbox{CF}(t)& (Formula)\\
 \end{array}
 \end{center}
@@ -165,7 +165,8 @@ of $\etrans{}$ on the first and second component.
 \etrans{\bad} &=& (\bad,\emptyset)\\
 \etrans{n} &=& (n,\emptyset)\\
 \etrans{e \mbox{ `satisfies` } c} &=& (\etranst{e},\etransf{e} \cup \forall x. \strans{x \in c} \leftrightarrow x~`satisfies`~c = True)\\
-\etrans{\cf{e}} &=& \cf{e}\\
+\etrans{f(e_1,\dots,e_n)} &=& f(\etranst{e_1},\dots,\etranst{e_n})\\
+\etrans{\cf{e}} &=& (True,\cf{\eTranst{e}})\\
 \end{eqnarray}
 
 TODO: take car of the FV in c for satisfies.
@@ -198,11 +199,15 @@ $\dtrans{d}$ is a set first-order formula.
 
 \begin{eqnarray}
 \dtrans{f~\overline{x} = e} &=& \forall x_1 \dots x_n.\etranst{f~x_1 \dots x_n} = \etranst{e} \cup \etransf{e}\\
+&\cup& (\forall x_1 \dots x_n. (\bigwedge \cf{x_i} \rightarrow \cf{f(x_1,\dots,x_n)}) \leftrightarrow \cf{f\_ptr}\\
+&\cup& (\forall x_1 \dots x_n. (f(x_1,\dots,x_n) = app(...app(f\_ptr,x_1)...,x_n)))\\
 \dtrans{f~\overline{x} = \mbox{case } e \mbox{ of } [D_i(\overline{z}) \mapsto e_i]} &=& \forall x_1 \dots x_n.(\bigwedge_i (\forall \overline{z}~\etranst{e} = \etranst{D_i(\overline{z})} \to \etranst{f~\overline{x}} = \etranst{e_i})\\
 && \land \etranst{e} = \bad \to \etranst{f~x_1 \dots x_n} = \bad)\\ 
 && \land ((\bigwedge_i e \neq D_i(sel_{1,D_i}(e),\dots,sel_{n_i,D_i}(e)) \land \etranst{e} \neq \bad)\\
 && ~~\to \etranst{f~x_1 \dots x_n} = \unr)\\
-&& \cup \etransf{e}
+&& \cup \etransf{e}\\
+&\cup& (\forall x_1 \dots x_n. (\bigwedge \cf{x_i} \rightarrow \cf{f(x_1,\dots,x_n)}) \leftrightarrow \cf{f\_ptr}\\
+&\cup& (\forall x_1 \dots x_n. (f(x_1,\dots,x_n) = app(...app(f\_ptr,x_1)...,x_n)))\\
 \end{eqnarray}
 
 Note that in those equations, there is no $\etransf{f~x_1 \dots x_n}$ because it is always the empty set.
@@ -211,7 +216,9 @@ An alternative to using selectors would be to write something along the line of 
 
 Equation (10) is not restrictive even in the case of laziness because $e$ is always evaluated.
 
-Equation (11) and (12) state that if we have a type mismatch than the code is $\unr$. It should never occur because we're assuming that the code has already been typechecked.
+Equation (11) and (12) state that if we have a type mismatch than the code is $\unr$. It should never occur because we're assuming that the code has already been typechecked. %TODO eq number
+
+Finally, we have to relate $f\_ptr$ to $f$ and define when we can say that $f$ is crash-free.
 
 
 \subsection{$\strans{}$}

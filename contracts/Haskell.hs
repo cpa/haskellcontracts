@@ -46,7 +46,6 @@ data DataType = Data Variable [(Variable,Int,Contract)] -- Data constructors + a
 type Pattern = [Variable]
 
 data Contract = AppC Variable Contract Contract -- x : c -> c'
-              | Pair Contract Contract
               | Pred Variable Expression   -- {x:e}
               | And Contract Contract
               | Or  Contract Contract
@@ -69,7 +68,6 @@ subst (CF e) x y = CF (subst e x y)
 
 substC :: Contract -> Expression -> Variable -> Contract
 substC (AppC u c1 c2) x y = AppC u (substC c1 x y) (substC c2 x y) -- TODO and if u==y?
-substC (Pair c1 c2) x y = Pair (substC c1 x y) (substC c2 x y)
 substC (Pred u e) x y = if u/=y then Pred u (subst e x y) else (Pred u e)
 --substC (And cs) x y = And $ map (\c -> substC c x y) cs
 --substC (Or cs) x y = Or $ map (\c -> substC c x y) cs
