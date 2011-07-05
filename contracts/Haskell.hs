@@ -61,7 +61,8 @@ arities [] = []
 arities (Def d:ds) = go d:arities ds
   where go (Let f vs _) = (f,length vs)
         go (LetCase f vs _ _) = (f,length vs)
-arities (_:gs) = arities gs
+arities (DataType d:gs) = go d ++ arities gs
+  where go (Data d vac) = [(v,a) | (v,a,c) <- vac]
 
 appify p = map (\d -> fmap (appifyExpr a) d) p
   where a = arities p
