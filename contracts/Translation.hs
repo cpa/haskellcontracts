@@ -15,7 +15,7 @@ type Fresh = State (String,Int,[F.Formula (F.Term F.Variable)])
 -- Expression
 -------------
 
-eTrans :: H.Expression -> Fresh (F.Term F.Variable)
+--eTrans :: H.Expression -> Fresh (F.Term F.Variable)
 eTrans (H.Var v) = return $ (F.Var $ F.Regular v)
 eTrans (H.App e1 e2) = do 
   t1 <- eTrans e1
@@ -25,7 +25,6 @@ eTrans (H.FullApp f es) = do
   ts <- sequence $ map eTrans es
   return $ F.FullApp (F.Regular f) ts
 eTrans H.BAD = return $ F.Var $ F.BAD
-eTrans (H.Con d) = return $ F.Var $ F.Regular d
 eTrans (H.Sat e c) = do 
   ts <- sTrans (H.Var "x") c
   te <- eTrans $ H.FullApp "satC" [H.Var "x"]
@@ -43,7 +42,7 @@ eTrans (H.CF e) = do
 -- Definition
 -------------
 
-dTrans :: H.Definition -> Fresh [F.Formula (F.Term F.Variable)]
+--dTrans :: H.Definition -> Fresh [F.Formula (F.Term F.Variable)]
 dTrans (H.Let f vs e) = do
   et <- eTrans e
   return $ [F.Forall vvs $ F.Eq (F.FullApp (F.Regular f) vvs) (F.Weak $ et),fptr1,fptr2,fptr3]
@@ -79,7 +78,7 @@ test = (H.LetCase "head" ["xyz"] (H.Var "xyz") [(["nil"],H.BAD),(["cons","a","b"
 -- Contract satisfaction
 ------------------------
 
-sTrans :: H.Expression -> H.Contract -> Fresh (F.Formula (F.Term F.Variable))
+--sTrans :: H.Expression -> H.Contract -> Fresh (F.Formula (F.Term F.Variable))
 sTrans e H.Any = return F.True
 
 sTrans e (H.Pred x u) =  do
@@ -117,15 +116,15 @@ sTrans e (H.Or c1 c2) = do
 -- Data constructors
 --------------------
 
-tTrans :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
+--tTrans :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
 tTrans d = liftM5 (+++++) (s1 d) (s2 d) (s3 d) (s4 d) (s5 d)
   where (+++++) a b c d e = a ++ b ++ c ++ d ++ e
 
-s1 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
+--s1 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
 s1 (H.Data _ dns) = sequence $ map s1D dns
 
 -- It's the set S1 but for only one data constructor
-s1D :: (String,Int,H.Contract) -> Fresh (F.Formula (F.Term F.Variable))
+--s1D :: (String,Int,H.Contract) -> Fresh (F.Formula (F.Term F.Variable))
 s1D (d,a,c) = do
   (s,k,fs) <- get
   put (s,k+1,fs)
@@ -133,11 +132,11 @@ s1D (d,a,c) = do
   return $ F.Forall (map (F.Var . F.Regular) xs) $ F.And [F.Eq (F.Var $ F.Regular x) $ F.FullApp (F.Regular ("sel_"++(show k)++"_"++d)) [(F.FullApp (F.Regular d) $ map (F.Var . F.Regular) xs)] | (x,k) <- zip xs [1..a]]
 
 
-s2 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
+--s2 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
 s2 (H.Data _ dns) = sequence $ map s2D [(a,b) | a <- dns, b <- dns, a < b]
 
 -- It's S2 for a pair of data constructors.
-s2D :: ((String,Int,H.Contract),(String,Int,H.Contract)) -> Fresh (F.Formula (F.Term F.Variable))
+--s2D :: ((String,Int,H.Contract),(String,Int,H.Contract)) -> Fresh (F.Formula (F.Term F.Variable))
 s2D ((d1,a1,c1),(d2,a2,c2)) = do
   (s,k,fs) <- get
   put (s,k+2,fs)
@@ -146,11 +145,11 @@ s2D ((d1,a1,c1),(d2,a2,c2)) = do
   return $ F.Forall (map (F.Var . F.Regular) (xs1 ++ xs2)) $ F.Not $ F.Eq (F.FullApp (F.Regular d1) (map (F.Var . F.Regular) xs1)) (F.FullApp (F.Regular d2) (map (F.Var . F.Regular) xs2))
 
 
-s3 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
+--s3 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
 s3 (H.Data _ dns) = sequence $ map s3D dns
 
 --- It's S3 but only for one data constructor
-s3D :: (String,Int,H.Contract) -> Fresh (F.Formula (F.Term F.Variable))
+--s3D :: (String,Int,H.Contract) -> Fresh (F.Formula (F.Term F.Variable))
 s3D (d,a,c) = do
   (s,k,fs) <- get
   put (s,k+1,fs)
@@ -159,10 +158,10 @@ s3D (d,a,c) = do
     then (return $ F.Forall (map (F.Var . F.Regular) xs) $ F.Iff (F.CF $ F.FullApp (F.Regular d) (map (F.Var . F.Regular) xs)) (F.And [F.CF (F.Var $ F.Regular x) | x <- xs]))
     else return $ F.CF $ F.App [F.Var $ F.Regular d]
 
-s4 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
+--s4 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
 s4 (H.Data _ dns) = sequence $ map s4D dns
 
-s4D :: (String,Int,H.Contract) -> Fresh (F.Formula (F.Term F.Variable))
+--s4D :: (String,Int,H.Contract) -> Fresh (F.Formula (F.Term F.Variable))
 s4D (d,a,c) = do
   (s,k,fs) <- get
   put (s,k+1,fs) 
@@ -197,7 +196,7 @@ s5 _ = return []
 -- Final translation
 --------------------
 
-trans :: [H.DefGeneral] -> String -> [F.Formula (F.Term F.Variable)]
+--trans :: [H.DefGeneral] -> String -> [F.Formula (F.Term F.Variable)]
 trans ds fcheck = aux fcheck ds
 
 isContToCheck fcheck (H.ContSat (H.Satisfies v c)) = v==fcheck

@@ -21,5 +21,4 @@ main = do
   cts <- toTheory files c
   writeFile (files ++ ".tptp") cts
   
-test = toTheory "test.hs" "gt"
-
+test = toTheory "test.hs" "add"
