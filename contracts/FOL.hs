@@ -1,13 +1,7 @@
-{-# LANGUAGE DeriveFunctor #-}
-
 module FOL where
 
 import Prelude hiding (True,False)
 import Data.Char (toUpper)
-import Data.Traversable
-import Control.Applicative
-import qualified Data.Foldable as F
-import Data.Functor
 import Data.List (intersperse)
 
 data Variable = Regular String
@@ -45,7 +39,19 @@ data Formula a = Forall [a] (Formula a)
                | False
                | Eq a a
                | CF a
-               deriving (Show,Eq,Functor)
+               deriving (Show,Eq)
+                        
+instance Functor Formula where
+  fmap g (Forall xs f) = Forall (fmap g xs) (fmap g f)
+  fmap g (Implies f1 f2) = Implies (fmap g f1) (fmap g f2)
+  fmap g (Iff f1 f2) = Iff (fmap g f1) (fmap g f2)
+  fmap g (Not f) = Not (fmap g f)
+  fmap g (Or fs) = Or (map (fmap g) fs)
+  fmap g (And fs) = And (map (fmap g) fs)
+  fmap g (Eq t1 t2) = Eq (g t1) (g t2)
+  fmap g (CF t) = CF (g t)
+  fmap g True = True
+  fmap g False = False
   
 splitOnAnd :: Formula a -> [Formula a]
 splitOnAnd (Forall xs (And fs)) = map (Forall xs) fs
@@ -73,7 +79,16 @@ extractVR (Var (Regular x)) = x
 upperIfy :: [String] -> Formula (Term Variable) -> Formula (Term Variable)
 upperIfy c (Forall xs f) = Forall (map (Var . Regular . map toUpper . extractVR) xs) (upperIfy c' f)
   where c' = (map extractVR xs)++c
-upperIfy c f = fmap (auxUpper c) f
+upperIfy c (Iff f1 f2) = Iff (upperIfy c f1) (upperIfy c f2)
+upperIfy c (Implies f1 f2) = Implies (upperIfy c f1) (upperIfy c f2)
+upperIfy c (Not f) = Not (upperIfy c f)
+upperIfy c True = True
+upperIfy c False = False
+upperIfy c (Eq t1 t2) = Eq (auxUpper c t1) (auxUpper c t2)
+upperIfy c (CF t) = CF (auxUpper c t)
+upperIfy c (And fs) = And (map (upperIfy c) fs)
+upperIfy c (Or fs) = Or (map (upperIfy c) fs)
+
 
 auxUpper :: [String] -> Term Variable -> Term Variable
 auxUpper c (Var (Regular v)) = if v `elem` c then (Var . Regular) (map toUpper v) else Var $ Regular v
@@ -104,4 +119,3 @@ toTPTP f = header ++ "\n" ++ (aux $ upperIfy [] f) ++ "\n" ++ footer
         auxTerm (FullApp f []) = show f
         auxTerm (FullApp f as) = show f ++ "(" ++ (concat $ intersperse "," $ map show as) ++ ")"
         auxTerm (Weak t) = "$weak(" ++ auxTerm t ++")"
-        -- TODO App efficiency fix

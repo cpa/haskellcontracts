@@ -3,6 +3,7 @@
 \usepackage{stmaryrd}
 \usepackage{amsmath}
 \usepackage{fullpage}
+\usepackage{graphicx}
 
 \begin{document}
 
@@ -36,7 +37,7 @@ $e$ `satisfies` $c$ is a boolean expression which is True iff the expression $e$
 \begin{center}
 \begin{array}{rclr}
   u,e &:=& x \mid f \mid \lambda x.~e \mid e~e \mid D(e,\dots,e) \mid \bad \mid n \mid e \mbox{ `satisfies` } c \mid \mbox{assert } (e,c) \mbox{ in } e  & (Expression)\\
-  &\mid& \mbox{case } e \mbox{ of } [(p_i,e_i)] &\\
+  &\mid& \mbox{case } e \mbox{ of } [(p_i,e_i)] \mid \cf{e} \mid f(e,\dots,e)&\\
   p &:=& \Delta,p \mid T,p \mid f \in c,p \mid \epsilon & (Program)\\
   \Delta &:=& d \mid opaque(d) & (Defintion~and~scope)\\
   d &:=& f~x_1 \dots x_n ::: c = e \mid f~x_1 \dots x_n ::: c = \mbox{ case } e \mbox{ of } [(pat_i,e_i)] & (Definition)\\
@@ -57,7 +58,7 @@ From now on, expressions will always refer to $\mathcal{H'}$ expressions.
 
 \begin{center}
 \begin{array}{rclr}
-  u,e &:=& x \mid f \mid e~e \mid D(e,\dots,e) \mid \bad \mid n \mid e \mbox{ `satisfies` } c & (Expression)\\
+  u,e &:=& x \mid f \mid e~e \mid D(e,\dots,e) \mid \bad \mid n \mid e \mbox{ `satisfies` } c \mid \cf{e} \mid f(e,\dots,e) & (Expression)\\
   p &:=& \Delta,p \mid T,p \mid f \in c,p \mid \epsilon & (Program)\\
   \Delta &:=& d \mid opaque(d) & (Defintion~and~scope)\\
   d &:=& f~x_1 \dots x_n ::: c = e\mid f~x_1 \dots x_n ::: c = \mbox{ case } e \mbox{ of } [(pat_i,e_i)] & (Definition)\\
@@ -82,10 +83,11 @@ GHC's API can do that.
 \subsection{FOL}
 \begin{center}
 \begin{array}{rclr}
-  t &:=& x \mid \mbox{app}(t_1,t_2) \mid D(t,\dots,t) \mid f \mid n \mid \bad \mid \unr \mid \mbox{CF}(t) & (Term)\\
+  t &:=& x \mid \mbox{app}(t_1,t_2) \mid D(t,\dots,t) \mid f(t,\dots,t) \mid f \mid n \mid \bad \mid \unr & (Term)\\
   \phi &:=& \forall x.\phi \mid \phi \to \phi \mid \lnot \phi \mid \phi \lor \phi \mid \phi \land \phi \mid true \mid t=t \mid \mbox{CF}(t)& (Formula)\\
 \end{array}
 \end{center}
+
 We always give the following equations to define crash-freeness:
 $$\cf{\unr}, \lnot \cf{\bad}, \forall f,x~\cf{f} \land \cf{x} \implies \cf{app(f,x)}$$
 Note that it's only the equation we \textit{always} give, but there some other equations that will arise from the translations below.
@@ -97,19 +99,46 @@ It does not follow exactly the semantics given by the popl paper, but we hope it
   c &:=& x:c_1 \to c_2\\
   &\mid& (c_1,c_2) \\
   &\mid& \{ x \mid e \}\\
-  &\mid& \any \\
+  &\mid& c_1 \land c_2 \\
+  &\mid& c_1 \lor c_2 \\
 \end{array}
 \end{center}
 
 Semantics of contract satisfaction (exactly the same as in the POPL paper):
 \begin{center}
 \begin{array}{rcl}
-  e \in \{x \mid p \} &\iff& e \mbox{ diverges or } (e \mbox{ is crash-free and } p[e/x] \not \to^\star \{\bad,\unr\})\\
+  e \in \{x \mid p \} &\iff& e \mbox{ diverges or } p[e/x] \not \to^\star \{\bad,False\}\\
   e \in x:t_1 \to t_2 &\iff& \forall e_1 \in t_1, (e~e_1) \in t_2[e_1/x]\\
   e \in (t_1,t_2) &\iff& e \mbox{ diverges or } (e \to^\star (e_1,e_2) \mbox{ and } e_1 \in t_1, e_2 \in t_2)\\
-  e \in \any &\iff& True  
+  e \in c_1 \land c_2 &\iff& e \in c_1 \mbox{ and } e \in c_2\\
+  e \in c_1 \lor c_2 &\iff& e \in c_1 \mbox{ or } e \in c_2\\
 \end{array}
 \end{center}
+
+\section{CF-ness and unreachability}
+\subsection{CF-ness}
+In the POPL paper, CF was introduced in the contract satisfaction
+semantics because it was required in order to define the
+wrapping. Given that we do not use any wrapping, we can make a
+separation between crash-freeness and predicate satisfaction now, as
+shown in the contracts semantics, with the special syntax.
+
+It leads to some tricky cases:
+
+Assume a reasonable definition of $add$. Then, this contract does not
+hold.
+$$add ::: a:\{ x \mid True \} \to \{ y \mid True \} \to \{ z \mid z
+\geq a \}$$
+
+Why? Because now that we have removed crash-freeness, we can have $x$
+and $y$ instantiated to $\bad$. And then, $ add~x~y \geq z $ becomes
+$\bad$. Or the semantics say that the predicate should not evaluate to
+$\bad$. 
+
+Now, the correct contract is:
+$$add ::: a:\{ !x \mid cf(x) \} \to \{ !y \mid cf(y) \} \to \{ !z \mid z
+\geq a \}$$
+
 
 \section{Translation}
 We define several translations: $\etrans{},\dtrans{},\ttrans{},\strans{},\trans{}$.
@@ -136,6 +165,8 @@ of $\etrans{}$ on the first and second component.
 \etrans{\bad} &=& (\bad,\emptyset)\\
 \etrans{n} &=& (n,\emptyset)\\
 \etrans{e \mbox{ `satisfies` } c} &=& (\etranst{e},\etransf{e} \cup \forall x. \strans{x \in c} \leftrightarrow x~`satisfies`~c = True)\\
+\etrans{f(e_1,\dots,e_n)} &=& f(\etranst{e_1},\dots,\etranst{e_n})\\
+\etrans{\cf{e}} &=& (True,\cf{\eTranst{e}})\\
 \end{eqnarray}
 
 TODO: take car of the FV in c for satisfies.
@@ -168,29 +199,36 @@ $\dtrans{d}$ is a set first-order formula.
 
 \begin{eqnarray}
 \dtrans{f~\overline{x} = e} &=& \forall x_1 \dots x_n.\etranst{f~x_1 \dots x_n} = \etranst{e} \cup \etransf{e}\\
+&\cup& (\forall x_1 \dots x_n. (\bigwedge \cf{x_i} \rightarrow \cf{f(x_1,\dots,x_n)}) \leftrightarrow \cf{f\_ptr}\\
+&\cup& (\forall x_1 \dots x_n. (f(x_1,\dots,x_n) = app(...app(f\_ptr,x_1)...,x_n)))\\
 \dtrans{f~\overline{x} = \mbox{case } e \mbox{ of } [D_i(\overline{z}) \mapsto e_i]} &=& \forall x_1 \dots x_n.(\bigwedge_i (\forall \overline{z}~\etranst{e} = \etranst{D_i(\overline{z})} \to \etranst{f~\overline{x}} = \etranst{e_i})\\
 && \land \etranst{e} = \bad \to \etranst{f~x_1 \dots x_n} = \bad)\\ 
 && \land ((\bigwedge_i e \neq D_i(sel_{1,D_i}(e),\dots,sel_{n_i,D_i}(e)) \land \etranst{e} \neq \bad)\\
 && ~~\to \etranst{f~x_1 \dots x_n} = \unr)\\
-&& \cup \etransf{e}
+&& \cup \etransf{e}\\
+&\cup& (\forall x_1 \dots x_n. (\bigwedge \cf{x_i} \rightarrow \cf{f(x_1,\dots,x_n)}) \leftrightarrow \cf{f\_ptr}\\
+&\cup& (\forall x_1 \dots x_n. (f(x_1,\dots,x_n) = app(...app(f\_ptr,x_1)...,x_n)))\\
 \end{eqnarray}
 
 Note that in those equations, there is no $\etransf{f~x_1 \dots x_n}$ because it is always the empty set.
 
 An alternative to using selectors would be to write something along the line of $\exists y_1,\dots,y_{D_i}. e \neq D_i(y_1,\dots,y_{D_i})$. It is equivalent but the skolemisation process of equinox will anyway turn those existentials in selectors functions. But if we pattern match $D_i$ in two different functions, we would get two different selectors (the same selector with two different names) so it's better (for the efficiency of the proof) to define selectors for each $D_i$ once in for all and use it as much as possible afterwards.
 
-Equation (10) is not restrictive even in the case of laziness because $e$ is always evaluated. (TODO, but not always fully evaluated...)
+Equation (10) is not restrictive even in the case of laziness because $e$ is always evaluated.
 
-Equation (11) and (12) state that if we have a type mismatch than the code is $\unr$. It should never occur because we're assuming that the code has already been typechecked.
+Equation (11) and (12) state that if we have a type mismatch than the code is $\unr$. It should never occur because we're assuming that the code has already been typechecked. %TODO eq number
+
+Finally, we have to relate $f\_ptr$ to $f$ and define when we can say that $f$ is crash-free.
 
 
 \subsection{$\strans{}$}
 $\strans{e \in c}$ is a set of first-order formulae.
 \begin{eqnarray}
-\strans{e \in \any} &=& true\\
-\strans{e \in \{x \mid u \}} &=& e = \unr \lor (\mbox{CF}(\etranst{e}) \land \etranst{u[e/x]} \neq \bad \land \etranst{u[e/x]} \neq False)\\
+\strans{e \in \{x \mid u \}} &=& e = \unr \lor (\etranst{u[e/x]} \neq \bad \land \etranst{u[e/x]} \neq False)\\
 && \cup \etransf{e} \cup \etransf{u[e/x]}\\
-\strans{e \in x:c_1 \to c_2}  &=& \forall x_1. \strans{x_1 \in c_1} \to \strans{e~x_1 \in c_2[x_1/x]}
+\strans{e \in x:c_1 \to c_2}  &=& \forall x_1. \strans{x_1 \in c_1} \to \strans{e~x_1 \in c_2[x_1/x]}\\
+\strans{e \in c_1 \land c_2} &=& \strans{e \in c_1} \land \strans{e \in c_2}\\
+\strans{e \in c_1 \lor c_2} &=& \strans{e \in c_1} \lor \strans{e \in c_2}\\
 \end{eqnarray}
 $False$ is a data constructor here.
 
@@ -223,6 +261,38 @@ We then want to check (with equinox) that:
 Which we rewrite as:
  $$\trans{C} \cup \{ \dtrans{f~x_1 \dots x_n = e[f^\star/f]}, \dtrans{f^\star~x_1 \dots x_n = e[f^\star/f]}, \bigwedge_{c \in C_f} \strans{f^\star \in c},  \bigvee_{c \in C_f} \lnot \strans{f \in c} \} \models \bot$$
 
+\subsection{Checking the contracts in the right order}
+Here is a little example showing that we should be careful about we
+belong to a theory.
+
+Assume that we have a module that contains two functions defintion $f$
+and $g$ and two contracts : $f ::: Any \to Ok$ and $g ::: Any \to
+Ok$. We assume that those contract do not hold, for example if $f$ is
+$not$ and $g$ is $id$.
+
+Now, we want to check $f$'s contract. We take out $f$'s contract,
+translate the function definition for $f$ and $g$ and add the contract
+satisfation formulae for $g$'s contract.
+
+But, given that $g$'s contract does not hold, we can derive $\bot$ and
+then prove that $f$'s contract hold.
+
+Now the user is happy, and does the same thing for $g$'s contract. It
+holds too, given that we can also derive $\bot$ for $f$'s contract.
+
+Finally, the user is really happy, but in fact he has proven nothing.
+
+
+The solution is to only include the formulae that belongs to a
+functions that are actually used. For example, to prove $a$'s
+contract, we should only include $f$ and $g$ formulae.
+
+\begin{center}
+\includegraphics[scale=0.5]{flow.png}
+\end{center}
+
+
+
 \section{Example}
 
 
@@ -239,10 +309,10 @@ copy x = case x of
   | Nil -> x
   | Cons a b -> Cons a (copy b);;
 
-copy ::: a:{x : True} -> {y:True};;
+copy ::: a:{!x : True} -> {!y:True};;
 \end{verbatim}
 The contract states that if we give to copy a crash-free argument $x$, copy will return a crash-free result $y$.
-Note that [Just BAD] is not crash-free in our sense, so we can't say anything about it. TODO
+Note that [Just BAD] is not crash-free in our sense, so we can't say anything about it. 
 
 
 \subsection{Arguments order}
@@ -265,7 +335,7 @@ not x = case x of
       | True -> False
       | False -> True;;
 
-add ::: a:{x : isZero x} -> {y:isZero y} -> {z: isZero z};;
+add ::: a:{!x : isZero x} -> {!y:isZero y} -> {!z: isZero z};;
 \end{verbatim}
 
 In the definition of $add$, if we replace $Succ (add z y)$ by $Succ (add y z)$, we can't prove anything which isn't very surprising because we're to do the recursion on the first variable, not on the second one. All the more so that they don't have the same contract.
@@ -289,10 +359,10 @@ notZero x = case x of
   | Zero -> False
   | Succ a -> True;;
 
-notZero ::: a:{x:True} -> {y: True};;
-add  ::: a:{x: True} -> b:{y: True} -> {z: True};;
-add  ::: a:{x: notZero x} -> b:{y: True} -> {z: True};;
-mult ::: a:{x: notZero x} -> b:{y: notZero y} -> {z: True};;
+notZero ::: a:{!x:True} -> {!y: True};;
+add  ::: a:{!x: True} -> b:{!y: True} -> {!z: True};;
+add  ::: a:{!x: notZero x} -> b:{!y: True} -> {!z: True};;
+mult ::: a:{!x: notZero x} -> b:{!y: notZero y} -> {!z: True};;
 \end{verbatim}
 
 Equinox diverges when we try to check mult's contract.
@@ -314,7 +384,22 @@ p_n(x) \}$$ as $$f ::: \ok \to \cdots \to \ok \to \{x \mid
 if~(\bidWedge_{i < n} p_i(a_i))~then~p_n(x)~else~True)$$ And know we
 can prove $mult$'s contract, but it's not very satisfying.
 
+A stupid fix was to provide defining equations for $multp$ (the same
+as for $mult$). Indeed, we could prove that $mult$ satisfied its
+contract, but it was trivially true...
 
+Current idea is to unfold the definition a fixed number of times.
+
+\section{De-appification and removed CFness}
+\subsection{De-appification}
+Instead of always using the $app$ function when doing function
+application, we now use directly the function name if it is fully
+applied. For example, if $f$ is of arity 2, $f x y$ is now translated
+to $f(x,y)$ instead of $app(app(f,x),y)$.  To deal with partially
+applied functions, we can use $f\_ptr$ and some extra axioms. 
+
+This transformation makes things much faster for equinox, especially
+given that in most cases, function are totally applied.
 
 \end{document}
 

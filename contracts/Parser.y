@@ -26,6 +26,10 @@ import Haskell
 	of 	{TokenOf}
 	'('	{TokenParenO}
 	')'	{TokenParenC}
+ 	','	{TokenComma}
+        cf	{TokenCF}
+	'||'    {TokenOr}
+	'&&'	{TokenAnd}
 %%
 
 ListGeneral : General ';;' ListGeneral {$1:$3}
@@ -66,17 +70,26 @@ DataArgs : var int '|' DataArgs {(map toLower $1,$2,okContract $2):$4}
 Args : var Args {(map toLower $1):$2}
      | {- empty -} {[]}
 
-Atom : var { if isUpper $ head $1 then Con (map toLower $1) else Var (map toLower $1) }
+Atom : var { if isUpper $ head $1 then Con ((map toLower $1)) else Var ((map toLower $1)) }
      | '(' Expr ')' { $2 }
 
 Expr : '(' Expr Atom ')' { App $2 $ $3 }
+     | cf '(' Expr ')' { CF $ $3 }
      | Expr Atom { App $1 $ $2 }
      | bad { BAD }
      | '(' bad Expr ')' { App BAD $3 }
      | bad Expr { App BAD $2 }
      | Atom { $1 }
+     | var '(' commaArgs ')' { FullApp (map toLower $1) $ $3 }
+
+commaArgs : Expr ',' commaArgs { $1:$3 }
+	  | Expr { [$1] }
+	  | {- empty -} { [] }
 
 Contr : '{' var ':' Expr '}' { Pred (map toLower $2) $4 }
+      | '(' Contr ')' { $2 }
+      | Contr '&&' Contr { And $1 $3 }
+      | Contr '||' Contr { Or  $1 $3 }
       | var ':' Contr '->' Contr { AppC (map toLower $1) $3 $5 }
       | '(' var ':' Contr '->' Contr ')' { AppC (map toLower $2) $4 $6 }
 
@@ -91,6 +104,7 @@ data Token = TokenCase
      	   | TokenData
 	   | TokenInt Int
 	   | TokenPipe
+	   | TokenCF
      	   | TokenAny
 	   | TokenSep
      	   | TokenEquals
@@ -103,6 +117,9 @@ data Token = TokenCase
 	   | TokenCurlyO
 	   | TokenCurlyC
 	   | TokenBad
+	   | TokenComma
+	   | TokenOr
+	   | TokenAnd
 	   deriving (Eq,Show)
 
 lexer :: String -> [Token]
@@ -114,6 +131,8 @@ lexer (c:cs)
 lexer ('=':cs) = TokenEquals : lexer cs
 lexer (':':':':':':cs) = TokenSatisfies : lexer cs
 lexer (':':cs) = TokenColon : lexer cs
+lexer ('|':'|':cs) = TokenOr : lexer cs
+lexer ('&':'&':cs) = TokenAnd : lexer cs
 lexer ('-':'>':cs) = TokenArrow : lexer cs
 lexer ('{':cs) = TokenCurlyO : lexer cs
 lexer ('}':cs) = TokenCurlyC : lexer cs
@@ -121,17 +140,20 @@ lexer ('(':cs) = TokenParenO : lexer cs
 lexer (')':cs) = TokenParenC : lexer cs
 lexer (';':';':cs) = TokenSep : lexer cs
 lexer ('|':cs) = TokenPipe : lexer cs
+lexer (',':cs) = TokenComma : lexer cs
 
 lexInt cs = TokenInt (read num) : lexer rest
       where (num,rest) = span isDigit cs
 
-lexVar cs = case span isAlpha cs of
+lexVar cs = case span (\x -> isAlpha x || x == '_') cs of
        ("any",rest) -> TokenAny : lexer rest
        ("bad",rest) -> TokenBad : lexer rest
        ("BAD",rest) -> TokenBad : lexer rest
        ("data",rest) -> TokenData : lexer rest
        ("case",rest) -> TokenCase : lexer rest
        ("of",rest) -> TokenOf : lexer rest       		     		    	  
+       ("cf",rest) -> TokenCF : lexer rest
+       ("CF",rest) -> TokenCF : lexer rest
        (var,rest)   -> TokenVar var : lexer rest
 main = getContents >>= print . haskell . lexer
 }

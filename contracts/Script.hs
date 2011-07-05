@@ -22,3 +22,4 @@ main = do
   writeFile (files ++ ".tptp") cts
   
 test = toTheory "test.hs" "gt"
+
