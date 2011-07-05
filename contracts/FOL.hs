@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveFunctor #-}
+
 module FOL where
 
 import Prelude hiding (True,False)
@@ -43,7 +45,7 @@ data Formula a = Forall [a] (Formula a)
                | False
                | Eq a a
                | CF a
-               deriving (Show,Eq)                  
+               deriving (Show,Eq,Functor)
   
 splitOnAnd :: Formula a -> [Formula a]
 splitOnAnd (Forall xs (And fs)) = map (Forall xs) fs
@@ -68,26 +70,38 @@ simplify f = filter (/= True) $ splitOnAnd (removeConstants f)
 
 extractVR (Var (Regular x)) = x
 
+upperIfy :: [String] -> Formula (Term Variable) -> Formula (Term Variable)
+upperIfy c (Forall xs f) = Forall (map (Var . Regular . map toUpper . extractVR) xs) (upperIfy c' f)
+  where c' = (map extractVR xs)++c
+upperIfy c f = fmap (auxUpper c) f
+
+auxUpper :: [String] -> Term Variable -> Term Variable
+auxUpper c (Var (Regular v)) = if v `elem` c then (Var . Regular) (map toUpper v) else Var $ Regular v
+auxUpper c (Var v) = Var v
+auxUpper c (App ts) = App $ map (auxUpper c) ts
+auxUpper c (FullApp x ts) = FullApp x (map (auxUpper c) ts) -- TODO think about it
+auxUpper c (Weak t) = Weak $ auxUpper c t
+
 toTPTP :: Formula (Term Variable) -> String
-toTPTP f = header ++ "\n" ++ (go f) ++ "\n" ++ footer
+toTPTP f = header ++ "\n" ++ (aux $ upperIfy [] f) ++ "\n" ++ footer
   where header = "fof(axiom,axiom,"
         footer = ").\n"
-        go (Forall xs f) = "! " ++ show xs ++ "  : (" ++ go f ++ ")"
-        go (Implies f1 f2) = "(" ++ go f1 ++ ") => (" ++ go f2 ++ ")"
-        go (Iff f1 f2) = "(" ++ go f1 ++ ") <=> (" ++ go f2 ++ ")"
-        go (Not (Eq t1 t2)) =  goTerm t1 ++ " != " ++ goTerm t2
-        go (Not f) = "~(" ++ go f ++ ")"
-        go (Or fs) = "(" ++ (concat $ intersperse " | " (map go fs)) ++ ")"
-        go (And fs) = "(" ++ (concat $ intersperse " & " (map go fs)) ++ ")"
-        go True = "$true"
-        go False = "$false"
-        go (Eq t1 t2) = goTerm t1 ++ " = " ++ goTerm t2
-        go (CF t) = "cf(" ++ goTerm t ++ ")"
-        goTerm (Var v) = show v
-        goTerm (App []) = error "Cannot apply nothing"
-        goTerm (App [t]) = goTerm t
-        goTerm (App ts) = "app(" ++ goTerm (App (init ts)) ++ "," ++ goTerm (last ts) ++ ")"
-        goTerm (FullApp f []) = show f
-        goTerm (FullApp f as) = show f ++ "(" ++ (concat $ intersperse "," $ map show as) ++ ")"
-        goTerm (Weak t) = "$weak(" ++ goTerm t ++")"
+        aux (Forall xs f) = "! " ++ show xs ++ "  : (" ++ aux f ++ ")"
+        aux (Implies f1 f2) = "(" ++ aux f1 ++ ") => (" ++ aux f2 ++ ")"
+        aux (Iff f1 f2) = "(" ++ aux f1 ++ ") <=> (" ++ aux f2 ++ ")"
+        aux (Not (Eq t1 t2)) =  auxTerm t1 ++ " != " ++ auxTerm t2
+        aux (Not f) = "~(" ++ aux f ++ ")"
+        aux (Or fs) = "(" ++ (concat $ intersperse " | " (map aux fs)) ++ ")"
+        aux (And fs) = "(" ++ (concat $ intersperse " & " (map aux fs)) ++ ")"
+        aux True = "$true"
+        aux False = "$false"
+        aux (Eq t1 t2) = auxTerm t1 ++ " = " ++ auxTerm t2
+        aux (CF t) = "cf(" ++ auxTerm t ++ ")"
+        auxTerm (Var v) = show v
+        auxTerm (App []) = error "Cannot apply nothing"
+        auxTerm (App [t]) = auxTerm t
+        auxTerm (App ts) = "app(" ++ auxTerm (App (init ts)) ++ "," ++ auxTerm (last ts) ++ ")"
+        auxTerm (FullApp f []) = show f
+        auxTerm (FullApp f as) = show f ++ "(" ++ (concat $ intersperse "," $ map show as) ++ ")"
+        auxTerm (Weak t) = "$weak(" ++ auxTerm t ++")"
         -- TODO App efficiency fix

@@ -11,6 +11,9 @@ import System.IO
 toTheory f c = do
   s <- readFile f
   return $ trans (haskell $ lexer s) c >>= simplify >>= toTPTP
+blo f c = do
+  s <- readFile f
+  return $ (haskell $ lexer s) 
 
 main = do
   files:c:_ <- getArgs
@@ -18,3 +21,4 @@ main = do
   cts <- toTheory files c
   writeFile (files ++ ".tptp") cts
   
+test = toTheory "test.hs" "gt"
