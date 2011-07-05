@@ -6,11 +6,11 @@ import Control.Monad
 import FOL
 import System.Environment
 import System.IO
-
+import Haskell
 
 toTheory f c = do
   s <- readFile f
-  return $ trans (haskell $ lexer s) c >>= simplify >>= toTPTP
+  return $ trans (appify $ haskell $ lexer s) c >>= simplify >>= toTPTP
 blo f c = do
   s <- readFile f
   return $ (haskell $ lexer s) 
