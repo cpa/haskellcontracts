@@ -57,15 +57,17 @@ data Contract a = AppC Variable (Contract a) (Contract a) -- x : c -> c'
 
 apps xs = foldl1 App xs
 
-arities [] = []
-arities (Def d:ds) = go d:arities ds
-  where go (Let f vs _) = (f,length vs)
-        go (LetCase f vs _ _) = (f,length vs)
-arities (DataType d:gs) = go d ++ arities gs
-  where go (Data d vac) = [(v,a) | (v,a,c) <- vac]
-arities (d:ds) = arities ds
 
-appify p = map (\d -> fmap (appifyExpr a) d) p
+arities x = go x >>= \(f,i) -> [(f,i),(f++"p",i)]
+  where go [] = []
+        go (Def d:ds) = go2 d:go ds
+          where go2 (Let f vs _) = (f,length vs)
+                go2 (LetCase f vs _ _) = (f,length vs)
+        go (DataType d:gs) = go2 d ++ go gs
+          where go2 (Data d vac) = [(v,a) | (v,a,c) <- vac]
+        go (d:ds) = go ds
+
+appify p = map (\d -> fmap (appifyExpr a) d) p 
   where a = arities p
 
 appifyExpr a e = go a 1 e []
