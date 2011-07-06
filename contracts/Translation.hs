@@ -96,8 +96,8 @@ sTrans e (H.AppC x c1 c2) = do
       c2' = H.substC c2 (H.Var freshX) x
   f1 <- sTrans (H.Var freshX) c1
   f2 <- case e of 
-    H.Var x -> sTrans (H.FullApp x [H.Var $ freshX]) c2'
-    H.FullApp x xs -> sTrans (H.FullApp x (xs++[H.Var $ freshX])) c2'
+    H.Var x -> sTrans (H.apps (H.Var (x++"_ptr"):[H.Var $ freshX])) c2'
+    H.FullApp x xs -> sTrans (H.FullApp x (xs++[H.Var $ freshX])) c2' -- TODO WRONG
     _ -> sTrans (H.App e (H.Var freshX)) c2'
   return $ F.Forall [F.Var $ F.Regular $ freshX] (f1 `F.Implies` f2)
 
