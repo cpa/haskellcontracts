@@ -59,6 +59,11 @@ splitOnAnd (Forall xs f) = map (Forall xs) $ splitOnAnd f
 splitOnAnd (And fs) = concatMap splitOnAnd fs
 splitOnAnd f = [f]
 
+appifyFOF a f = fmap (\x -> case x of App ((Var x):xs) -> case lookup x a of
+                                        Just n -> if n == length xs then FullApp x xs else App (Var x : xs)
+                                        Nothing -> App (Var x : xs)
+                                      x -> x) f
+
 removeConstants :: Eq a => Formula a -> Formula a
 removeConstants (Forall [] f) = removeConstants f
 removeConstants (Forall xs f) = Forall xs (removeConstants f)

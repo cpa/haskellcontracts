@@ -1,22 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 
-module Haskell ( Expression (..)
-               , DataType (..)
-               , Program (..)
-               , Definition (..)
-               , Pattern (..)
-               , Contract (..)
-               , DefGeneral (..)
-               , ContSat (..)
-               , apps
-               , arities  
-               , appifyExpr
-               , appify
-               , subst
-               , substC
-               , toList
-               , ok
-               , okContract)
+module Haskell 
 where
 
 type Variable = String
@@ -29,6 +13,13 @@ data Expression = Var Variable
                 | CF Expression
                 | BAD
                 deriving (Show,Eq,Ord)
+                         
+fmapExpr f (Var v) = Var $ f v
+fmapExpr f (App e1 e2) = App (fmapExpr f e1) (fmapExpr f e2)
+fmapExpr f (FullApp v es) = FullApp (f v) $ map (fmapExpr f) es
+fmapExpr f (Sat a b) = undefined
+fmapExpr f (CF e) = CF (fmapExpr f e)
+fmapExpr f BAD = BAD
 
 type Program = [DefGeneral Expression]
 data DefGeneral a = ContSat (ContSat a)
