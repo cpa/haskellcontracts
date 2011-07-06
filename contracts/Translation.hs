@@ -86,14 +86,27 @@ test = (H.LetCase "head" ["xyz"] (H.Var "xyz") [(["nil"],H.BAD),(["cons","a","b"
 --sTrans :: H.Expression -> H.Contract -> Fresh (F.Formula (F.Term F.Variable))
 sTrans e H.Any = return F.True
 
---sTrans e (H.Pred x u) | trace (show x) False = undefined
-sTrans e (H.Pred x u) =  do 
-  s <- get
-  let u' = H.subst u (H.appifyExpr (arities s) e) x  
+sTrans e (H.Pred x u) =  do
+  a <- liftM arities get
+  let  u' = H.subst u (H.fmapExpr (\f -> if (take 4 $ (reverse f)) == "rtp_" then reverse $ drop 4 $ reverse f else f) $ H.appifyExpr (map (\(a,b) -> (a++"_ptr",b)) $ a) e) x
+  et' <- eTrans e 
   ut' <- eTrans u'
-  et <- eTrans $ H.fmapExpr (\f -> if (take 4 $ (reverse f)) == "rtp_" then reverse $ drop 4 $ reverse f else f) $ H.appifyExpr (map (\(a,b) -> (a++"_ptr",b)) $ arities s) e
-  put $ s {fofBag = []}
-  return $ F.And $ [F.Or [(et `F.Eq` F.Var F.UNR) ,F.And [(F.Not $ F.Eq (F.Var F.BAD) $ ut') , F.Not $ ut' `F.Eq` (F.Var $ F.Regular "false")]]]++(fofBag s) -- The data constructor False.
+  et <- eTrans $ H.fmapExpr (\f -> if (take 4 $ (reverse f)) == "rtp_" then reverse $ drop 4 $ reverse f else f) $ H.appifyExpr (map (\(a,b) -> (a++"_ptr",b)) $ a) e
+  s <- get
+  let a = prefix s
+      b = count s
+      fs = fofBag s
+  put $ s { fofBag = [] }
+  return $ F.And $ [F.Or [(et `F.Eq` F.Var F.UNR) ,F.And [(F.Not $ F.Eq (F.Var F.BAD) $ ut') , F.Not $ ut' `F.Eq` (F.Var $ F.Regular "false")]]]++fs -- The data constructor False.
+        
+-- --sTrans e (H.Pred x u) | trace (show x) False = undefined
+-- sTrans e (H.Pred x u) =  do 
+--   s <- get
+--   let u' = H.subst u (H.appifyExpr (arities s) e) x  
+--   ut' <- eTrans u'
+--   et <- eTrans e -- $ H.fmapExpr (\f -> if (take 4 $ (reverse f)) == "rtp_" then reverse $ drop 4 $ reverse f else f) $ H.appifyExpr (map (\(a,b) -> (a++"_ptr",b)) $ arities s) e
+--   put $ s {fofBag = []}
+--   return $ F.And $ [F.Or [(et `F.Eq` F.Var F.UNR) ,F.And [(F.Not $ F.Eq (F.Var F.BAD) $ ut') , F.Not $ ut' `F.Eq` (F.Var $ F.Regular "false")]]]++(fofBag s) -- The data constructor False.
 
 sTrans e (H.AppC x c1 c2) = do
   S s k fs a <- get
@@ -207,7 +220,7 @@ s5 _ = return []
 --------------------
 
 --trans :: [H.DefGeneral] -> String -> [F.Formula (F.Term F.Variable)]
-trans ds fcheck = map (F.appifyFOF (map (\(a,b) -> (F.Regular a,b)) $ H.arities ds)) $ aux fcheck ds
+trans ds fcheck = aux fcheck ds
 
 isContToCheck fcheck (H.ContSat (H.Satisfies v c)) = v==fcheck
 isContToCheck _ _ = False
