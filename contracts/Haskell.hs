@@ -68,13 +68,11 @@ arities (d:ds) = arities ds
 appify p = map (\d -> fmap (appifyExpr a) d) p
   where a = arities p
 
-t = Def (LetCase "add" ["x","y"] (App (App (Var "add") (Var "a")) (Var "y")) [(["zero"],Var "y"),(["succ","a"],App (Var "succ") (App (App (Var "add") (Var "a")) (Var "y")))])
-
 appifyExpr a e = go a 1 e []
   where go a count g@(App (Var v) e) acc = case lookup v a of
           Just n -> if count == n 
                     then FullApp v (e':acc)
-                    else apps (App (Var v) e':acc)
+                    else apps (App (Var $ v ++ "_ptr") e':acc)
           Nothing -> apps (App (Var v) e':acc)
           where e' = go a 1 e []
         go a count g@(App e1 e2) acc = go a (count+1) e1 (acc++[go a 1 e2 []])
