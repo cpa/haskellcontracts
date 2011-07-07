@@ -39,9 +39,10 @@ check prog [f] checkedDefs = do
       tmpFile = "tmp.tptp"
   putStrLn $ "Checking " ++ f ++ "..."
   writeFile tmpFile tptpTheory
-  putStrLn tptpTheory
+  -- putStrLn tptpTheory
   aux <- lines <$> readProcess "./equinox" [tmpFile] ""
   let res = isUnsat . last $ aux
+  putStrLn res
   removeFile tmpFile
   return res
     where isUnsat s = s == "+++ RESULT: Unsatisfiable"
