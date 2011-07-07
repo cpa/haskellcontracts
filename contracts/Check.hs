@@ -40,10 +40,7 @@ check prog [f] checkedDefs = do
       tmpFile = "tmp.tptp"
   putStrLn $ "Checking " ++ f ++ "..."
   writeFile tmpFile tptpTheory
-  -- putStrLn tptpTheory
-  aux <- lines <$> readProcess "./equinox" [tmpFile] ""
-  let res = isUnsat . last $ aux
-  putStrLn $ show $ aux
+  res <- isUnsat . last . lines <$> readProcess "./equinox" [tmpFile] ""
   removeFile tmpFile
   return res
     where isUnsat s = "Unsatisfiable" `elem` tails s
