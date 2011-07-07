@@ -16,7 +16,7 @@ main = do
   f:_ <- getArgs
   res <- checkFile f
   if res 
-    then putStrLn $ "All the contracts in " ++ f ++ "hold."
+    then putStrLn $ f ++ ": all the contracts hold."
     else putStrLn $ "There's at least one contract in " ++ f ++ "that took more than 10 sec to prove."
   
 checkFile f = do
@@ -39,8 +39,7 @@ check prog [f] checkedDefs = do
       tmpFile = "tmp.tptp"
   putStrLn $ "Checking " ++ f ++ "..."
   writeFile tmpFile tptpTheory
-  putStrLn tptpTheory
-  res <- return True -- isUnsat . last . lines <$> readProcess "./equinox" [tmpFile] ""
+  res <- isUnsat . last . lines <$> readProcess "./equinox" [tmpFile] ""
   removeFile tmpFile
   return res
     where isUnsat s = s == "+++ RESULT: Unsatisfiable"
