@@ -45,6 +45,6 @@ check prog [f] checkedDefs = do
   putStrLn $ show $ aux
   removeFile tmpFile
   return res
-    where isUnsat s = s == "+++ RESULT: Unsatisfiable"
+    where isUnsat s = "Unsatisfiable" `elem` tails s
   
 check prog _ _ = error "Not implemented yet"
