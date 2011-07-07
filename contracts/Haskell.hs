@@ -1,10 +1,11 @@
-{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFunctor  #-}
 
 module Haskell 
 where
 
 type Variable = String
 type Constructor = String
+
 
 data Expression = Var Variable
                 | App Expression Expression

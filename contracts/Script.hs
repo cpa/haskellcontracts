@@ -11,9 +11,6 @@ import Haskell
 toTheory f c = do
   s <- readFile f
   return $ trans (appify $ haskell $ lexer s) c >>= simplify >>= toTPTP
-blo f c = do
-  s <- readFile f
-  return $ (haskell $ lexer s) 
 
 main = do
   files:c:_ <- getArgs
