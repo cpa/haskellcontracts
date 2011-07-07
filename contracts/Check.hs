@@ -5,6 +5,7 @@ import Parser hiding (main)
 import Translation
 import Control.Monad
 import FOL (toTPTP,simplify)
+import Data.List (tails)
 import System.Environment
 import System.IO
 import Haskell
