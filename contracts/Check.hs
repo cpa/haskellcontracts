@@ -17,7 +17,7 @@ main = do
   res <- checkFile f
   if res 
     then putStrLn $ f ++ ": all the contracts hold."
-    else putStrLn $ "There's at least one contract in " ++ f ++ "that took more than 10 sec to prove."
+    else putStrLn $ "There's at least one contract in " ++ f ++ " that took more than 10 sec to prove."
   
 checkFile f = do
   s <- readFile f
@@ -39,7 +39,9 @@ check prog [f] checkedDefs = do
       tmpFile = "tmp.tptp"
   putStrLn $ "Checking " ++ f ++ "..."
   writeFile tmpFile tptpTheory
-  res <- isUnsat . last . lines <$> readProcess "./equinox" [tmpFile] ""
+  putStrLn tptpTheory
+  aux <- lines <$> readProcess "./equinox" [tmpFile] ""
+  let res = isUnsat . last $ aux
   removeFile tmpFile
   return res
     where isUnsat s = s == "+++ RESULT: Unsatisfiable"
