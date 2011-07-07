@@ -24,6 +24,7 @@ checkFile f = do
   s <- readFile f
   let prog = appify $ haskell $ lexer s
       order = checkOrder prog
+  system "ulimit -t 5"
   res <- sequence $ go order prog []
   return $ and res
   where go [] prog checkedDefs = []
@@ -40,7 +41,7 @@ check prog [f] checkedDefs = do
       tmpFile = "tmp.tptp"
   putStrLn $ "Checking " ++ f ++ "..."
   writeFile tmpFile tptpTheory
-  res <- isUnsat . last . lines <$> readProcess "ulimit -t 5 ; ./equinox" [tmpFile] ""
+  res <- isUnsat . last . lines <$> readProcess "./equinox" [tmpFile] ""
   removeFile tmpFile
   return res
     where isUnsat s = "Unsatisfiable" `elem` tails s
