@@ -42,7 +42,7 @@ check prog [f] checkedDefs = do
   -- putStrLn tptpTheory
   aux <- lines <$> readProcess "./equinox" [tmpFile] ""
   let res = isUnsat . last $ aux
-  putStrLn res
+  putStrLn $ show $ aux
   removeFile tmpFile
   return res
     where isUnsat s = s == "+++ RESULT: Unsatisfiable"
