@@ -8,7 +8,7 @@ import Haskell
 graphFromProgram :: [DefGeneral Expression] -> (Graph,Vertex -> (Variable, Variable, [Variable]),Variable -> Maybe Vertex)
 graphFromProgram p = graphFromEdges [ go d | d <- p, case d of Def _ -> True ; _ -> False ]
   where go (Def (Let f xs e)) = (f,f,freeVars f (xs++dataV) e)
-        go (Def (LetCase f xs e pes)) = (f,f,concatMap (\(p,e) -> freeVars f (xs++dataV++p) e) pes)
+        go (Def (LetCase f xs e pes)) = (f,f,concatMap (\(p,e) -> freeVars f (xs++dataV++p) e) $ (undefined,e):pes)
         dataV = dataVars =<< [ d | d <- p, case d of DataType _ -> True ; _ -> False ]
         
 dataVars :: DefGeneral t -> [Variable]
