@@ -62,7 +62,7 @@ check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
   putStr $ "Checking " ++ f ++ "..."
   hFlush stdout
   writeFile tmpFile tptpTheory
-  res <- isUnsat . last . lines <$> readProcess "./equinox" [tmpFile] ""
+  res <- isUnsat . last . lines <$> readProcess "equinox" [tmpFile] ""
   removeFile tmpFile
   when res $ 
     putStrLn "\tOK!"
@@ -79,7 +79,7 @@ check prog fs cfg checkedDefs = do
   putStr $ showfs fs ++ "are mutually recursive. Checking them altogether..."
   hFlush stdout
   writeFile tmpFile tptpTheory
-  res <- isUnsat . last . lines <$> readProcess "./equinox" [tmpFile] ""
+  res <- isUnsat . last . lines <$> readProcess "equinox" [tmpFile] ""
   removeFile tmpFile
   when res $
     putStrLn "\tOK!"
