@@ -56,10 +56,10 @@ check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
   let safeSubset prog checkedDefs = filter (hasBeenChecked (f:checkedDefs)) prog
       tptpTheory = trans (safeSubset prog checkedDefs) [f] >>= simplify >>= toTPTP
       tmpFile = "tmp.tptp"
-  putStr $ "Checking " ++ f ++ "..."
   when (printTPTP cfg) $ do
     writeFile f tptpTheory
     putStrLn $ "Writing " ++ f ++ ".tptp"
+  putStr $ "Checking " ++ f ++ "..."
   hFlush stdout
   writeFile tmpFile tptpTheory
   res <- isUnsat . last . lines <$> readProcess "./equinox" [tmpFile] ""
@@ -73,10 +73,10 @@ check prog fs cfg checkedDefs = do
   let safeSubset prog checkedDefs = filter (hasBeenChecked (fs++checkedDefs)) prog
       tptpTheory = trans (safeSubset prog checkedDefs) fs >>= simplify >>= toTPTP
       tmpFile = "tmp.tptp"
-  putStr $ showfs fs ++ "are mutually recursive. Checking them altogether..."
   when (printTPTP cfg) $ do
     writeFile (head fs) tptpTheory
     putStrLn $ "Writing " ++ (head fs) ++ ".tptp"
+  putStr $ showfs fs ++ "are mutually recursive. Checking them altogether..."
   hFlush stdout
   writeFile tmpFile tptpTheory
   res <- isUnsat . last . lines <$> readProcess "./equinox" [tmpFile] ""
