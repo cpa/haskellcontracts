@@ -24,19 +24,24 @@ checkFile f = do
   s <- readFile f
   let prog = appify $ haskell $ lexer s
       order = checkOrder prog
-  system "ulimit -t 5"
-  res <- sequence $ go order prog []
+  system "ulimit -t 20"
+  res <- sequence $ go prog [] order
   return $ and res
-  where go [] prog checkedDefs = []
-        go (fs:fss) prog checkedDefs = check prog fs checkedDefs : go fss prog (fs++checkedDefs)
+  where go prog checkedDefs [] = []
+        go prog checkedDefs (fs:fss) = check prog fs checkedDefs : go prog (fs++checkedDefs) fss
   
 hasBeenChecked checkedDefs (Def (Let f _ _)) = f `elem` checkedDefs
 hasBeenChecked checkedDefs (Def (LetCase f _ _ _)) = f `elem` checkedDefs
 hasBeenChecked _ _ = True
 
+hasNoContract f prog = and $ (flip map) prog $ \d -> case d of
+  ContSat (Satisfies g _) -> f /= g
+  _ -> True
+
 check :: Program -> [Variable] -> [Variable] -> IO Bool
 check prog [] _ = error "Should not happen"
-check prog [f] checkedDefs = do
+check prog [f] checkedDefs | f `hasNoContract` prog = return True
+                           | otherwise = do
   let safeSubset prog checkedDefs = filter (hasBeenChecked (f:checkedDefs)) prog
       tptpTheory = trans (safeSubset prog checkedDefs) [f] >>= simplify >>= toTPTP
       tmpFile = "tmp.tptp"
