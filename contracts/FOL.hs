@@ -1,12 +1,7 @@
-module FOL
-       where
+module FOL where
 
 import Prelude hiding (True,False)
 import Data.Char (toUpper)
-import Data.Traversable
-import Control.Applicative
-import qualified Data.Foldable as F
-import Data.Functor
 import Data.List (intersperse)
 
 data Variable = Regular String
@@ -17,7 +12,6 @@ instance Show Variable where
   show (Regular v) = v
   show BAD = "bad"
   show UNR = "unr"
-
 
 data Term a = Var a
             | App [Term a]
@@ -34,18 +28,33 @@ instance Show a => Show (Term a) where
   show (FullApp f []) = show f
   show (FullApp f as) = show f ++ "(" ++ (concat $ intersperse "," $ map show as) ++ ")"
 
-
+infix 7 :<=>:
+infix 7 :=>:
 data Formula a = Forall [a] (Formula a)
-               | Implies (Formula a) (Formula a)
-               | Iff (Formula a) (Formula a)
+               | (:=>:) (Formula a) (Formula a)
+               | (:<=>:) (Formula a) (Formula a)
                | Not (Formula a)
                | Or [Formula a]
                | And [Formula a]
-               | True
-               | False
-               | Eq a a
+               | Top
+               | Bottom
+               | (:=:) a a
+               | (:/=:) a a
                | CF a
-               deriving (Show,Eq)                  
+               deriving (Show,Eq)
+                        
+instance Functor Formula where
+  fmap g (Forall xs f) = Forall (fmap g xs) (fmap g f)
+  fmap g (f1 :=>: f2) = (fmap g f1) :=>: (fmap g f2)
+  fmap g (f1 :<=>: f2) = (fmap g f1) :<=>:(fmap g f2)
+  fmap g (Not f) = Not (fmap g f)
+  fmap g (Or fs) = Or (map (fmap g) fs)
+  fmap g (And fs) = And (map (fmap g) fs)
+  fmap g (t1 :=: t2) = (g t1) :=: (g t2)
+  fmap g (t1 :/=: t2) = (g t1) :/=: (g t2)
+  fmap g (CF t) = CF (g t)
+  fmap g Top = Top
+  fmap g Bottom = Bottom
   
 splitOnAnd :: Formula a -> [Formula a]
 splitOnAnd (Forall xs (And fs)) = map (Forall xs) fs
@@ -53,35 +62,42 @@ splitOnAnd (Forall xs f) = map (Forall xs) $ splitOnAnd f
 splitOnAnd (And fs) = concatMap splitOnAnd fs
 splitOnAnd f = [f]
 
+appifyFOF a f = fmap (\x -> case x of App ((Var x):xs) -> case lookup x a of
+                                        Just n -> if n == length xs then FullApp x xs else App (Var x : xs)
+                                        Nothing -> App (Var x : xs)
+                                      x -> x) f
+
 removeConstants :: Eq a => Formula a -> Formula a
 removeConstants (Forall [] f) = removeConstants f
 removeConstants (Forall xs f) = Forall xs (removeConstants f)
-removeConstants (Implies False _) = True
-removeConstants (Iff True f) = f
-removeConstants (Iff f True) = f
-removeConstants (Iff False f) = Not f
-removeConstants (Iff f False) = Not f
+removeConstants (Bottom :=>: _) = Top
+removeConstants (Top :<=>: f) = f
+removeConstants (f :<=>: Top) = f
+removeConstants (Bottom :<=>: f) = Not f
+removeConstants (f :<=>: Bottom) = Not f
 removeConstants (Not f) = Not $ removeConstants f
-removeConstants (Or fs) = if any (==True) fs then True else Or $ filter (/=False) fs
-removeConstants (And fs) = if any (==False) fs then False else And $ filter (/=True) fs
+removeConstants (Or fs) = if any (==Top) fs then Top else Or $ filter (/=Bottom) fs
+removeConstants (And fs) = if any (==Bottom) fs then Bottom else And $ filter (/=Top) fs
 removeConstants f = f
 
-simplify f = filter (/= True) $ splitOnAnd (removeConstants f)
+simplify f = filter (/= Top) $ splitOnAnd (removeConstants f)
 
 extractVR (Var (Regular x)) = x
 
 upperIfy :: [String] -> Formula (Term Variable) -> Formula (Term Variable)
 upperIfy c (Forall xs f) = Forall (map (Var . Regular . map toUpper . extractVR) xs) (upperIfy c' f)
   where c' = (map extractVR xs)++c
-upperIfy c (Implies f1 f2) = Implies (upperIfy c f1) (upperIfy c f2)
-upperIfy c (Iff f1 f2) = Iff (upperIfy c f1) (upperIfy c f2)
+upperIfy c (f1 :<=>: f2) = (upperIfy c f1) :<=>: (upperIfy c f2)
+upperIfy c (f1 :=>: f2) = (upperIfy c f1) :=>: (upperIfy c f2)
 upperIfy c (Not f) = Not (upperIfy c f)
+upperIfy c Top = Top
+upperIfy c Bottom = Bottom
+upperIfy c (t1 :=: t2) = (auxUpper c t1) :=: (auxUpper c t2)
+upperIfy c (t1 :/=: t2) = (auxUpper c t1) :/=: (auxUpper c t2)
+upperIfy c (CF t) = CF (auxUpper c t)
 upperIfy c (And fs) = And (map (upperIfy c) fs)
 upperIfy c (Or fs) = Or (map (upperIfy c) fs)
-upperIfy c True = True
-upperIfy c False = False
-upperIfy c (Eq t1 t2) = Eq (auxUpper c t1) (auxUpper c t2)
-upperIfy c (CF t) = CF (auxUpper c t)
+
 
 auxUpper :: [String] -> Term Variable -> Term Variable
 auxUpper c (Var (Regular v)) = if v `elem` c then (Var . Regular) (map toUpper v) else Var $ Regular v
@@ -95,15 +111,16 @@ toTPTP f = header ++ "\n" ++ (aux $ upperIfy [] f) ++ "\n" ++ footer
   where header = "fof(axiom,axiom,"
         footer = ").\n"
         aux (Forall xs f) = "! " ++ show xs ++ "  : (" ++ aux f ++ ")"
-        aux (Implies f1 f2) = "(" ++ aux f1 ++ ") => (" ++ aux f2 ++ ")"
-        aux (Iff f1 f2) = "(" ++ aux f1 ++ ") <=> (" ++ aux f2 ++ ")"
-        aux (Not (Eq t1 t2)) =  auxTerm t1 ++ " != " ++ auxTerm t2
+        aux (f1 :=>: f2) = "(" ++ aux f1 ++ ") => (" ++ aux f2 ++ ")"
+        aux (f1 :<=>: f2) = "(" ++ aux f1 ++ ") <=> (" ++ aux f2 ++ ")"
+        aux (Not (t1 :=: t2)) =  auxTerm t1 ++ " != " ++ auxTerm t2
         aux (Not f) = "~(" ++ aux f ++ ")"
         aux (Or fs) = "(" ++ (concat $ intersperse " | " (map aux fs)) ++ ")"
         aux (And fs) = "(" ++ (concat $ intersperse " & " (map aux fs)) ++ ")"
-        aux True = "$true"
-        aux False = "$false"
-        aux (Eq t1 t2) = auxTerm t1 ++ " = " ++ auxTerm t2
+        aux Top = "$true"
+        aux Bottom = "$false"
+        aux (t1 :=: t2) = auxTerm t1 ++ " = " ++ auxTerm t2
+        aux (t1 :/=: t2) = auxTerm t1 ++ " != " ++ auxTerm t2
         aux (CF t) = "cf(" ++ auxTerm t ++ ")"
         auxTerm (Var v) = show v
         auxTerm (App []) = error "Cannot apply nothing"
@@ -111,4 +128,3 @@ toTPTP f = header ++ "\n" ++ (aux $ upperIfy [] f) ++ "\n" ++ footer
         auxTerm (App ts) = "app(" ++ auxTerm (App (init ts)) ++ "," ++ auxTerm (last ts) ++ ")"
         auxTerm (FullApp f as) = show f ++ "(" ++ (concat $ intersperse "," $ map show as) ++ ")"
         auxTerm (Weak t) = "$weak(" ++ auxTerm t ++")"
-        -- TODO App efficiency fix

@@ -70,7 +70,7 @@ DataArgs : var int '|' DataArgs {(map toLower $1,$2,okContract $2):$4}
 Args : var Args {(map toLower $1):$2}
      | {- empty -} {[]}
 
-Atom : var { if isUpper $ head $1 then Con ((map toLower $1)) else Var ((map toLower $1)) }
+Atom : var { Var $ map toLower $1 }
      | '(' Expr ')' { $2 }
 
 Expr : '(' Expr Atom ')' { App $2 $ $3 }
@@ -80,7 +80,7 @@ Expr : '(' Expr Atom ')' { App $2 $ $3 }
      | '(' bad Expr ')' { App BAD $3 }
      | bad Expr { App BAD $2 }
      | Atom { $1 }
-     | var '(' commaArgs ')' { FullApp (map toLower $1) $ $3 }
+--     | var '(' commaArgs ')' { FullApp (map toLower $1) $ $3 }
 
 commaArgs : Expr ',' commaArgs { $1:$3 }
 	  | Expr { [$1] }
@@ -141,11 +141,11 @@ lexer (')':cs) = TokenParenC : lexer cs
 lexer (';':';':cs) = TokenSep : lexer cs
 lexer ('|':cs) = TokenPipe : lexer cs
 lexer (',':cs) = TokenComma : lexer cs
-
+lexer ('-':'-':cs) = lexer $ dropWhile (/= '\n') cs
 lexInt cs = TokenInt (read num) : lexer rest
       where (num,rest) = span isDigit cs
 
-lexVar cs = case span (\x -> isAlpha x || x == '_') cs of
+lexVar cs = case span (\x -> isAlpha x || x == '_' || isDigit x) cs of
        ("any",rest) -> TokenAny : lexer rest
        ("bad",rest) -> TokenBad : lexer rest
        ("BAD",rest) -> TokenBad : lexer rest
