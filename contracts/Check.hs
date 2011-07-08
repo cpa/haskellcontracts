@@ -35,7 +35,7 @@ checkFile f cfg = do
   let prog = appify $ haskell $ lexer s
       order = checkOrder prog
   system $ "ulimit -t " ++ show (timeLimit cfg)
-  putStrLn $ "Time limit for each contract is: " ++ show (timeLimit cfg) ++ " sec."
+  putStrLn $ "Time limit for each contract is: " ++ show (timeLimit cfg) ++ " sec. WARNING: ulimit may or may not work on your box..."
   res <- sequence $ go prog [] cfg order
   return $ and res
   where go prog checkedDefs cfg [] = []
