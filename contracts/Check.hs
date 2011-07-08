@@ -20,6 +20,7 @@ conf flags = go flags (Conf 10 False)
   where go ("-t":n:flags) cfg = go flags (cfg {timeLimit=read n :: Int})
         go ("-p":flags)   cfg = go flags (cfg {printTPTP=True})
         go (_:flags)      cfg = go flags cfg
+        go []             cfg = cfg
 
 main = do
   f:flags <- getArgs
