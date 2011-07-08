@@ -57,7 +57,7 @@ check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
       tptpTheory = trans (safeSubset prog checkedDefs) [f] >>= simplify >>= toTPTP
       tmpFile = "tmp.tptp"
   when (printTPTP cfg) $ do
-    writeFile f tptpTheory
+    writeFile (f++".tptp") tptpTheory
     putStrLn $ "Writing " ++ f ++ ".tptp"
   putStr $ "Checking " ++ f ++ "..."
   hFlush stdout
@@ -74,7 +74,7 @@ check prog fs cfg checkedDefs = do
       tptpTheory = trans (safeSubset prog checkedDefs) fs >>= simplify >>= toTPTP
       tmpFile = "tmp.tptp"
   when (printTPTP cfg) $ do
-    writeFile (head fs) tptpTheory
+    writeFile (head fs ++ ".tptp") tptpTheory
     putStrLn $ "Writing " ++ (head fs) ++ ".tptp"
   putStr $ showfs fs ++ "are mutually recursive. Checking them altogether..."
   hFlush stdout
