@@ -235,7 +235,10 @@ trans ds fs = evalState (go fs ds) (S "Z" 0 [] (H.arities ds))
             H.DataType t -> error "A datatype cannot be special!"
             H.Def (H.Let f xs e)         -> dTrans $ H.Let f xs (H.substs (zip (map (H.Var . recVar) fs) fs) e)
             H.Def (H.LetCase f xs e pes) -> dTrans $ H.LetCase f xs (H.substs (zip (map (H.Var . recVar) fs) fs) e) [(p,(H.substs (zip (map (H.Var . recVar) fs) fs) e)) | (p,e) <- pes]
-            H.ContSat (H.Satisfies x y)  -> liftM (map F.Not) $ sTrans (H.Var x) $ H.substsC (zip (map (H.Var . recVar) fs) fs) y
+            H.ContSat (H.Satisfies x y)  -> do
+              notCont <- sTrans (H.Var $ recVar x) $ H.substsC (zip (map (H.Var . recVar) fs) fs) y
+              contP   <- liftM (map F.Not) $ sTrans (H.Var x) y
+              return $ notCont ++ contP
           return $ concat $ header : regFormulae ++ speFormulae 
             where header = [(F.Forall (map (F.Var . F.Regular) ["F","X"]) $ (F.And [F.CF $ F.Var $ F.Regular "X", F.CF $ F.Var $ F.Regular "F"]) :=>: (F.CF $ (F.App [(F.Var $ F.Regular "F"), (F.Var $ F.Regular "X")]))),F.Not $ F.CF $ F.Var $ F.BAD,F.CF $ F.Var $ F.UNR]
 
