@@ -1012,7 +1012,7 @@ lexer (',':cs) = TokenComma : lexer cs
 lexInt cs = TokenInt (read num) : lexer rest
       where (num,rest) = span isDigit cs
 
-lexVar cs = case span (\x -> isAlpha x || x == '_') cs of
+lexVar cs = case span (\x -> isAlpha x || x == '_' || isDigit x) cs of
        ("any",rest) -> TokenAny : lexer rest
        ("bad",rest) -> TokenBad : lexer rest
        ("BAD",rest) -> TokenBad : lexer rest
