@@ -17,7 +17,7 @@ graphFromProgram p = graphFromEdges [ go d | d <- p, case d of Def _ -> True ; _
         dataV = dataVars =<< [ d | d <- p, case d of DataType _ -> True ; _ -> False ]
 
 varsInCont p f = 
-  trace (show contracts) $ if all (==Nothing) contracts
+  if all (==Nothing) contracts
   then []
   else contVars f [] (fromJust $ head $ filter (/= Nothing) contracts)
     where contracts = map (\d -> case d of ContSat (Satisfies x c) -> if x == f then Just c else Nothing ; _ -> Nothing) p
