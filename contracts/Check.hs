@@ -85,4 +85,4 @@ check prog fs cfg checkedDefs = do
     putStrLn "\n==============================================================\n"
   return res
     where isUnsat s = "Unsatisfiable" `elem` tails s
-          showfs fs = concat $ intersperse " " fs
+          showfs fs = (concat $ intersperse " " fs) ++ " "
