@@ -1008,7 +1008,7 @@ lexer (')':cs) = TokenParenC : lexer cs
 lexer (';':';':cs) = TokenSep : lexer cs
 lexer ('|':cs) = TokenPipe : lexer cs
 lexer (',':cs) = TokenComma : lexer cs
-
+lexer ('-':'-':cs) = lexer $ dropWhile (/= '\n') cs
 lexInt cs = TokenInt (read num) : lexer rest
       where (num,rest) = span isDigit cs
 
