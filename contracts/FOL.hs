@@ -28,30 +28,31 @@ instance Show a => Show (Term a) where
   show (FullApp f []) = show f
   show (FullApp f as) = show f ++ "(" ++ (concat $ intersperse "," $ map show as) ++ ")"
 
-
+infix 7 :<=>:
+infix 7 :=>:
 data Formula a = Forall [a] (Formula a)
-               | Implies (Formula a) (Formula a)
-               | Iff (Formula a) (Formula a)
+               | (:=>:) (Formula a) (Formula a)
+               | (:<=>:) (Formula a) (Formula a)
                | Not (Formula a)
                | Or [Formula a]
                | And [Formula a]
-               | True
-               | False
-               | Eq a a
+               | Top
+               | Bottom
+               | (:=:) a a
                | CF a
                deriving (Show,Eq)
                         
 instance Functor Formula where
   fmap g (Forall xs f) = Forall (fmap g xs) (fmap g f)
-  fmap g (Implies f1 f2) = Implies (fmap g f1) (fmap g f2)
-  fmap g (Iff f1 f2) = Iff (fmap g f1) (fmap g f2)
+  fmap g (f1 :=>: f2) = (fmap g f1) :=>: (fmap g f2)
+  fmap g (f1 :<=>: f2) = (fmap g f1) :<=>:(fmap g f2)
   fmap g (Not f) = Not (fmap g f)
   fmap g (Or fs) = Or (map (fmap g) fs)
   fmap g (And fs) = And (map (fmap g) fs)
-  fmap g (Eq t1 t2) = Eq (g t1) (g t2)
+  fmap g (t1 :=: t2) = (g t1) :=: (g t2)
   fmap g (CF t) = CF (g t)
-  fmap g True = True
-  fmap g False = False
+  fmap g Top = Top
+  fmap g Bottom = Bottom
   
 splitOnAnd :: Formula a -> [Formula a]
 splitOnAnd (Forall xs (And fs)) = map (Forall xs) fs
@@ -67,29 +68,29 @@ appifyFOF a f = fmap (\x -> case x of App ((Var x):xs) -> case lookup x a of
 removeConstants :: Eq a => Formula a -> Formula a
 removeConstants (Forall [] f) = removeConstants f
 removeConstants (Forall xs f) = Forall xs (removeConstants f)
-removeConstants (Implies False _) = True
-removeConstants (Iff True f) = f
-removeConstants (Iff f True) = f
-removeConstants (Iff False f) = Not f
-removeConstants (Iff f False) = Not f
+removeConstants (Bottom :=>: _) = Top
+removeConstants (Top :<=>: f) = f
+removeConstants (f :<=>: Top) = f
+removeConstants (Bottom :<=>: f) = Not f
+removeConstants (f :<=>: Bottom) = Not f
 removeConstants (Not f) = Not $ removeConstants f
-removeConstants (Or fs) = if any (==True) fs then True else Or $ filter (/=False) fs
-removeConstants (And fs) = if any (==False) fs then False else And $ filter (/=True) fs
+removeConstants (Or fs) = if any (==Top) fs then Top else Or $ filter (/=Bottom) fs
+removeConstants (And fs) = if any (==Bottom) fs then Bottom else And $ filter (/=Top) fs
 removeConstants f = f
 
-simplify f = filter (/= True) $ splitOnAnd (removeConstants f)
+simplify f = filter (/= Top) $ splitOnAnd (removeConstants f)
 
 extractVR (Var (Regular x)) = x
 
 upperIfy :: [String] -> Formula (Term Variable) -> Formula (Term Variable)
 upperIfy c (Forall xs f) = Forall (map (Var . Regular . map toUpper . extractVR) xs) (upperIfy c' f)
   where c' = (map extractVR xs)++c
-upperIfy c (Iff f1 f2) = Iff (upperIfy c f1) (upperIfy c f2)
-upperIfy c (Implies f1 f2) = Implies (upperIfy c f1) (upperIfy c f2)
+upperIfy c (f1 :<=>: f2) = (upperIfy c f1) :<=>: (upperIfy c f2)
+upperIfy c (f1 :=>: f2) = (upperIfy c f1) :=>: (upperIfy c f2)
 upperIfy c (Not f) = Not (upperIfy c f)
-upperIfy c True = True
-upperIfy c False = False
-upperIfy c (Eq t1 t2) = Eq (auxUpper c t1) (auxUpper c t2)
+upperIfy c Top = Top
+upperIfy c Bottom = Bottom
+upperIfy c (t1 :=: t2) = (auxUpper c t1) :=: (auxUpper c t2)
 upperIfy c (CF t) = CF (auxUpper c t)
 upperIfy c (And fs) = And (map (upperIfy c) fs)
 upperIfy c (Or fs) = Or (map (upperIfy c) fs)
@@ -107,15 +108,15 @@ toTPTP f = header ++ "\n" ++ (aux $ upperIfy [] f) ++ "\n" ++ footer
   where header = "fof(axiom,axiom,"
         footer = ").\n"
         aux (Forall xs f) = "! " ++ show xs ++ "  : (" ++ aux f ++ ")"
-        aux (Implies f1 f2) = "(" ++ aux f1 ++ ") => (" ++ aux f2 ++ ")"
-        aux (Iff f1 f2) = "(" ++ aux f1 ++ ") <=> (" ++ aux f2 ++ ")"
-        aux (Not (Eq t1 t2)) =  auxTerm t1 ++ " != " ++ auxTerm t2
+        aux (f1 :=>: f2) = "(" ++ aux f1 ++ ") => (" ++ aux f2 ++ ")"
+        aux (f1 :<=>: f2) = "(" ++ aux f1 ++ ") <=> (" ++ aux f2 ++ ")"
+        aux (Not (t1 :=: t2)) =  auxTerm t1 ++ " != " ++ auxTerm t2
         aux (Not f) = "~(" ++ aux f ++ ")"
         aux (Or fs) = "(" ++ (concat $ intersperse " | " (map aux fs)) ++ ")"
         aux (And fs) = "(" ++ (concat $ intersperse " & " (map aux fs)) ++ ")"
-        aux True = "$true"
-        aux False = "$false"
-        aux (Eq t1 t2) = auxTerm t1 ++ " = " ++ auxTerm t2
+        aux Top = "$true"
+        aux Bottom = "$false"
+        aux (t1 :=: t2) = auxTerm t1 ++ " = " ++ auxTerm t2
         aux (CF t) = "cf(" ++ auxTerm t ++ ")"
         auxTerm (Var v) = show v
         auxTerm (App []) = error "Cannot apply nothing"
