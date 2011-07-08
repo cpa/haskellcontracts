@@ -240,15 +240,4 @@ trans ds fs = evalState (go fs ds) (S "Z" 0 [] (H.arities ds))
               contP   <- liftM (map F.Not) $ sTrans (H.Var x) y
               return $ notCont ++ contP
           return $ concat $ header : regFormulae ++ speFormulae 
-            where header = [(F.Forall (map (F.Var . F.Regular) ["F","X"]) $ (F.And [F.CF $ F.Var $ F.Regular "X", F.CF $ F.Var $ F.Regular "F"]) :=>: (F.CF $ (F.App [(F.Var $ F.Regular "F"), (F.Var $ F.Regular "X")]))),F.Not $ F.CF $ F.Var $ F.BAD,F.CF $ F.Var $ F.UNR]
-
--- go fs ds = map F.Not [evalState (sTrans (H.Var v) c) (S "Z" 0 [] a)] ++ [evalState (sTrans (H.Var v') c) (S "Zp" 0 [] a)] ++ concatMap treat ds' ++ footer
---   where ([H.ContSat (H.Satisfies v c)],ds') = partition (isContToCheck fcheck) ds
---         treat (H.DataType t) = evalState (tTrans t) (S "P" 0 [] a)
---         treat (H.Def d@(H.Let x xs e)) = if x == v then evalState (dTrans $ H.Let x xs (H.subst e (H.Var v') x)) (S "O" 0 [] a) else evalState (dTrans d) $ S "P" 0 [] a
---         treat (H.Def d@(H.LetCase x xs e pes)) = if x == v then evalState (dTrans $ H.LetCase x xs (H.subst e (H.Var v') x) (map (\(p,e) -> (p,H.subst e (H.Var v') x)) pes)) (S "O" 0 [] a) else evalState (dTrans d) (S "P" 0 [] a)
---         treat (H.ContSat (H.Satisfies x y)) = [evalState (sTrans (H.Var x) y) (S "Y" 0 [] a)]
---         v' = v++"p"
---         footer = [(F.Forall (map (F.Var . F.Regular) ["F","X"]) $ (F.And [F.CF $ F.Var $ F.Regular "X", F.CF $ F.Var $ F.Regular "F"]) :=>: (F.CF $ (F.App [(F.Var $ F.Regular "F"), (F.Var $ F.Regular "X")]))),F.Not $ F.CF $ F.Var $ F.BAD,F.CF $ F.Var $ F.UNR]
---         a = H.arities ds
-        
+            where header = [(F.Forall (map (F.Var . F.Regular) ["F","X"]) $ (F.And [F.CF $ F.Var $ F.Regular "X", F.CF $ F.Var $ F.Regular "F"]) :=>: (F.CF $ (F.App [(F.Var $ F.Regular "F"), (F.Var $ F.Regular "X")]))),F.Not $ F.CF $ F.Var $ F.BAD,F.CF $ F.Var $ F.UNR,(:/=:) (F.Var $ F.Regular "false") (F.Var $ F.Regular "true"),F.CF (F.Var $ F.Regular "true"),F.CF (F.Var $ F.Regular "false"),(:/=:) (F.Var $ F.Regular "true") (F.Var $ F.Regular "unr"),(:/=:) (F.Var $ F.Regular "false") (F.Var $ F.Regular "unr")]

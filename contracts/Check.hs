@@ -24,10 +24,11 @@ conf flags = go flags (Conf 10 False)
 
 main = do
   f:flags <- getArgs
-  res <- checkFile f (conf flags)
+  let cfg = conf flags
+  res <- checkFile f cfg
   if res 
     then putStrLn $ f ++ ": all the contracts hold."
-    else putStrLn $ "There's at least one contract in " ++ f ++ " that took more than 5 sec to prove."
+    else putStrLn $ "There's at least one contract in " ++ f ++ " that took more than " ++ show (timeLimit cfg) ++ " sec to prove."
   
 checkFile f cfg = do
   s <- readFile f
