@@ -40,24 +40,30 @@ check prog [f] checkedDefs = do
   let safeSubset prog checkedDefs = filter (hasBeenChecked (f:checkedDefs)) prog
       tptpTheory = trans (safeSubset prog checkedDefs) [f] >>= simplify >>= toTPTP
       tmpFile = "tmp.tptp"
-  putStrLn $ "Checking " ++ f ++ "..."
-  writeFile tmpFile tptpTheory
-  res <- isUnsat . last . lines <$> readProcess "./equinox" [tmpFile] ""
-  removeFile tmpFile
-  when res $
-    putStrLn "\tOK!"
-  return res
+--   putStr $ "Checking " ++ f ++ "..."
+--   writeFile tmpFile tptpTheory
+--   res <- isUnsat . last . lines <$> readProcess "./equinox" [tmpFile] ""
+--   removeFile tmpFile
+--   when res $ 
+--     putStrLn "\tOK!"
+--   return res
+  putStrLn tptpTheory
+  return True 
     where isUnsat s = "Unsatisfiable" `elem` tails s
   
 check prog fs checkedDefs = do
   let safeSubset prog checkedDefs = filter (hasBeenChecked (fs++checkedDefs)) prog
       tptpTheory = trans (safeSubset prog checkedDefs) fs >>= simplify >>= toTPTP
       tmpFile = "tmp.tptp"
-  putStr $ show fs ++ "are mutually recursive. Checking them altogether... "
-  writeFile tmpFile tptpTheory
-  res <- isUnsat . last . lines <$> readProcess "./equinox" [tmpFile] ""
-  removeFile tmpFile
-  when res $
-    putStrLn "\tOK!"
-  return res
+--   putStr $ showfs fs ++ "are mutually recursive. Checking them altogether..."
+--   writeFile tmpFile tptpTheory
+--   res <- isUnsat . last . lines <$> readProcess "./equinox" [tmpFile] ""
+--   removeFile tmpFile
+--   when res $
+--     putStrLn "\tOK!"
+--   return res
+  putStrLn tptpTheory
+  return True
     where isUnsat s = "Unsatisfiable" `elem` tails s
+          showfs [] = ""
+          showfs (f:fs) = f ++ " " ++ showfs fs

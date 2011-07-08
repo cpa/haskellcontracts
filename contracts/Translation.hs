@@ -110,7 +110,7 @@ sTrans e (H.AppC x c1 c2) = do
   S s k fs a <- get
   put $ S s (k+1) fs a
   let freshX = s++(show k) 
-      c2' = H.substC c2 (H.Var freshX) x
+      c2' = H.substC (H.Var freshX) x c2
   [f1] <- sTrans (H.Var freshX) c1
   [f2] <- case e of 
     H.Var x -> sTrans (H.appifyExpr a $ H.apps (H.Var x:[H.Var $ freshX])) c2'
@@ -227,15 +227,16 @@ trans ds fs = evalState (go fs ds) (S "Z" 0 [] (H.arities ds))
           let (toCheck,regDefs) = partition (isToCheck fs) ds
               recVar x = x ++ "p"
           regFormulae <- forM regDefs $ \d -> case d of
-            H.DataType t -> tTrans t
-            H.Def d -> dTrans d
+            H.DataType t                -> tTrans t
+            H.Def d                     -> dTrans d
             H.ContSat (H.Satisfies x y) -> sTrans (H.Var x) y
           speFormulae <- forM toCheck $ \d -> case d of
             H.DataType t -> error "A datatype cannot be special!"
-            H.Def (H.Let f xs e) -> dTrans $ H.Let f xs (H.substs (zip (map (H.Var . recVar) fs) fs) e)
+            H.Def (H.Let f xs e)         -> dTrans $ H.Let f xs (H.substs (zip (map (H.Var . recVar) fs) fs) e)
             H.Def (H.LetCase f xs e pes) -> dTrans $ H.LetCase f xs (H.substs (zip (map (H.Var . recVar) fs) fs) e) [(p,(H.substs (zip (map (H.Var . recVar) fs) fs) e)) | (p,e) <- pes]
-            H.ContSat (H.Satisfies x y) -> undefined
-          return $ concat $ regFormulae ++ speFormulae
+            H.ContSat (H.Satisfies x y)  -> sTrans (H.Var x) $ H.substsC (zip (map (H.Var . recVar) fs) fs) y
+          return $ concat $ header : regFormulae ++ speFormulae 
+            where header = [(F.Forall (map (F.Var . F.Regular) ["F","X"]) $ (F.And [F.CF $ F.Var $ F.Regular "X", F.CF $ F.Var $ F.Regular "F"]) :=>: (F.CF $ (F.App [(F.Var $ F.Regular "F"), (F.Var $ F.Regular "X")]))),F.Not $ F.CF $ F.Var $ F.BAD,F.CF $ F.Var $ F.UNR]
 
 -- go fs ds = map F.Not [evalState (sTrans (H.Var v) c) (S "Z" 0 [] a)] ++ [evalState (sTrans (H.Var v') c) (S "Zp" 0 [] a)] ++ concatMap treat ds' ++ footer
 --   where ([H.ContSat (H.Satisfies v c)],ds') = partition (isContToCheck fcheck) ds

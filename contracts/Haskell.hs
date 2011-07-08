@@ -81,20 +81,25 @@ substs [] e = e
 substs ((x,y):xys) e = substs xys $ subst x y e
 
 subst :: Expression -> Variable -> Expression -> Expression -- e[x/y]
-subst x y (Var v) | v == y = x
-                  | otherwise  = Var v
-subst x y (App e1 e2) = App (subst x y e1) (subst x y e2)
-subst x y (FullApp f es) = let Var x' = (subst x y (Var f)) in 
-  FullApp x' $ map (\e -> subst x y e) es
-subst x y BAD = BAD
-subst x y (CF e) = CF (subst x y e)
+subst x y (Var v) | v         == y = x
+                  | otherwise = Var v
+subst x y (App e1 e2)         = App (subst x y e1) (subst x y e2)
+subst x y (FullApp f es)      = let Var x' = (subst x y (Var f)) in FullApp x' $ map (\e -> subst x y e) es
+subst x y BAD                 = BAD
+subst x y (CF e)              = CF (subst x y e)
 
-substC :: (Contract Expression) -> Expression -> Variable -> (Contract Expression)
-substC (AppC u c1 c2) x y = AppC u (substC c1 x y) (substC c2 x y) -- TODO and if u==y?
-substC (Pred u e) x y = if u/=y then Pred u (subst x y e) else (Pred u e)
-substC (And c1 c2) x y = And (substC c1 x y) (substC c2 x y)
-substC (Or c1 c2) x y = Or (substC c1 x y) (substC c2 x y)
-substC Any _ _ = Any
+
+substsC :: [(Expression,Variable)] -> (Contract Expression) -> (Contract Expression)
+substsC [] c = c
+substsC ((x,y):xys) c = substsC xys $ substC x y c
+
+
+substC :: Expression -> Variable -> (Contract Expression) -> (Contract Expression)
+substC x y (AppC u c1 c2) = AppC u (substC x y c1) (substC x y c2) -- TODO and if u==y?
+substC x y (Pred u e)     = if u/=y then Pred u (subst x y e) else (Pred u e)
+substC x y (And c1 c2)    = And (substC x y c1) (substC x y c2)
+substC x y (Or c1 c2)     = Or (substC x y c1) (substC x y c2)
+substC _ _ Any            = Any
 
 ok :: Contract Expression
 ok = Pred "dummy" (Var "true")
