@@ -64,6 +64,7 @@ dTrans (H.LetCase f vs e pes) = do
       zs = [F.Var $ F.Regular $ "Zdef" ++ show x | x <- [1..(foldl1 max [snd y | y <- arities])]]
   tpieis <- sequence [eTrans (zedify ei pi) | (pi,ei) <- pes]
   let vvs = map (F.Var . F.Regular) vs
+      -- FIXME: eqN is not related to n-th equation in the pdf anymore
       eq9 = [(et :=: (F.FullApp (F.Regular $ head pi) (take (length pi - 1) [ z | (v,z) <- zip (tail pi) zs ]))) :=>: (F.FullApp (F.Regular f) vvs :=: (F.Weak $ tpiei)) | ((pi,ei),tpiei) <- zip pes tpieis]
       eq10 = (et :=: (F.Var F.BAD)) :=>: (F.FullApp (F.Regular f) vvs :=: F.Var F.BAD)
       eq11 = (F.And $ (et :/=: F.Var F.BAD):bigAndSel ) :=>: eq12

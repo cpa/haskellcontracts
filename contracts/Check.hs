@@ -64,8 +64,8 @@ check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
   when res $ 
     putStrLn "\tOK!"
   when (printTPTP cfg) $ do
-    putStrLn tptpTheory
-    putStrLn "\n==============================================================\n"
+    writeFile f tptpTheory
+    putStrLn $ "Writing " ++ f ++ ".tptp"
   return res
     where isUnsat s = "Unsatisfiable" `elem` tails s
   
@@ -81,8 +81,8 @@ check prog fs cfg checkedDefs = do
   when res $
     putStrLn "\tOK!"
   when (printTPTP cfg) $ do
-    putStrLn tptpTheory
-    putStrLn "\n==============================================================\n"
+    writeFile (head fs) tptpTheory
+    putStrLn $ "Writing " ++ (head fs) ++ ".tptp"
   return res
     where isUnsat s = "Unsatisfiable" `elem` tails s
           showfs fs = (concat $ intersperse " " fs) ++ " "
