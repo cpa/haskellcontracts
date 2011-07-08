@@ -5,7 +5,7 @@ import Parser hiding (main)
 import Translation
 import Control.Monad
 import FOL (toTPTP,simplify)
-import Data.List (tails)
+import Data.List (tails,intersperse)
 import System.Environment
 import System.IO
 import Haskell
@@ -85,5 +85,4 @@ check prog fs cfg checkedDefs = do
     putStrLn "\n==============================================================\n"
   return res
     where isUnsat s = "Unsatisfiable" `elem` tails s
-          showfs [] = ""
-          showfs (f:fs) = f ++ " " ++ showfs fs
+          showfs fs = concat $ intersperse " " fs
