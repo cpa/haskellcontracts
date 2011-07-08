@@ -68,7 +68,8 @@ check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
   return res
     where isUnsat s = "Unsatisfiable" `elem` tails s
   
-check prog fs cfg checkedDefs = do
+check prog fs cfg checkedDefs | any (`hasNoContract` prog) fs = return True
+                              | otherwise = do
   let safeSubset prog checkedDefs = filter (hasBeenChecked (fs++checkedDefs)) prog
       tptpTheory = trans (safeSubset prog checkedDefs) fs >>= simplify >>= toTPTP
       tmpFile = "tmp.tptp"
