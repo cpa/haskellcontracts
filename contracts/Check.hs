@@ -46,6 +46,7 @@ check prog [f] checkedDefs = do
   removeFile tmpFile
   when res $ 
     putStrLn "\tOK!"
+  putStrLn tptpTheory
   return res
     where isUnsat s = "Unsatisfiable" `elem` tails s
   
