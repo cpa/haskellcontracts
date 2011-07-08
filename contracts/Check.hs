@@ -57,15 +57,15 @@ check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
       tptpTheory = trans (safeSubset prog checkedDefs) [f] >>= simplify >>= toTPTP
       tmpFile = "tmp.tptp"
   putStr $ "Checking " ++ f ++ "..."
+  when (printTPTP cfg) $ do
+    writeFile f tptpTheory
+    putStrLn $ "Writing " ++ f ++ ".tptp"
   hFlush stdout
   writeFile tmpFile tptpTheory
   res <- isUnsat . last . lines <$> readProcess "./equinox" [tmpFile] ""
   removeFile tmpFile
   when res $ 
     putStrLn "\tOK!"
-  when (printTPTP cfg) $ do
-    writeFile f tptpTheory
-    putStrLn $ "Writing " ++ f ++ ".tptp"
   return res
     where isUnsat s = "Unsatisfiable" `elem` tails s
   
@@ -74,15 +74,15 @@ check prog fs cfg checkedDefs = do
       tptpTheory = trans (safeSubset prog checkedDefs) fs >>= simplify >>= toTPTP
       tmpFile = "tmp.tptp"
   putStr $ showfs fs ++ "are mutually recursive. Checking them altogether..."
+  when (printTPTP cfg) $ do
+    writeFile (head fs) tptpTheory
+    putStrLn $ "Writing " ++ (head fs) ++ ".tptp"
   hFlush stdout
   writeFile tmpFile tptpTheory
   res <- isUnsat . last . lines <$> readProcess "./equinox" [tmpFile] ""
   removeFile tmpFile
   when res $
     putStrLn "\tOK!"
-  when (printTPTP cfg) $ do
-    writeFile (head fs) tptpTheory
-    putStrLn $ "Writing " ++ (head fs) ++ ".tptp"
   return res
     where isUnsat s = "Unsatisfiable" `elem` tails s
           showfs fs = (concat $ intersperse " " fs) ++ " "
