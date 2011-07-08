@@ -47,4 +47,3 @@ checkOrder p = reverse $ map nub topOrder
         (e,f) = scc $ g
         topOrderAux = map (\(b,as) -> (map a as)) e
         topOrder = map (map (\(_,f,fs) -> f)) topOrderAux
-        
