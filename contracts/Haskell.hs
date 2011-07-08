@@ -76,18 +76,22 @@ appifyExpr a e = go a 1 e []
         go a count BAD acc = BAD
         go a count (Var v) acc = Var v
 
-subst :: Expression -> Expression -> Variable -> Expression -- e[x/y]
-subst (Var v) x y | v == y = x
+substs :: [(Expression, Variable)] -> Expression -> Expression
+substs [] e = e
+substs ((x,y):xys) e = substs xys $ subst x y e
+
+subst :: Expression -> Variable -> Expression -> Expression -- e[x/y]
+subst x y (Var v) | v == y = x
                   | otherwise  = Var v
-subst (App e1 e2) x y = App (subst e1 x y) (subst e2 x y)
-subst (FullApp f es) x y = let Var x' = (subst (Var f) x y) in 
-  FullApp x' $ map (\e -> subst e x y) es
-subst BAD _ _ = BAD
-subst (CF e) x y = CF (subst e x y)
+subst x y (App e1 e2) = App (subst x y e1) (subst x y e2)
+subst x y (FullApp f es) = let Var x' = (subst x y (Var f)) in 
+  FullApp x' $ map (\e -> subst x y e) es
+subst x y BAD = BAD
+subst x y (CF e) = CF (subst x y e)
 
 substC :: (Contract Expression) -> Expression -> Variable -> (Contract Expression)
 substC (AppC u c1 c2) x y = AppC u (substC c1 x y) (substC c2 x y) -- TODO and if u==y?
-substC (Pred u e) x y = if u/=y then Pred u (subst e x y) else (Pred u e)
+substC (Pred u e) x y = if u/=y then Pred u (subst x y e) else (Pred u e)
 substC (And c1 c2) x y = And (substC c1 x y) (substC c2 x y)
 substC (Or c1 c2) x y = Or (substC c1 x y) (substC c2 x y)
 substC Any _ _ = Any

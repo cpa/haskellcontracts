@@ -39,6 +39,7 @@ data Formula a = Forall [a] (Formula a)
                | Top
                | Bottom
                | (:=:) a a
+               | (:/=:) a a
                | CF a
                deriving (Show,Eq)
                         
@@ -50,6 +51,7 @@ instance Functor Formula where
   fmap g (Or fs) = Or (map (fmap g) fs)
   fmap g (And fs) = And (map (fmap g) fs)
   fmap g (t1 :=: t2) = (g t1) :=: (g t2)
+  fmap g (t1 :/=: t2) = (g t1) :/=: (g t2)
   fmap g (CF t) = CF (g t)
   fmap g Top = Top
   fmap g Bottom = Bottom
@@ -91,6 +93,7 @@ upperIfy c (Not f) = Not (upperIfy c f)
 upperIfy c Top = Top
 upperIfy c Bottom = Bottom
 upperIfy c (t1 :=: t2) = (auxUpper c t1) :=: (auxUpper c t2)
+upperIfy c (t1 :/=: t2) = (auxUpper c t1) :/=: (auxUpper c t2)
 upperIfy c (CF t) = CF (auxUpper c t)
 upperIfy c (And fs) = And (map (upperIfy c) fs)
 upperIfy c (Or fs) = Or (map (upperIfy c) fs)
@@ -117,6 +120,7 @@ toTPTP f = header ++ "\n" ++ (aux $ upperIfy [] f) ++ "\n" ++ footer
         aux Top = "$true"
         aux Bottom = "$false"
         aux (t1 :=: t2) = auxTerm t1 ++ " = " ++ auxTerm t2
+        aux (t1 :/=: t2) = auxTerm t1 ++ " != " ++ auxTerm t2
         aux (CF t) = "cf(" ++ auxTerm t ++ ")"
         auxTerm (Var v) = show v
         auxTerm (App []) = error "Cannot apply nothing"

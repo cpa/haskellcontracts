@@ -30,20 +30,34 @@ checkFile f = do
   where go [] prog checkedDefs = []
         go (fs:fss) prog checkedDefs = check prog fs checkedDefs : go fss prog (fs++checkedDefs)
   
+hasBeenChecked checkedDefs (Def (Let f _ _)) = f `elem` checkedDefs
+hasBeenChecked checkedDefs (Def (LetCase f _ _ _)) = f `elem` checkedDefs
+hasBeenChecked _ _ = True
+
 check :: Program -> [Variable] -> [Variable] -> IO Bool
 check prog [] _ = error "Should not happen"
 check prog [f] checkedDefs = do
-  let hasBeenChecked checkedDefs (Def (Let f _ _)) = f `elem` checkedDefs
-      hasBeenChecked checkedDefs (Def (LetCase f _ _ _)) = f `elem` checkedDefs
-      hasBeenChecked _ _ = True
-      safeSubset prog checkedDefs = filter (hasBeenChecked (f:checkedDefs)) prog
-      tptpTheory = trans (safeSubset prog checkedDefs) f >>= simplify >>= toTPTP
+  let safeSubset prog checkedDefs = filter (hasBeenChecked (f:checkedDefs)) prog
+      tptpTheory = trans (safeSubset prog checkedDefs) [f] >>= simplify >>= toTPTP
       tmpFile = "tmp.tptp"
   putStrLn $ "Checking " ++ f ++ "..."
   writeFile tmpFile tptpTheory
   res <- isUnsat . last . lines <$> readProcess "./equinox" [tmpFile] ""
   removeFile tmpFile
+  when res $
+    putStrLn "\tOK!"
   return res
     where isUnsat s = "Unsatisfiable" `elem` tails s
   
-check prog _ _ = error "Not implemented yet"
+check prog fs checkedDefs = do
+  let safeSubset prog checkedDefs = filter (hasBeenChecked (fs++checkedDefs)) prog
+      tptpTheory = trans (safeSubset prog checkedDefs) fs >>= simplify >>= toTPTP
+      tmpFile = "tmp.tptp"
+  putStr $ show fs ++ "are mutually recursive. Checking them altogether... "
+  writeFile tmpFile tptpTheory
+  res <- isUnsat . last . lines <$> readProcess "./equinox" [tmpFile] ""
+  removeFile tmpFile
+  when res $
+    putStrLn "\tOK!"
+  return res
+    where isUnsat s = "Unsatisfiable" `elem` tails s
