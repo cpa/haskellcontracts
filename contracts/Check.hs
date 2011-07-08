@@ -40,7 +40,6 @@ checkFile f cfg = do
   return $ and res
   where go prog checkedDefs cfg [] = []
         go prog checkedDefs cfg (fs:fss) = check prog fs cfg checkedDefs : go prog (fs++checkedDefs) cfg fss
-  
 hasBeenChecked checkedDefs (Def (Let f _ _)) = f `elem` checkedDefs
 hasBeenChecked checkedDefs (Def (LetCase f _ _ _)) = f `elem` checkedDefs
 hasBeenChecked _ _ = True
@@ -52,7 +51,7 @@ hasNoContract f prog = and $ (flip map) prog $ \d -> case d of
 check :: Program -> [Variable] -> Conf -> [Variable] -> IO Bool
 check prog [] cfg _ = error "There should be at least one definition!"
 check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
-                           | otherwise = do
+                               | otherwise = do
   let safeSubset prog checkedDefs = filter (hasBeenChecked (f:checkedDefs)) prog
       tptpTheory = trans (safeSubset prog checkedDefs) [f] >>= simplify >>= toTPTP
       tmpFile = "tmp.tptp"
