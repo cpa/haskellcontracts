@@ -1,11 +1,11 @@
-! Install
+# Install
 
  * Install equinox (https://github.com/nick8325/equinox/) and put it somewhere in your PATH
  * Get some packages: cabal install graphscc
  * Get https://github.com/cpa/haskellcontracts 
  * Compile the executable in the contracts directory: ghc --make Check.hs
 
-! Use
+# Use
 
 ./Check file [-t n] [-p]
  * -t n means that the program should stop if a contract takes more than n sec to prove (it doesn't work on windows, and not on any linux, I have yet to find a good way to do that)
