@@ -68,7 +68,7 @@ check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
     putStrLn $ "Writing " ++ f ++ ".tptp"
   putStr $ "Checking " ++ f ++ "..."
   hFlush stdout
-  if dryRun cfg  
+  if not $ dryRun cfg  
     then do 
     writeFile tmpFile tptpTheory
     res <- isUnsat . last . lines <$> readProcess "equinox" [tmpFile] ""
@@ -76,8 +76,7 @@ check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
     when res $ 
       putStrLn "\tOK!"
     return res
-    else
-    return True
+    else putStrLn "" >> return True
     where isUnsat s = "Unsatisfiable" `elem` tails s
   
 check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
@@ -90,7 +89,7 @@ check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
     putStrLn $ "Writing " ++ (head fs) ++ ".tptp"
   putStr $ showfs fs ++ "are mutually recursive. Checking them altogether..."
   hFlush stdout
-  if dryRun cfg  
+  if not $ dryRun cfg  
     then do 
     writeFile tmpFile tptpTheory
     res <- isUnsat . last . lines <$> readProcess "equinox" [tmpFile] ""
@@ -98,7 +97,6 @@ check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
     when res $
       putStrLn "\tOK!"
     return res
-    else 
-    return True
+    else putStrLn "" >> return True
     where isUnsat s = "Unsatisfiable" `elem` tails s
           showfs fs = (concat $ intersperse " " fs) ++ " "
