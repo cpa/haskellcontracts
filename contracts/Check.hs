@@ -14,11 +14,13 @@ import System.Directory (removeFile)
 import Control.Applicative
 
 data Conf = Conf { timeLimit :: Int
-                 , printTPTP :: Bool } 
+                 , printTPTP :: Bool
+                 , toCheck   :: [String] }
 
-conf flags = go flags (Conf 10 False)
+conf flags = go flags (Conf 10 False [])
   where go ("-t":n:flags) cfg = go flags (cfg {timeLimit=read n :: Int})
         go ("-p":flags)   cfg = go flags (cfg {printTPTP=True})
+        go ("-c":f:flags) cfg = go flags (cfg {toCheck=f:(toCheck cfg)})
         go (_:flags)      cfg = go flags cfg
         go []             cfg = cfg
 
@@ -39,7 +41,9 @@ checkFile f cfg = do
   res <- sequence $ go prog [] cfg order
   return $ and res
   where go prog checkedDefs cfg [] = []
-        go prog checkedDefs cfg (fs:fss) = check prog fs cfg checkedDefs : go prog (fs++checkedDefs) cfg fss
+        go prog checkedDefs cfg (fs:fss) = if (any (`elem` (toCheck cfg)) fs) 
+                                           then check prog fs cfg checkedDefs : go prog (fs++checkedDefs) cfg fss
+                                           else go prog (fs++checkedDefs) cfg fss
 
 hasBeenChecked checkedDefs (Def (Let f _ _)) = f `elem` checkedDefs
 hasBeenChecked checkedDefs (Def (LetCase f _ _ _)) = f `elem` checkedDefs
