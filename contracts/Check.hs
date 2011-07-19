@@ -40,6 +40,7 @@ checkFile f cfg = do
   return $ and res
   where go prog checkedDefs cfg [] = []
         go prog checkedDefs cfg (fs:fss) = check prog fs cfg checkedDefs : go prog (fs++checkedDefs) cfg fss
+
 hasBeenChecked checkedDefs (Def (Let f _ _)) = f `elem` checkedDefs
 hasBeenChecked checkedDefs (Def (LetCase f _ _ _)) = f `elem` checkedDefs
 hasBeenChecked _ _ = True
@@ -68,7 +69,7 @@ check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
   return res
     where isUnsat s = "Unsatisfiable" `elem` tails s
   
-check prog fs cfg checkedDefs | any (`hasNoContract` prog) fs = return True
+check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
                               | otherwise = do
   let safeSubset prog checkedDefs = filter (hasBeenChecked (fs++checkedDefs)) prog
       tptpTheory = trans (safeSubset prog checkedDefs) fs >>= simplify >>= toTPTP
