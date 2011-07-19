@@ -31,7 +31,7 @@ main = do
   let cfg = conf flags
   res <- checkFile f cfg
   if res 
-    then putStrLn $ f ++ ": all the contracts hold."
+    then unless (dryRun cfg) $ putStrLn $ f ++ ": all the contracts hold."
     else putStrLn $ "There's at least one contract in " ++ f ++ " that took more than " ++ show (timeLimit cfg) ++ " sec to prove."
   
 checkFile f cfg = do
