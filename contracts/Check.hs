@@ -5,7 +5,7 @@ import Parser hiding (main)
 import Translation
 import Control.Monad
 import FOL (toTPTP,simplify)
-import Data.List (tails,intersperse)
+import Data.List (tails,intersperse,concat)
 import System.Environment
 import System.IO
 import Haskell
@@ -36,14 +36,15 @@ checkFile f cfg = do
   s <- readFile f
   let prog = appify $ haskell $ lexer s
       order = checkOrder prog
+      cfg' = if toCheck cfg == [] then cfg {toCheck = concat order} else cfg
   system $ "ulimit -t " ++ show (timeLimit cfg)
   putStrLn $ "Time limit for each contract is: " ++ show (timeLimit cfg) ++ " sec. WARNING: ulimit may or may not work on your box..."
-  res <- sequence $ go prog [] cfg order
+  res <- sequence $ go prog [] cfg' order
   return $ and res
-  where go prog checkedDefs cfg [] = []
-        go prog checkedDefs cfg (fs:fss) = if (any (`elem` (toCheck cfg)) fs) 
-                                           then check prog fs cfg checkedDefs : go prog (fs++checkedDefs) cfg fss
-                                           else go prog (fs++checkedDefs) cfg fss
+    where go prog checkedDefs cfg [] = []
+          go prog checkedDefs cfg (fs:fss) = if (any (`elem` (toCheck cfg)) fs) 
+                                             then check prog fs cfg checkedDefs : go prog (fs++checkedDefs) cfg fss
+                                             else go prog (fs++checkedDefs) cfg fss
 
 hasBeenChecked checkedDefs (Def (Let f _ _)) = f `elem` checkedDefs
 hasBeenChecked checkedDefs (Def (LetCase f _ _ _)) = f `elem` checkedDefs
