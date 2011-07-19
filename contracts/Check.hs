@@ -15,14 +15,16 @@ import Control.Applicative
 
 data Conf = Conf { timeLimit :: Int
                  , printTPTP :: Bool
-                 , toCheck   :: [String] }
+                 , toCheck   :: [String] 
+                 , dryRun    :: Bool }
 
-conf flags = go flags (Conf 10 False [])
-  where go ("-t":n:flags) cfg = go flags (cfg {timeLimit=read n :: Int})
-        go ("-p":flags)   cfg = go flags (cfg {printTPTP=True})
-        go ("-c":f:flags) cfg = go flags (cfg {toCheck=f:(toCheck cfg)})
-        go (_:flags)      cfg = go flags cfg
-        go []             cfg = cfg
+conf flags = go flags (Conf 10 False [] False)
+  where go ("-t":n:flags)      cfg = go flags (cfg {timeLimit=read n :: Int})
+        go ("-p":flags)        cfg = go flags (cfg {printTPTP=True})
+        go ("-c":f:flags)      cfg = go flags (cfg {toCheck=f:(toCheck cfg)})
+        go ("--dry-run":flags) cfg = go flags (cfg {dryRun=True})
+        go (_:flags)           cfg = go flags cfg
+        go []                  cfg = cfg
 
 main = do
   f:flags <- getArgs
@@ -66,12 +68,16 @@ check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
     putStrLn $ "Writing " ++ f ++ ".tptp"
   putStr $ "Checking " ++ f ++ "..."
   hFlush stdout
-  writeFile tmpFile tptpTheory
-  res <- isUnsat . last . lines <$> readProcess "equinox" [tmpFile] ""
-  removeFile tmpFile
-  when res $ 
-    putStrLn "\tOK!"
-  return res
+  if dryRun cfg  
+    then do 
+    writeFile tmpFile tptpTheory
+    res <- isUnsat . last . lines <$> readProcess "equinox" [tmpFile] ""
+    removeFile tmpFile
+    when res $ 
+      putStrLn "\tOK!"
+    return res
+    else
+    return True
     where isUnsat s = "Unsatisfiable" `elem` tails s
   
 check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
@@ -84,11 +90,15 @@ check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
     putStrLn $ "Writing " ++ (head fs) ++ ".tptp"
   putStr $ showfs fs ++ "are mutually recursive. Checking them altogether..."
   hFlush stdout
-  writeFile tmpFile tptpTheory
-  res <- isUnsat . last . lines <$> readProcess "equinox" [tmpFile] ""
-  removeFile tmpFile
-  when res $
-    putStrLn "\tOK!"
-  return res
+  if dryRun cfg  
+    then do 
+    writeFile tmpFile tptpTheory
+    res <- isUnsat . last . lines <$> readProcess "equinox" [tmpFile] ""
+    removeFile tmpFile
+    when res $
+      putStrLn "\tOK!"
+    return res
+    else 
+    return True
     where isUnsat s = "Unsatisfiable" `elem` tails s
           showfs fs = (concat $ intersperse " " fs) ++ " "
