@@ -1,5 +1,6 @@
 module Translation where
 
+import Debug.Trace
 import qualified Haskell as H
 import qualified FOL as F
 import FOL (Formula(..))
@@ -34,8 +35,8 @@ dTrans (H.Let f vs e) = do
   return $ [F.Forall vvs $ (F.FullApp (F.Regular f) vvs) :=: (F.Weak $ et),fptr1,fptr2,fptr3]
   where vvs = map (F.Var . F.Regular) vs
         fptr1 = (F.Forall vvs $ (F.And [F.CF v | v <- vvs]) :=>: F.CF (F.FullApp (F.Regular f) vvs)) :<=>: (F.CF $ F.Var $ F.Regular (f++"_ptr"))
-        fptr2 = F.Forall vvs $ (F.FullApp (F.Regular f) vvs) :=: (F.App $ (F.Var . F.Regular) (f++"_ptr") : vvs)
-        fptr3 = F.Forall vvs $ (F.FullApp (F.Regular (f ++ "p")) vvs) :=: (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vvs)
+        fptr2 = F.Forall vvs $ (F.FullApp (F.Regular f) vvs) :=: (F.Weak (F.App $ (F.Var . F.Regular) (f++"_ptr") : vvs))
+        fptr3 = F.Forall vvs $ (F.FullApp (F.Regular (f ++ "p")) vvs) :=: (F.Weak (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vvs))
 
 dTrans (H.LetCase f vs e pes) = do
   et <- eTrans e
@@ -53,8 +54,8 @@ dTrans (H.LetCase f vs e pes) = do
       eq12 = (F.FullApp (F.Regular f) vvs :=: F.Var F.UNR)
       bigAndSel = [et :/=: F.Weak (F.FullApp (F.Regular di) [F.FullApp (F.Regular ("sel_"++(show i)++"_"++di)) [et] | i <- [1..ai]]) | (di,ai) <- arities]
       fptr1 = (F.Forall vvs $ (F.And [F.CF v | v <- vvs]) :=>: F.CF (F.FullApp (F.Regular f) vvs)) :<=>: (F.CF $ F.Var $ F.Regular (f++"_ptr"))
-      fptr2 = F.Forall vvs $ (F.FullApp (F.Regular f) vvs) :=: (F.App $ (F.Var . F.Regular) (f++"_ptr") : vvs)
-      fptr3 = F.Forall vvs $ (F.FullApp (F.Regular (f ++ "p")) vvs) :=: (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vvs)
+      fptr2 = F.Forall vvs $ (F.FullApp (F.Regular f) vvs) :=: (F.Weak (F.App $ (F.Var . F.Regular) (f++"_ptr") : vvs))
+      fptr3 = F.Forall vvs $ (F.FullApp (F.Regular (f ++ "p")) vvs) :=: (F.Weak (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vvs))
 
   return $ [F.Forall (vvs ++ zs) $ F.And (eq9++[eq10,eq11]),fptr1,fptr2,fptr3]
 
@@ -101,8 +102,7 @@ sTrans e (H.Or c1 c2) = do
   return $ [F.Or [f1,f2]]
 
 sTrans e (H.CF) = do
-  a  <- fmap arities get
-  et <- eTrans $ H.appifyExpr a e
+  et <- eTrans e
   return $ [F.CF $ et]
 
 -- -- Data constructors
