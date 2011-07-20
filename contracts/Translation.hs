@@ -101,8 +101,9 @@ sTrans e (H.Or c1 c2) = do
   return $ [F.Or [f1,f2]]
 
 sTrans e (H.CF) = do
-  et <- eTrans e
-  return $ [F.CF et]
+  a  <- fmap arities get
+  et <- eTrans $ H.appifyExpr a e
+  return $ [F.CF $ et]
 
 -- -- Data constructors
 -----------------------

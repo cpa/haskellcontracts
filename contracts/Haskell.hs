@@ -79,7 +79,10 @@ appifyExpr a e = go a 1 e []
         go a count g@(App e1 e2) acc = go a (count+1) e1 (acc++[go a 1 e2 []])
         go a count (FullApp v es) acc = FullApp v $ map (\e -> go a 1 e []) es
         go a count BAD acc = BAD
-        go a count (Var v) acc = Var v
+        go a count (Var v) acc = case lookup v a of
+          Just 0 -> Var v
+          Just n -> Var $ v ++ "_ptr"
+          Nothing -> Var v
 
 
 -- Bunch of substitution utility
