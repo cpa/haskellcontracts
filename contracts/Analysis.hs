@@ -9,7 +9,7 @@ import Parser
 import Control.Monad
 import Debug.Trace
 
-graphFromProgram :: [DefGeneral Expression] -> (Graph,Vertex -> (Variable, Variable, [Variable]),Variable -> Maybe Vertex)
+graphFromProgram :: Program -> (Graph,Vertex -> (Variable, Variable, [Variable]),Variable -> Maybe Vertex)
 graphFromProgram p = graphFromEdges [ go d | d <- p, case d of Def _ -> True ; _ -> False ]
   where go (Def (Let f xs e)) = (f,f,freeVars f (xs++dataV) e ++ varsInCont p f)
         go (Def (LetCase f xs e pes)) = (f,f,varsInCont p f ++ (concatMap (\(p,e) -> freeVars f (xs++dataV++p) e) $ (undefined,e):pes))
@@ -29,7 +29,7 @@ contVars f xs (And c1 c2)    = contVars f xs c1 ++ contVars f xs c2
 contVars f xs (Or c1 c2)     = contVars f xs c1 ++ contVars f xs c2
 contVars f xs Any            = []
         
-dataVars :: DefGeneral t -> [Variable]
+dataVars :: DefGeneral -> [Variable]
 dataVars (DataType (Data _ vacs)) = map fst3 vacs
   where fst3 (a,_,_) = a
 
@@ -38,10 +38,9 @@ freeVars f xs BAD = []
 freeVars f xs (Var v) = if  v `elem` xs then [] else [v]
 freeVars f xs (App e1 e2) = freeVars f xs e1 ++ freeVars f xs e2
 freeVars f xs (FullApp g es) = g : ((freeVars f xs) =<< es)
-freeVars f xs (Sat _ _) = undefined -- yet
 freeVars f xs (CF e) = freeVars f xs e
 
-checkOrder :: [DefGeneral Expression] -> [[Variable]]
+checkOrder :: Program -> [[Variable]]
 checkOrder p = reverse $ map nub topOrder
   where (g,a,b) = graphFromProgram p
         (e,f) = scc $ g

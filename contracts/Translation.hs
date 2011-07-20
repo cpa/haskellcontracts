@@ -1,14 +1,10 @@
 module Translation where
 
-import Debug.Trace
-import Control.Applicative
 import qualified Haskell as H
 import qualified FOL as F
 import FOL (Formula(..))
 import Control.Monad.State
-import Data.Char (toUpper)
-import Data.Maybe (fromJust)
-import Data.List (sort,partition,concat)
+import Data.List (partition)
 
 type Fresh = State TransState
 
@@ -18,9 +14,9 @@ data TransState = S { prefix  :: String
                     , arities :: [(String,Int)]}
 
 
-
 -- Expression
 -------------
+
 eTrans (H.Var v) = return $ (F.Var $ F.Regular v)
 eTrans (H.App e1 e2) = do 
   t1 <- eTrans e1
@@ -29,13 +25,6 @@ eTrans (H.App e1 e2) = do
 eTrans (H.FullApp f es) = do
   ts <- sequence $ map eTrans es
   return $ F.FullApp (F.Regular f) ts
-eTrans H.BAD = return $ F.Var $ F.BAD
-eTrans (H.Sat e c) = do 
-  [ts] <- sTrans (H.Var "x") c 
-  te <- eTrans $ H.FullApp "satC" [H.Var "x"]
-  let fe = F.Forall [F.Var $ F.Regular "x"] $ ts :<=>: (F.Var $ F.Regular "true") :=: te
-  modify (\s -> s {fofBag = fe:(fofBag s)})
-  eTrans e
 eTrans (H.CF e) = do
   te <- eTrans e
   modify (\s -> s {fofBag = F.CF te:fofBag s})
@@ -76,8 +65,7 @@ dTrans (H.LetCase f vs e pes) = do
 
   return $ [F.Forall (vvs ++ zs) $ F.And (eq9++[eq10,eq11]),fptr1,fptr2,fptr3]
 
-test = (H.LetCase "head" ["xyz"] (H.Var "xyz") [(["nil"],H.BAD),(["cons","a","b"],H.Var "a")])
--- t = putStrLn $ (trans test) >>= (F.simplify) >>= F.toTPTP
+
 
 
 -- Contract satisfaction
@@ -88,25 +76,16 @@ sTrans e H.Any = return [Top]
 
 sTrans e (H.Pred x u) =  do
   a <- liftM arities get
-  let  u' = H.subst (H.fmapExpr (\f -> if (take 4 $ (reverse f)) == "rtp_" then reverse $ drop 4 $ reverse f else f) $ H.appifyExpr (map (\(a,b) -> (a++"_ptr",b)) $ a) e) x u
+  let  u' = H.subst (fmap (\f -> if (take 4 $ (reverse f)) == "rtp_" then reverse $ drop 4 $ reverse f else f) $ H.appifyExpr (map (\(a,b) -> (a++"_ptr",b)) $ a) e) x u
   et' <- eTrans e 
   ut' <- eTrans u'
-  et <- eTrans $ H.fmapExpr (\f -> if (take 4 $ (reverse f)) == "rtp_" then reverse $ drop 4 $ reverse f else f) $ H.appifyExpr (map (\(a,b) -> (a++"_ptr",b)) $ a) e
+  et <- eTrans $ fmap (\f -> if (take 4 $ (reverse f)) == "rtp_" then reverse $ drop 4 $ reverse f else f) $ H.appifyExpr (map (\(a,b) -> (a++"_ptr",b)) $ a) e
   s <- get
   let a = prefix s
       b = count s
       fs = fofBag s
   put $ s { fofBag = [] }
   return $ [F.And $ [F.Or [(et :=: F.Var F.UNR) ,F.And [F.Var F.BAD :/=: ut' , ut' :/=: (F.Var $ F.Regular "false")]]]++fs] -- The data constructor False.
-        
--- --sTrans e (H.Pred x u) | trace (show x) False = undefined
--- sTrans e (H.Pred x u) =  do 
---   s <- get
---   let u' = H.subst u (H.appifyExpr (arities s) e) x  
---   ut' <- eTrans u'
---   et <- eTrans e -- $ H.fmapExpr (\f -> if (take 4 $ (reverse f)) == "rtp_" then reverse $ drop 4 $ reverse f else f) $ H.appifyExpr (map (\(a,b) -> (a++"_ptr",b)) $ arities s) e
---   put $ s {fofBag = []}
---   return $ F.And $ [F.Or [(et :=: F.Var F.UNR) ,F.And [F.Var F.BAD :/=: $ ut' , ut' :/=: (F.Var $ F.Regular "false")]]]++(fofBag s) -- The data constructor False.
 
 sTrans e (H.AppC x c1 c2) = do
   S s k fs a <- get
@@ -133,11 +112,11 @@ sTrans e (H.Or c1 c2) = do
 
 
 -- -- Data constructors
--- --------------------
+-----------------------
 
 
-tTrans d = liftM5 (+++++) (s1 d) (s2 d) (s3 d) (s4 d) (s5 d)
-  where (+++++) a b c d e = a ++ b ++ c ++ d ++ e
+tTrans d = liftM4 (++++) (s1 d) (s2 d) (s3 d) (s4 d)
+  where (++++) a b c d = a ++ b ++ c ++ d
 
 --s1 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
 s1 (H.Data _ dns) = sequence $ map s1D dns
@@ -193,23 +172,6 @@ s4D (d,a,c) = do
   if xs /= [] 
     then return $ F.Forall (map (F.Var . F.Regular) xs) $ et :/=: F.Var F.UNR
     else return $ (F.Var $ F.Regular d) :/=: F.Var F.UNR
-
-s5 _ = return []
--- s5 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
--- s5 (H.Data _ dns) = sequence $ map s5D dns
-
--- s5D :: (String,Int,H.Contract) -> Fresh (F.Formula (F.Term F.Variable))
--- s5D (d,a,c) = do
---   (s,k,fs) <- get
---   put (s,k+1,fs)
---   let xs = map (\n -> s++(show k)++"_"++(show n)) [1..a]
---       cs = H.toList c
---       dapp = H.FullApp d [H.Var x | x <- xs]
---   sxs <- sequence $ [sTrans (H.Var xi) ci | (xi,ci) <- zip xs cs]
---   st <- sTrans dapp c
---   if xs /= [] then return $ F.Forall (map (F.Var . F.Regular) xs) $ F.Iff st (F.And sxs)
---     else sTrans (H.Var d) c
-
 
 
 
