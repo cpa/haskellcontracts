@@ -91,6 +91,8 @@ Contr : '{' var ':' Expr '}' { Pred (map toLower $2) $4 }
       | Contr '||' Contr { Or  $1 $3 }
       | var ':' Contr '->' Contr { AppC (map toLower $1) $3 $5 }
       | '(' var ':' Contr '->' Contr ')' { AppC (map toLower $2) $4 $6 }
+      | Contr '->' Contr { AppC "dummy" $1 $3 }
+      | Contr '->' Contr { AppC "dummy" $1 $3 }
       | cf { CF }
 {
 
