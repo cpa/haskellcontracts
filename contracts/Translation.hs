@@ -180,7 +180,7 @@ isToCheck fs (H.Def (H.LetCase f _ _ _))   = f `elem` fs
 isToCheck fs (H.ContSat (H.Satisfies f _)) = f `elem` fs
 isToCheck _ _                              = False
 
-trans ds fs = evalState (go fs ds) (S "Z" 0 (H.arities ds))
+trans ds fs = evalState (go fs (H.appify ds)) (S "Z" 0 (H.arities ds))
   where go fs ds = do 
           let (toCheck,regDefs) = partition (isToCheck fs) ds
               recVar x = x ++ "p"
