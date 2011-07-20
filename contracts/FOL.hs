@@ -9,10 +9,12 @@ data Variable = Regular String
               | BAD
               | UNR
               deriving (Eq)
+
 instance Show Variable where
   show (Regular v) = v
   show BAD = "bad"
   show UNR = "unr"
+
 
 data Term a = Var a
             | App [Term a]
@@ -29,6 +31,7 @@ instance Show a => Show (Term a) where
   show (FullApp f []) = show f
   show (FullApp f as) = show f ++ "(" ++ (concat $ intersperse "," $ map show as) ++ ")"
 
+
 infix 7 :<=>:
 infix 7 :=>:
 data Formula a = Forall [a] (Formula a)
@@ -43,20 +46,8 @@ data Formula a = Forall [a] (Formula a)
                | a :/=: a
                | CF a
                deriving (Show,Eq,Functor)
-                        
--- instance Functor Formula where
---   fmap g (Forall xs f) = Forall (fmap g xs) (fmap g f)
---   fmap g (f1 :=>: f2) = (fmap g f1) :=>: (fmap g f2)
---   fmap g (f1 :<=>: f2) = (fmap g f1) :<=>:(fmap g f2)
---   fmap g (Not f) = Not (fmap g f)
---   fmap g (Or fs) = Or (map (fmap g) fs)
---   fmap g (And fs) = And (map (fmap g) fs)
---   fmap g (t1 :=: t2) = (g t1) :=: (g t2)
---   fmap g (t1 :/=: t2) = (g t1) :/=: (g t2)
---   fmap g (CF t) = CF (g t)
---   fmap g Top = Top
---   fmap g Bottom = Bottom
-  
+                     
+
 -- forall a . x && y --> (forall a . x) && (forall a . y)
 splitOnAnd :: Formula a -> [Formula a]
 splitOnAnd (Forall xs (And fs)) = map (Forall xs) fs

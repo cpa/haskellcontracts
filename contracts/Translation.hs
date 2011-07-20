@@ -10,7 +10,6 @@ type Fresh = State TransState
 
 data TransState = S { prefix  :: String
                     , count   :: Int
-                    , fofBag  :: [F.Formula (F.Term F.Variable)]
                     , arities :: [(String,Int)]}
 
 
@@ -25,12 +24,6 @@ eTrans (H.App e1 e2) = do
 eTrans (H.FullApp f es) = do
   ts <- sequence $ map eTrans es
   return $ F.FullApp (F.Regular f) ts
-eTrans (H.CF e) = do
-  te <- eTrans e
-  modify (\s -> s {fofBag = F.CF te:fofBag s})
-  return $ F.Var $ F.Regular "true"
-
-
 
 
 -- Definition
@@ -83,13 +76,11 @@ sTrans e (H.Pred x u) =  do
   s <- get
   let a = prefix s
       b = count s
-      fs = fofBag s
-  put $ s { fofBag = [] }
-  return $ [F.And $ [F.Or [(et :=: F.Var F.UNR) ,F.And [F.Var F.BAD :/=: ut' , ut' :/=: (F.Var $ F.Regular "false")]]]++fs] -- The data constructor False.
+  return $ [F.And $ [F.Or [(et :=: F.Var F.UNR) ,F.And [F.Var F.BAD :/=: ut' , ut' :/=: (F.Var $ F.Regular "false")]]]] -- The data constructor False.
 
 sTrans e (H.AppC x c1 c2) = do
-  S s k fs a <- get
-  put $ S s (k+1) fs a
+  S s k a <- get
+  put $ S s (k+1) a
   let freshX = s++(show k) 
       c2' = H.substC (H.Var freshX) x c2
   [f1] <- sTrans (H.Var freshX) c1
@@ -109,7 +100,9 @@ sTrans e (H.Or c1 c2) = do
   [f2] <- sTrans e c2
   return $ [F.Or [f1,f2]]
 
-
+sTrans e (H.CF) = do
+  et <- eTrans e
+  return $ [F.CF et]
 
 -- -- Data constructors
 -----------------------
@@ -186,7 +179,7 @@ isToCheck fs (H.Def (H.LetCase f _ _ _))   = f `elem` fs
 isToCheck fs (H.ContSat (H.Satisfies f _)) = f `elem` fs
 isToCheck _ _                              = False
 
-trans ds fs = evalState (go fs ds) (S "Z" 0 [] (H.arities ds))
+trans ds fs = evalState (go fs ds) (S "Z" 0 (H.arities ds))
   where go fs ds = do 
           let (toCheck,regDefs) = partition (isToCheck fs) ds
               recVar x = x ++ "p"

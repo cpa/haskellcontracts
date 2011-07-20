@@ -1,13 +1,12 @@
 module Analysis where
 
 import Data.Graph hiding (scc)
-import Data.Graph.SCC 
-import Data.Maybe
+import Data.Graph.SCC (scc)
+import Data.Maybe (fromJust)
 import Data.List (nub)
 import Haskell
 import Parser
-import Control.Monad
-import Debug.Trace
+
 
 graphFromProgram :: Program -> (Graph,Vertex -> (Variable, Variable, [Variable]),Variable -> Maybe Vertex)
 graphFromProgram p = graphFromEdges [ go d | d <- p, case d of Def _ -> True ; _ -> False ]
@@ -38,7 +37,6 @@ freeVars f xs BAD = []
 freeVars f xs (Var v) = if  v `elem` xs then [] else [v]
 freeVars f xs (App e1 e2) = freeVars f xs e1 ++ freeVars f xs e2
 freeVars f xs (FullApp g es) = g : ((freeVars f xs) =<< es)
-freeVars f xs (CF e) = freeVars f xs e
 
 checkOrder :: Program -> [[Variable]]
 checkOrder p = reverse $ map nub topOrder
