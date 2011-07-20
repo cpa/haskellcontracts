@@ -24,7 +24,7 @@ eTrans (H.App e1 e2) = do
 eTrans (H.FullApp f es) = do
   ts <- sequence $ map eTrans es
   return $ F.FullApp (F.Regular f) ts
-
+eTrans H.BAD = return $ F.Var F.BAD
 
 -- Definition
 -------------
