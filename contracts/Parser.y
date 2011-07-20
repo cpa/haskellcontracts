@@ -74,7 +74,6 @@ Atom : var { Var $ map toLower $1 }
      | '(' Expr ')' { $2 }
 
 Expr : '(' Expr Atom ')' { App $2 $ $3 }
-     | cf '(' Expr ')' { CF $ $3 }
      | Expr Atom { App $1 $ $2 }
      | bad { BAD }
      | '(' bad Expr ')' { App BAD $3 }
@@ -92,7 +91,7 @@ Contr : '{' var ':' Expr '}' { Pred (map toLower $2) $4 }
       | Contr '||' Contr { Or  $1 $3 }
       | var ':' Contr '->' Contr { AppC (map toLower $1) $3 $5 }
       | '(' var ':' Contr '->' Contr ')' { AppC (map toLower $2) $4 $6 }
-
+      | cf { CF }
 {
 
 happyError :: [Token] -> a

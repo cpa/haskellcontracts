@@ -2,14 +2,15 @@ module Main where
 
 import Analysis (checkOrder)
 import Parser hiding (main)
-import Translation
-import Control.Monad
-import FOL (toTPTP,simplify)
-import Data.List (tails,intersperse,concat)
-import System.Environment
-import System.IO
+import Translation (trans)
 import Haskell
-import System.Process
+import FOL (toTPTP,simplify)
+
+import Control.Monad (when,unless)
+import Data.List (tails,intersperse)
+import System.Environment (getArgs)
+import System.IO (hFlush,stdout)
+import System.Process (system,readProcess)
 import System.Directory (removeFile)
 import Control.Applicative
 
