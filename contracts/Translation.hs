@@ -6,12 +6,13 @@ import qualified FOL as F
 import FOL (Formula(..))
 import Control.Monad.State
 import Data.List (partition)
+import Control.Applicative
 
 type Fresh = State TransState
 
 data TransState = S { prefix  :: String
                     , count   :: Int
-                    , arities :: [(String,Int)]}
+                    , arities :: [H.Type H.Variable]}
 
 
 -- Expression
@@ -47,7 +48,7 @@ dTrans (H.LetCase f vs e pes) = do
       zs = [F.Var $ F.Regular $ "Zdef" ++ show x | x <- [1..(foldl1 max [snd y | y <- arities])]]
   tpieis <- sequence [eTrans (zedify ei pi) | (pi,ei) <- pes]
   let vvs = map (F.Var . F.Regular) vs
-      -- FIXME: eqN is not related to n-th equation in the pdf anymore
+      -- TODO: eqN is not related to n-th equation in the pdf anymore
       eq9 = [(et :=: (F.FullApp (F.Regular $ head pi) (take (length pi - 1) [ z | (v,z) <- zip (tail pi) zs ]))) :=>: (F.FullApp (F.Regular f) vvs :=: (F.Weak $ tpiei)) | ((pi,ei),tpiei) <- zip pes tpieis]
       eq10 = (et :=: (F.Var F.BAD)) :=>: (F.FullApp (F.Regular f) vvs :=: F.Var F.BAD)
       eq11 = (F.And $ (et :/=: F.Var F.BAD):bigAndSel ) :=>: eq12
@@ -70,10 +71,10 @@ sTrans e H.Any = return [Top]
 
 sTrans e (H.Pred x u) =  do
   a <- liftM arities get
-  let  u' = H.subst (fmap (\f -> if (take 4 $ (reverse f)) == "rtp_" then reverse $ drop 4 $ reverse f else f) $ H.appifyExpr (map (\(a,b) -> (a++"_ptr",b)) $ a) e) x u
+  let  u' = H.subst e x u
   et' <- eTrans e 
   ut' <- eTrans u'
-  et <- eTrans $ fmap (\f -> if (take 4 $ (reverse f)) == "rtp_" then reverse $ drop 4 $ reverse f else f) $ H.appifyExpr (map (\(a,b) -> (a++"_ptr",b)) $ a) e
+  et <- eTrans e
   s <- get
   let a = prefix s
       b = count s
@@ -86,9 +87,9 @@ sTrans e (H.AppC x c1 c2) = do
       c2' = H.substC (H.Var freshX) x c2
   [f1] <- sTrans (H.Var freshX) c1
   [f2] <- case e of 
-    H.Var x -> sTrans (H.appifyExpr a $ H.apps (H.Var x:[H.Var $ freshX])) c2'
+    H.Var x -> sTrans (H.apps $ H.Var x:[H.Var $ freshX]) c2'
 --    H.FullApp x xs -> sTrans (H.apps $ ((H.Var x:xs)++[H.Var $ freshX])) c2' -- TODO WRONG
-    _ -> sTrans (H.App (H.appifyExpr a e) (H.Var freshX)) c2'
+    _ -> sTrans (H.App e (H.Var freshX)) c2'
   return $ [F.Forall [F.Var $ F.Regular $ freshX] (f1 :=>: f2)]
 
 sTrans e (H.And c1 c2) = do
@@ -108,9 +109,7 @@ sTrans e (H.CF) = do
 -- -- Data constructors
 -----------------------
 
-
-tTrans d = liftM4 (++++) (s1 d) (s2 d) (s3 d) (s4 d)
-  where (++++) a b c d = a ++ b ++ c ++ d
+tTrans d = concat <$> (sequence [s1 d,s2 d,s3 d,s4 d])
 
 --s1 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
 s1 (H.Data _ dns) = sequence $ map s1D dns
@@ -171,7 +170,6 @@ s4D (d,a,c) = do
 
 
 
-
 -- Final translation
 --------------------
 
@@ -184,17 +182,18 @@ trans ds fs = evalState (go fs (H.appify ds)) (S "Z" 0 (H.arities ds))
   where go fs ds = do 
           let (toCheck,regDefs) = partition (isToCheck fs) ds
               recVar x = x ++ "p"
+          a <- fmap arities get
           regFormulae <- forM regDefs $ \d -> case d of
             H.DataType t                -> tTrans t
             H.Def d                     -> dTrans d
-            H.ContSat (H.Satisfies x y) -> sTrans (H.Var x) y
+            H.ContSat (H.Satisfies x y) -> F.appifyF a <$> sTrans (H.Var x) y
           speFormulae <- forM toCheck $ \d -> case d of
             H.DataType t                 -> error "No contracts for datatypes yet!"
             H.Def (H.Let f xs e)         -> dTrans $ H.Let f xs (H.substs (zip (map (H.Var . recVar) fs) fs) e)
             H.Def (H.LetCase f xs e pes) -> dTrans $ H.LetCase f xs (H.substs (zip (map (H.Var . recVar) fs) fs) e) [(p,(H.substs (zip (map (H.Var . recVar) fs) fs) e)) | (p,e) <- pes]
             H.ContSat (H.Satisfies x y)  -> do
-              contP   <- sTrans (H.Var $ recVar x) $ H.substsC (zip (map (H.Var . recVar) fs) fs) y
-              notCont <- liftM (map F.Not) $ sTrans (H.Var x) y
+              contP   <- F.appifyF a <$> sTrans (H.Var $ recVar x) (H.substsC (zip (map (H.Var . recVar) fs) fs) y)
+              notCont <- map F.Not <$> F.appifyF a <$> sTrans (H.Var x) y
               return $ notCont ++ contP
           return $ concat $ header : regFormulae ++ speFormulae 
             where header = [(F.Forall (map (F.Var . F.Regular) ["F","X"]) $ (F.And [F.CF $ F.Var $ F.Regular "X", F.CF $ F.Var $ F.Regular "F"]) :=>: (F.CF $ (F.App [(F.Var $ F.Regular "F"), (F.Var $ F.Regular "X")])))

@@ -11,7 +11,7 @@ import Parser
 graphFromProgram :: Program -> (Graph,Vertex -> (Variable, Variable, [Variable]),Variable -> Maybe Vertex)
 graphFromProgram p = graphFromEdges [ go d | d <- p, case d of Def _ -> True ; _ -> False ]
   where go (Def (Let f xs e)) = (f,f,freeVars f (xs++dataV) e ++ varsInCont p f)
-        go (Def (LetCase f xs e pes)) = (f,f,varsInCont p f ++ (concatMap (\(p,e) -> freeVars f (xs++dataV++p) e) $ (undefined,e):pes))
+        go (Def (LetCase f xs e pes)) = (f,f,varsInCont p f ++ (concatMap (\(p,e) -> freeVars f (xs++dataV++p) e) $ ([],e):pes))
 --        go (ContSat (Satisfies f c))  = (f,f,contVars f dataV c)
         dataV = dataVars =<< [ d | d <- p, case d of DataType _ -> True ; _ -> False ]
 

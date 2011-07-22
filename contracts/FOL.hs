@@ -2,6 +2,8 @@
 
 module FOL where
 
+import qualified Haskell as H
+import Debug.Trace
 import Data.Char (toUpper)
 import Data.List (intersperse)
 
@@ -20,7 +22,7 @@ data Term a = Var a
             | App [Term a]
             | FullApp a [Term a]
             | Weak (Term a)
-            deriving (Eq)
+            deriving (Eq,Functor)
 
 instance Show a => Show (Term a) where
   show (Var v) = show v
@@ -46,7 +48,7 @@ data Formula a = Forall [a] (Formula a)
                | a :/=: a
                | CF a
                deriving (Show,Eq,Functor)
-                     
+
 
 -- forall a . x && y --> (forall a . x) && (forall a . y)
 splitOnAnd :: Formula a -> [Formula a]
@@ -126,3 +128,18 @@ toTPTP f = header ++ "\n" ++ (go $ upperIfy [] f) ++ "\n" ++ footer
         goTerm (FullApp f []) = show f
         goTerm (FullApp f as) = show f ++ "(" ++ (concat $ intersperse "," $ map show as) ++ ")"
         goTerm (Weak t) = "$weak(" ++ goTerm t ++")"
+
+
+
+
+-- takes a program and a list of arities for each definition
+appifyF :: [H.Type H.Variable] -> [Formula (Term Variable)] -> [Formula (Term Variable)]
+appifyF a fs = map (fmap go) fs
+  where go (Var (Regular v)) = case H.lookupT v (trim a) of
+          Just n -> Var (Regular $ v ++ "_ptr")
+          Nothing -> Var $ Regular v
+        go (App ts) = App (map go ts)
+        go (FullApp f ts) = FullApp f (map go ts)
+        go (Weak t) = Weak $ go t
+        go t = t
+        trim = filter (\s -> case s of H.Fun _ _ -> True; _ -> False)

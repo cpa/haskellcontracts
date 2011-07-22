@@ -46,19 +46,24 @@ data MetaContract a = AppC Variable (MetaContract a) (MetaContract a) -- x : c -
                     | Any
                     deriving (Show,Eq,Functor,Ord)
 
-
+data Type a = Fun a Int
+            | Cons 
+              a Int
+            deriving (Eq,Show)
 
 apps xs = foldl1 App xs
 
 -- returns the arities of data constructors and functions
-arities :: Program -> [(Variable,Int)]
-arities x = go x >>= \(f,i) -> [(f,i),(f++"p",i)]
+arities :: Program -> [Type Variable]
+arities x = go x >>= \s -> case s of
+  Fun f n -> [Fun f n, Fun (f++"p") n]
+  d -> [d]
   where go [] = []
         go (Def d:ds) = go2 d:go ds
-          where go2 (Let f vs _) = (f,length vs)
-                go2 (LetCase f vs _ _) = (f,length vs)
+          where go2 (Let f vs _) = Fun f $ length vs
+                go2 (LetCase f vs _ _) = Fun f $ length vs
         go (DataType d:gs) = go2 d ++ go gs
-          where go2 (Data d vac) = [(v,a) | (v,a,c) <- vac]
+          where go2 (Data d vac) = [Cons v a | (v,a,c) <- vac]
         go (d:ds) = go ds
 
 
@@ -67,10 +72,14 @@ appify p = map (fmap $ appifyExpr a) p
   where a = arities p
 
 
+lookupT v [] = Nothing
+lookupT v (Fun f n:as)  = if f == v  then Just n else lookupT v as
+lookupT v (Cons f n:as) =  if f == v  then Just n else lookupT v as
+
 -- takes a program and a list of arities for each definition
 -- returns the same program but using full application wherever possible
 appifyExpr a e = go a 1 e []
-  where go a count g@(App (Var v) e) acc = case lookup v a of
+  where go a count g@(App (Var v) e) acc = case lookupT v a of
           Just n -> if count == n 
                     then FullApp v (e':acc)
                     else apps (App (Var $ v ++ "_ptr") e':acc)
@@ -79,7 +88,7 @@ appifyExpr a e = go a 1 e []
         go a count g@(App e1 e2) acc = go a (count+1) e1 (acc++[go a 1 e2 []])
         go a count (FullApp v es) acc = FullApp v $ map (\e -> go a 1 e []) es
         go a count BAD acc = BAD
-        go a count (Var v) acc = case lookup v a of
+        go a count (Var v) acc = case lookupT v a of
           Just 0 -> Var v
           Just n -> Var $ v ++ "_ptr"
           Nothing -> Var v

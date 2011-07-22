@@ -37,7 +37,7 @@ main = do
   
 checkFile f cfg = do
   s <- readFile f
-  let prog = appify $ haskell $ lexer s
+  let prog = haskell $ lexer s
       order = checkOrder prog
       cfg' = if toCheck cfg == [] then cfg {toCheck = concat order} else cfg
   system $ "ulimit -t " ++ show (timeLimit cfg)
@@ -51,7 +51,8 @@ checkFile f cfg = do
 
 hasBeenChecked checkedDefs (Def (Let f _ _)) = f `elem` checkedDefs
 hasBeenChecked checkedDefs (Def (LetCase f _ _ _)) = f `elem` checkedDefs
-hasBeenChecked _ _ = True
+hasBeenChecked checkedDefs (ContSat (Satisfies f _)) = f `elem` checkedDefs
+hasBeenChecked _ _  = True
 
 hasNoContract f prog = and $ (flip map) prog $ \d -> case d of
   ContSat (Satisfies g _) -> f /= g
