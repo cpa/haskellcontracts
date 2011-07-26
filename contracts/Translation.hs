@@ -3,7 +3,7 @@ module Translation where
 import Debug.Trace
 import qualified Haskell as H
 import qualified FOL as F
-import FOL (Formula(..))
+import FOL (MetaFormula(..))
 import Control.Monad.State
 import Data.List (partition)
 import Control.Applicative

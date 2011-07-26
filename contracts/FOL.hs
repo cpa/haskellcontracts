@@ -7,6 +7,9 @@ import Debug.Trace
 import Data.Char (toUpper)
 import Data.List (intersperse)
 
+type Term = MetaTerm Variable
+type Formula = MetaFormula Term
+
 data Variable = Regular String
               | BAD
               | UNR
@@ -18,13 +21,13 @@ instance Show Variable where
   show UNR = "unr"
 
 
-data Term a = Var a
-            | App [Term a]
-            | FullApp a [Term a]
-            | Weak (Term a)
-            deriving (Eq,Functor)
+data MetaTerm a = Var a
+                | App [MetaTerm a]
+                | FullApp a [MetaTerm a]
+                | Weak (MetaTerm a)
+                deriving (Eq,Functor)
 
-instance Show a => Show (Term a) where
+instance Show a => Show (MetaTerm a) where
   show (Var v) = show v
   show (App []) = error "Cannot apply nothing"
   show (App [t]) = show t
@@ -36,22 +39,22 @@ instance Show a => Show (Term a) where
 
 infix 7 :<=>:
 infix 7 :=>:
-data Formula a = Forall [a] (Formula a)
-               | (Formula a) :=>: (Formula a)
-               | (Formula a) :<=>: (Formula a)
-               | Not (Formula a)
-               | Or [Formula a]
-               | And [Formula a]
-               | Top
-               | Bottom
-               | a :=: a
-               | a :/=: a
-               | CF a
-               deriving (Show,Eq,Functor)
+data MetaFormula a = Forall [a] (MetaFormula a)
+                   | (MetaFormula a) :=>: (MetaFormula a)
+                   | (MetaFormula a) :<=>: (MetaFormula a)
+                   | Not (MetaFormula a)
+                   | Or [MetaFormula a]
+                   | And [MetaFormula a]
+                   | Top
+                   | Bottom
+                   | a :=: a
+                   | a :/=: a
+                   | CF a
+                   deriving (Show,Eq,Functor)
 
 
 -- forall a . x && y --> (forall a . x) && (forall a . y)
-splitOnAnd :: Formula a -> [Formula a]
+splitOnAnd :: Formula -> [Formula]
 splitOnAnd (Forall xs (And fs)) = map (Forall xs) fs
 splitOnAnd (Forall xs f) = map (Forall xs) $ splitOnAnd f
 splitOnAnd (And fs) = concatMap splitOnAnd fs
@@ -63,7 +66,7 @@ appifyFOF a f = fmap (\x -> case x of App ((Var x):xs) -> case lookup x a of
                                       x -> x) f
 
 
-removeConstants :: Eq a => Formula a -> Formula a
+removeConstants :: Formula -> Formula
 removeConstants (Forall [] f) = removeConstants f
 removeConstants (Forall xs f) = Forall xs (removeConstants f)
 removeConstants (Bottom :=>: _) = Top
@@ -84,7 +87,7 @@ extractVR (Var (Regular x)) = x
 -- The TPTP format says that only quantified variables should be uppercase
 -- So we make everything lowercase (it's supposed to be already done)
 -- And upperIfy makes the good variables uppercase.
-upperIfy :: [String] -> Formula (Term Variable) -> Formula (Term Variable)
+upperIfy :: [String] -> Formula -> Formula
 upperIfy c (Forall xs f) = Forall (map (Var . Regular . map toUpper . extractVR) xs) (upperIfy c' f)
   where c' = (map extractVR xs)++c
 upperIfy c (f1 :<=>: f2) = (upperIfy c f1) :<=>: (upperIfy c f2)
@@ -98,14 +101,14 @@ upperIfy c (CF t) = CF (auxUpper c t)
 upperIfy c (And fs) = And (map (upperIfy c) fs)
 upperIfy c (Or fs) = Or (map (upperIfy c) fs)
   
-auxUpper :: [String] -> Term Variable -> Term Variable
+auxUpper :: [String] -> Term -> Term
 auxUpper c (Var (Regular v)) = if v `elem` c then (Var . Regular) (map toUpper v) else Var $ Regular v
 auxUpper c (Var v) = Var v
 auxUpper c (App ts) = App $ map (auxUpper c) ts
 auxUpper c (FullApp x ts) = FullApp x (map (auxUpper c) ts) -- TODO think about it
 auxUpper c (Weak t) = Weak $ auxUpper c t
 
-toTPTP :: Formula (Term Variable) -> String
+toTPTP :: Formula -> String
 toTPTP f = header ++ "\n" ++ (go $ upperIfy [] f) ++ "\n" ++ footer
   where header = "fof(axiom,axiom,"
         footer = ").\n"
@@ -133,7 +136,7 @@ toTPTP f = header ++ "\n" ++ (go $ upperIfy [] f) ++ "\n" ++ footer
 
 
 -- takes a program and a list of arities for each definition
-appifyF :: [H.Type H.Variable] -> [Formula (Term Variable)] -> [Formula (Term Variable)]
+appifyF :: [H.Type H.Variable] -> [Formula] -> [Formula]
 appifyF a fs = map (fmap go) fs
   where go (Var (Regular v)) = case H.lookupT v (trim a) of
           Just n -> Var (Regular $ v ++ "_ptr")
