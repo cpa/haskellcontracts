@@ -23,14 +23,14 @@ data Conf = Conf { timeLimit :: Int
                  , noWeak    :: Bool
                  }
 
-conf flags = go flags (Conf 10 False [] False "equinox" False)
+conf flags = go flags (Conf 10 False [] False "equinox" True)
   where go ("-t":n:flags)       cfg = go flags (cfg {timeLimit=read n :: Int})
         go ("-p":flags)         cfg = go flags (cfg {printTPTP=True})
         go ("-c":f:flags)       cfg = go flags (cfg {toCheck=f:(toCheck cfg)})
         go ("--dry-run":flags)  cfg = go flags (cfg {dryRun=True})
         go ("--engine":e:flags) cfg = go flags (cfg {engine=e})
-        go ("--no-weak":flags)  cfg = go flags (cfg {noWeak=True})
-        go (_:flags)            cfg = go flags cfg
+        go ("--weak":flags)  cfg = go flags (cfg {noWeak=False})
+        go (f:flags)            cfg = error $ f ++": unrecognized option"
         go []                   cfg = cfg
 
 main = do
@@ -92,7 +92,7 @@ check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
     let (enginePath,engineOpts,engineUnsat) = case lookup (engine cfg) provers of
           Nothing -> error "Engine not recognized. Supported engines are: equinox, SPASS, vampire"
           Just x  -> (path x,opts x,unsat x)
-    res <- engineUnsat . last . lines <$> readProcess enginePath [engineOpts,tmpFile] ""
+    res <- engineUnsat <$> readProcess  enginePath (engineOpts ++ [tmpFile]) ""
     removeFile tmpFile
     when res $ 
       putStrLn "\tOK!"
@@ -118,7 +118,7 @@ check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
     let (enginePath,engineOpts,engineUnsat) = case lookup (engine cfg) provers of
           Nothing -> error "Engine not recognized. Supported engines are: equinox, SPASS, vampire"
           Just x  -> (path x,opts x,unsat x)
-    res <- engineUnsat . last . lines <$> readProcess enginePath [engineOpts,tmpFile] ""
+    res <- engineUnsat <$> readProcess  enginePath (engineOpts ++ [tmpFile]) ""
     removeFile tmpFile
     when res $
       putStrLn "\tOK!"
