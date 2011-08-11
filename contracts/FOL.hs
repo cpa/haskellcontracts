@@ -146,3 +146,9 @@ appifyF a fs = map (fmap go) fs
         go (Weak t) = Weak $ go t
         go t = t
         trim = filter (\s -> case s of H.Fun _ _ -> True; _ -> False)
+        
+
+removeWeakAnnotations (Weak t) = t
+removeWeakAnnotations (Var x) = Var x
+removeWeakAnnotations (App ts) = App $ map removeWeakAnnotations ts
+removeWeakAnnotations (FullApp v ts) = FullApp v $ map removeWeakAnnotations ts

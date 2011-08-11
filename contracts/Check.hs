@@ -4,7 +4,7 @@ import Analysis (checkOrder)
 import Parser hiding (main)
 import Translation (trans)
 import Haskell
-import FOL (toTPTP,simplify)
+import FOL (toTPTP,simplify,removeWeakAnnotations)
 
 import Control.Monad (when,unless)
 import Data.List (tails,intersperse)
@@ -17,24 +17,30 @@ import Control.Applicative
 data Conf = Conf { timeLimit :: Int
                  , printTPTP :: Bool
                  , toCheck   :: [String] 
-                 , dryRun    :: Bool }
+                 , dryRun    :: Bool 
+                 , engine    :: String
+                 , noWeak    :: Bool
+                 }
 
-conf flags = go flags (Conf 10 False [] False)
-  where go ("-t":n:flags)      cfg = go flags (cfg {timeLimit=read n :: Int})
-        go ("-p":flags)        cfg = go flags (cfg {printTPTP=True})
-        go ("-c":f:flags)      cfg = go flags (cfg {toCheck=f:(toCheck cfg)})
-        go ("--dry-run":flags) cfg = go flags (cfg {dryRun=True})
-        go (_:flags)           cfg = go flags cfg
-        go []                  cfg = cfg
+conf flags = go flags (Conf 10 False [] False "equinox" False)
+  where go ("-t":n:flags)       cfg = go flags (cfg {timeLimit=read n :: Int})
+        go ("-p":flags)         cfg = go flags (cfg {printTPTP=True})
+        go ("-c":f:flags)       cfg = go flags (cfg {toCheck=f:(toCheck cfg)})
+        go ("--dry-run":flags)  cfg = go flags (cfg {dryRun=True})
+        go ("--engine":e:flags) cfg = go flags (cfg {engine=e})
+        go ("--no-weak":flags)  cfg = go flags (cfg {noWeak=True})
+        go (_:flags)            cfg = go flags cfg
+        go []                   cfg = cfg
 
 main = do
   f:flags <- getArgs
   let cfg = conf flags
   res <- checkFile f cfg
-  if res 
+  if res
     then unless (dryRun cfg) $ putStrLn $ f ++ ": all the contracts hold."
     else putStrLn $ "There's at least one contract in " ++ f ++ " that took more than " ++ show (timeLimit cfg) ++ " sec to prove."
-  
+
+checkFile :: String -> Conf -> IO Bool  
 checkFile f cfg = do
   s <- readFile f
   let prog = haskell $ lexer s
@@ -49,21 +55,30 @@ checkFile f cfg = do
                                              then check prog fs cfg checkedDefs : go prog (fs++checkedDefs) cfg fss
                                              else go prog (fs++checkedDefs) cfg fss
 
+
+hasBeenChecked :: [Variable] -> DefGeneral -> Bool
 hasBeenChecked checkedDefs (Def (Let f _ _)) = f `elem` checkedDefs
 hasBeenChecked checkedDefs (Def (LetCase f _ _ _)) = f `elem` checkedDefs
 hasBeenChecked checkedDefs (ContSat (Satisfies f _)) = f `elem` checkedDefs
 hasBeenChecked _ _  = True
 
+hasNoContract :: Variable -> [DefGeneral] -> Bool
 hasNoContract f prog = and $ (flip map) prog $ \d -> case d of
   ContSat (Satisfies g _) -> f /= g
   _ -> True
 
+
+-- the distinction between one or several functions to check at the same time is 
+-- not stricly necessary but it gives a nicer output to the user
 check :: Program -> [Variable] -> Conf -> [Variable] -> IO Bool
 check prog [] cfg _ = error "There should be at least one definition!"
 check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
                                | otherwise = do
   let safeSubset prog checkedDefs = filter (hasBeenChecked (f:checkedDefs)) prog
-      tptpTheory = trans (safeSubset prog checkedDefs) [f] >>= simplify >>= toTPTP
+      tptpTheory = (if (noWeak cfg) 
+                    then map (fmap removeWeakAnnotations) $ trans (safeSubset prog checkedDefs) [f] 
+                    else trans (safeSubset prog checkedDefs) [f])
+                   >>= simplify >>= toTPTP
       tmpFile = "tmp.tptp"
   when (printTPTP cfg) $ do
     writeFile (f++".tptp") tptpTheory
@@ -73,7 +88,7 @@ check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
   if not $ dryRun cfg  
     then do 
     writeFile tmpFile tptpTheory
-    res <- isUnsat . last . lines <$> readProcess "equinox" [tmpFile] ""
+    res <- isUnsat . last . lines <$> readProcess (engine cfg) [tmpFile] ""
     removeFile tmpFile
     when res $ 
       putStrLn "\tOK!"
@@ -84,7 +99,10 @@ check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
 check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
                               | otherwise = do
   let safeSubset prog checkedDefs = filter (hasBeenChecked (fs++checkedDefs)) prog
-      tptpTheory = trans (safeSubset prog checkedDefs) fs >>= simplify >>= toTPTP
+      tptpTheory = (if (noWeak cfg) 
+                    then map (fmap removeWeakAnnotations) $ trans (safeSubset prog checkedDefs) fs
+                    else trans (safeSubset prog checkedDefs) fs)
+                   >>= simplify >>= toTPTP
       tmpFile = "tmp.tptp"
   when (printTPTP cfg) $ do
     writeFile (head fs ++ ".tptp") tptpTheory
@@ -94,7 +112,7 @@ check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
   if not $ dryRun cfg  
     then do 
     writeFile tmpFile tptpTheory
-    res <- isUnsat . last . lines <$> readProcess "equinox" [tmpFile] ""
+    res <- isUnsat . last . lines <$> readProcess (engine cfg) [tmpFile] ""
     removeFile tmpFile
     when res $
       putStrLn "\tOK!"
