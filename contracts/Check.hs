@@ -5,6 +5,7 @@ import Parser hiding (main)
 import Translation (trans)
 import Haskell
 import FOL (toTPTP,simplify,removeWeakAnnotations)
+import ThmProver
 
 import Control.Monad (when,unless)
 import Data.List (tails,intersperse)
@@ -88,13 +89,15 @@ check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
   if not $ dryRun cfg  
     then do 
     writeFile tmpFile tptpTheory
-    res <- isUnsat . last . lines <$> readProcess (engine cfg) [tmpFile] ""
+    let (enginePath,engineOpts,engineUnsat) = case lookup (engine cfg) provers of
+          Nothing -> error "Engine not recognized. Supported engines are: equinox, SPASS, vampire"
+          Just x  -> (path x,opts x,unsat x)
+    res <- engineUnsat . last . lines <$> readProcess enginePath [engineOpts,tmpFile] ""
     removeFile tmpFile
     when res $ 
       putStrLn "\tOK!"
     return res
     else putStrLn "" >> return True
-    where isUnsat s = "Unsatisfiable" `elem` tails s
   
 check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
                               | otherwise = do
@@ -112,11 +115,13 @@ check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
   if not $ dryRun cfg  
     then do 
     writeFile tmpFile tptpTheory
-    res <- isUnsat . last . lines <$> readProcess (engine cfg) [tmpFile] ""
+    let (enginePath,engineOpts,engineUnsat) = case lookup (engine cfg) provers of
+          Nothing -> error "Engine not recognized. Supported engines are: equinox, SPASS, vampire"
+          Just x  -> (path x,opts x,unsat x)
+    res <- engineUnsat . last . lines <$> readProcess enginePath [engineOpts,tmpFile] ""
     removeFile tmpFile
     when res $
       putStrLn "\tOK!"
     return res
     else putStrLn "" >> return True
-    where isUnsat s = "Unsatisfiable" `elem` tails s
-          showfs fs = (concat $ intersperse " " fs) ++ " "
+    where showfs fs = (concat $ intersperse " " fs) ++ " "
