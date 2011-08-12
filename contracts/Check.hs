@@ -11,6 +11,7 @@ import Control.Monad (when,unless)
 import Data.List (tails,intersperse)
 import System.Environment (getArgs)
 import System.IO (hFlush,stdout)
+import System.Exit (exitWith,ExitCode (ExitFailure))
 import System.Process (system,readProcess)
 import System.Directory (removeFile)
 import Control.Applicative
@@ -21,15 +22,17 @@ data Conf = Conf { timeLimit :: Int
                  , dryRun    :: Bool 
                  , engine    :: String
                  , noWeak    :: Bool
+                 , quiet     :: Bool
                  }
 
-conf flags = go flags (Conf 10 False [] False "equinox" True)
+conf flags = go flags (Conf 10 False [] False "equinox" True False)
   where go ("-t":n:flags)       cfg = go flags (cfg {timeLimit=read n :: Int})
         go ("-p":flags)         cfg = go flags (cfg {printTPTP=True})
         go ("-c":f:flags)       cfg = go flags (cfg {toCheck=f:(toCheck cfg)})
         go ("--dry-run":flags)  cfg = go flags (cfg {dryRun=True})
         go ("--engine":e:flags) cfg = go flags (cfg {engine=e})
-        go ("--weak":flags)  cfg = go flags (cfg {noWeak=False})
+        go ("--weak":flags)     cfg = go flags (cfg {noWeak=False})
+        go ("-q":flags)         cfg = go flags (cfg {quiet=True})
         go (f:flags)            cfg = error $ f ++": unrecognized option"
         go []                   cfg = cfg
 
@@ -38,8 +41,11 @@ main = do
   let cfg = conf flags
   res <- checkFile f cfg
   if res
-    then unless (dryRun cfg) $ putStrLn $ f ++ ": all the contracts hold."
-    else putStrLn $ "There's at least one contract in " ++ f ++ " that took more than " ++ show (timeLimit cfg) ++ " sec to prove."
+    then unless (dryRun cfg || quiet cfg) $ putStrLn $ f ++ ": all the contracts hold."
+    else do
+    unless (quiet cfg) $ 
+      putStrLn $ "There's at least one contract in " ++ f ++ " that took more than " ++ show (timeLimit cfg) ++ " sec to prove."
+    exitWith $ ExitFailure 1
 
 checkFile :: String -> Conf -> IO Bool  
 checkFile f cfg = do
@@ -48,7 +54,8 @@ checkFile f cfg = do
       order = checkOrder prog
       cfg' = if toCheck cfg == [] then cfg {toCheck = concat order} else cfg
   system $ "ulimit -t " ++ show (timeLimit cfg)
-  putStrLn $ "Time limit for each contract is: " ++ show (timeLimit cfg) ++ " sec. WARNING: ulimit may or may not work on your box..."
+  unless (quiet cfg) $ 
+    putStrLn $ "Time limit for each contract is: " ++ show (timeLimit cfg) ++ " sec. WARNING: ulimit may or may not work on your box..."
   res <- sequence $ go prog [] cfg' order
   return $ and res
     where go prog checkedDefs cfg [] = []
@@ -83,21 +90,27 @@ check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
       tmpFile = "tmp.tptp"
   when (printTPTP cfg) $ do
     writeFile (f++".tptp") tptpTheory
-    putStrLn $ "Writing " ++ f ++ ".tptp"
-  putStr $ "Checking " ++ f ++ "..."
+    unless (quiet cfg) $
+      putStrLn $ "Writing " ++ f ++ ".tptp"
+  unless (quiet cfg) $
+    putStr $ "Checking " ++ f ++ "..."
   hFlush stdout
   if not $ dryRun cfg  
     then do 
     writeFile tmpFile tptpTheory
     let (enginePath,engineOpts,engineUnsat) = case lookup (engine cfg) provers of
-          Nothing -> error "Engine not recognized. Supported engines are: equinox, SPASS, vampire"
+          Nothing -> error "Engine not recognized. Supported engines are: equinox, SPASS, vampire and E"
           Just x  -> (path x,opts x,unsat x)
     res <- engineUnsat <$> readProcess  enginePath (engineOpts ++ [tmpFile]) ""
     removeFile tmpFile
     when res $ 
-      putStrLn "\tOK!"
+      unless (quiet cfg) $ 
+        putStrLn "\tOK!"
     return res
-    else putStrLn "" >> return True
+    else do
+    unless (quiet cfg) $ 
+      putStrLn ""
+    return True
   
 check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
                               | otherwise = do
@@ -109,8 +122,10 @@ check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
       tmpFile = "tmp.tptp"
   when (printTPTP cfg) $ do
     writeFile (head fs ++ ".tptp") tptpTheory
-    putStrLn $ "Writing " ++ (head fs) ++ ".tptp"
-  putStr $ showfs fs ++ "are mutually recursive. Checking them altogether..."
+    unless (quiet cfg) $
+      putStrLn $ "Writing " ++ (head fs) ++ ".tptp"
+  unless (quiet cfg) $
+    putStr $ showfs fs ++ "are mutually recursive. Checking them altogether..."
   hFlush stdout
   if not $ dryRun cfg  
     then do 
@@ -121,7 +136,11 @@ check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
     res <- engineUnsat <$> readProcess  enginePath (engineOpts ++ [tmpFile]) ""
     removeFile tmpFile
     when res $
-      putStrLn "\tOK!"
+      unless (quiet cfg) $
+        putStrLn "\tOK!"
     return res
-    else putStrLn "" >> return True
+    else do
+    unless (quiet cfg) $
+      putStrLn ""
+    return True
     where showfs fs = (concat $ intersperse " " fs) ++ " "

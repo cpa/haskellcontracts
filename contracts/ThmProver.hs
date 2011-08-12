@@ -1,6 +1,6 @@
 module ThmProver where
 
-import Data.List
+import Data.List (isInfixOf)
 
 data ThmProverOpt = T { path :: FilePath
                       , opts :: [String]
@@ -11,4 +11,5 @@ type ThmProver = (String,ThmProverOpt)
 provers :: [ThmProver]
 provers = [ ("equinox", T "equinox" [] ("Unsatisfiable" `isInfixOf`))
           , ("SPASS", T "SPASS" ["-PProblem=0","-PGiven=0","-TPTP"] ("Proof found" `isInfixOf`))
-          , ("vampire", T "vampire_lin64" ["--mode", "casc" ,"--input_file"] ("Refutation" `isInfixOf`)) ]
+          , ("vampire", T "vampire_lin64" ["--mode", "casc" ,"--input_file"] ("Refutation" `isInfixOf`))
+          , ("E", T "eprover" ["--tstp-format","-s"] ("Unsatisfiable" `isInfixOf`))]
