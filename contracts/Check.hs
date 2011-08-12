@@ -84,7 +84,7 @@ check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
                                | otherwise = do
   let safeSubset prog checkedDefs = filter (hasBeenChecked (f:checkedDefs)) prog
       tptpTheory = (if (noWeak cfg) 
-                    then map (fmap removeWeakAnnotations) $ trans (safeSubset prog checkedDefs) [f] 
+                    then map removeWeakAnnotations $ trans (safeSubset prog checkedDefs) [f] 
                     else trans (safeSubset prog checkedDefs) [f])
                    >>= simplify >>= toTPTP
       tmpFile = "tmp.tptp"
@@ -116,7 +116,7 @@ check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
                               | otherwise = do
   let safeSubset prog checkedDefs = filter (hasBeenChecked (fs++checkedDefs)) prog
       tptpTheory = (if (noWeak cfg) 
-                    then map (fmap removeWeakAnnotations) $ trans (safeSubset prog checkedDefs) fs
+                    then map removeWeakAnnotations $ trans (safeSubset prog checkedDefs) fs
                     else trans (safeSubset prog checkedDefs) fs)
                    >>= simplify >>= toTPTP
       tmpFile = "tmp.tptp"

@@ -47,8 +47,7 @@ data MetaContract a = AppC Variable (MetaContract a) (MetaContract a) -- x : c -
                     deriving (Show,Eq,Functor,Ord)
 
 data Type a = Fun a Int
-            | Cons 
-              a Int
+            | Cons a Int
             deriving (Eq,Show)
 
 apps xs = foldl1 App xs
@@ -113,7 +112,7 @@ substsC [] c = c
 substsC ((x,y):xys) c = substsC xys $ substC x y c
 
 substC :: Expression -> Variable -> Contract -> Contract
-substC x y (AppC u c1 c2) = AppC u (substC x y c1) (substC x y c2) -- TODO and if u==y?
+substC x y (AppC u c1 c2) = AppC u (substC x y c1) (substC x y c2) -- TODO and if u==y the semantics aren't very clear.
 substC x y (Pred u e)     = if u/=y then Pred u (subst x y e) else (Pred u e)
 substC x y (And c1 c2)    = And (substC x y c1) (substC x y c2)
 substC x y (Or c1 c2)     = Or (substC x y c1) (substC x y c2)
@@ -121,7 +120,9 @@ substC x y CF             = CF
 substC _ _ Any            = Any
 
 
--- FIXME: it's needed to compile but utterly uselessx
+-- FIXME: it's needed to compile but utterly useless it's needed
+-- because data constructors can theoretically have contract, even
+-- though we don't use this feature.
 ok :: Contract
 ok = Pred "dummy" (Var "true")
 

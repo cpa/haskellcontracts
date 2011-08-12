@@ -10,9 +10,9 @@ import Control.Applicative
 
 type Fresh = State TransState
 
-data TransState = S { prefix  :: String
-                    , count   :: Int
-                    , arities :: [H.Type H.Variable]}
+data TransState = S { prefix  :: String -- the prefix of our fresh variables
+                    , count   :: Int    -- a counter for the suffix of our fresh variables
+                    , arities :: [H.Type H.Variable]} -- The arities of functions/data constructors in the program
 
 
 -- Expression
@@ -22,11 +22,13 @@ eTrans (H.Var v) = return $ (F.Var $ F.Regular v)
 eTrans (H.App e1 e2) = do 
   t1 <- eTrans e1
   t2 <- eTrans e2 
-  return $ F.App [t1,t2] -- TODO modifier H.App
+  return $ F.App [t1,t2] 
 eTrans (H.FullApp f es) = do
   ts <- sequence $ map eTrans es
   return $ F.FullApp (F.Regular f) ts
 eTrans H.BAD = return $ F.Var F.BAD
+
+
 
 -- Definition
 -------------
@@ -48,17 +50,16 @@ dTrans (H.LetCase f vs e pes) = do
       zs = [F.Var $ F.Regular $ "Zdef" ++ show x | x <- [1..(foldl1 max [snd y | y <- arities])]]
   tpieis <- sequence [eTrans (zedify ei pi) | (pi,ei) <- pes]
   let vvs = map (F.Var . F.Regular) vs
-      -- TODO: eqN is not related to n-th equation in the pdf anymore
-      eq9 = [(et :=: (F.FullApp (F.Regular $ head pi) (take (length pi - 1) [ z | (v,z) <- zip (tail pi) zs ]))) :=>: (F.FullApp (F.Regular f) vvs :=: (F.Weak $ tpiei)) | ((pi,ei),tpiei) <- zip pes tpieis]
-      eq10 = (et :=: (F.Var F.BAD)) :=>: (F.FullApp (F.Regular f) vvs :=: F.Var F.BAD)
-      eq11 = (F.And $ (et :/=: F.Var F.BAD):bigAndSel ) :=>: eq12
-      eq12 = (F.FullApp (F.Regular f) vvs :=: F.Var F.UNR)
+      eq1 = [(et :=: (F.FullApp (F.Regular $ head pi) (take (length pi - 1) [ z | (v,z) <- zip (tail pi) zs ]))) :=>: (F.FullApp (F.Regular f) vvs :=: (F.Weak $ tpiei)) | ((pi,ei),tpiei) <- zip pes tpieis]
+      eq2 = (et :=: (F.Var F.BAD)) :=>: (F.FullApp (F.Regular f) vvs :=: F.Var F.BAD)
+      eq3 = (F.And $ (et :/=: F.Var F.BAD):bigAndSel ) :=>: eq4
+      eq4 = (F.FullApp (F.Regular f) vvs :=: F.Var F.UNR)
       bigAndSel = [et :/=: F.Weak (F.FullApp (F.Regular di) [F.FullApp (F.Regular ("sel_"++(show i)++"_"++di)) [et] | i <- [1..ai]]) | (di,ai) <- arities]
       fptr1 = (F.Forall vvs $ (F.And [F.CF v | v <- vvs]) :=>: F.CF (F.FullApp (F.Regular f) vvs)) :<=>: (F.CF $ F.Var $ F.Regular (f++"_ptr"))
       fptr2 = F.Forall vvs $ (F.FullApp (F.Regular f) vvs) :=: (F.Weak (F.App $ (F.Var . F.Regular) (f++"_ptr") : vvs))
       fptr3 = F.Forall vvs $ (F.FullApp (F.Regular (f ++ "p")) vvs) :=: (F.Weak (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vvs))
 
-  return $ [F.Forall (vvs ++ zs) $ F.And (eq9++[eq10,eq11]),fptr1,fptr2,fptr3]
+  return $ [F.Forall (vvs ++ zs) $ F.And (eq1++[eq2,eq3]),fptr1,fptr2,fptr3]
 
 
 
@@ -88,7 +89,6 @@ sTrans e (H.AppC x c1 c2) = do
   [f1] <- sTrans (H.Var freshX) c1
   [f2] <- case e of 
     H.Var x -> sTrans (H.apps $ H.Var x:[H.Var $ freshX]) c2'
---    H.FullApp x xs -> sTrans (H.apps $ ((H.Var x:xs)++[H.Var $ freshX])) c2' -- TODO WRONG
     _ -> sTrans (H.App e (H.Var freshX)) c2'
   return $ [F.Forall [F.Var $ F.Regular $ freshX] (f1 :=>: f2)]
 
@@ -196,7 +196,7 @@ trans ds fs = evalState (go fs (H.appify ds)) (S "Z" 0 (H.arities ds))
               contP   <- F.appifyF a <$> sTrans (H.Var $ recVar x) (H.substsC (zip (map (H.Var . recVar) fs) fs) y)
               notCont <- map F.Not <$> F.appifyF a <$> sTrans (H.Var x) y
               return $ notCont ++ contP
-          return $ concat $ header : regFormulae ++ speFormulae 
-            where header = [(F.Forall (map (F.Var . F.Regular) ["F","X"]) $ (F.And [F.CF $ F.Var $ F.Regular "X", F.CF $ F.Var $ F.Regular "F"]) :=>: (F.CF $ (F.App [(F.Var $ F.Regular "F"), (F.Var $ F.Regular "X")])))
+          return $ concat $ prelude : regFormulae ++ speFormulae 
+            where prelude = [(F.Forall (map (F.Var . F.Regular) ["F","X"]) $ (F.And [F.CF $ F.Var $ F.Regular "X", F.CF $ F.Var $ F.Regular "F"]) :=>: (F.CF $ (F.App [(F.Var $ F.Regular "F"), (F.Var $ F.Regular "X")])))
                            ,F.Not $ F.CF $ F.Var $ F.BAD,F.CF $ F.Var $ F.UNR,(F.Var $ F.Regular "false") :/=: (F.Var $ F.Regular "true")
                            ,F.CF (F.Var $ F.Regular "true"),F.CF (F.Var $ F.Regular "false"),(F.Var $ F.Regular "true") :/=: (F.Var $ F.Regular "unr"),(F.Var $ F.Regular "false") :/=: (F.Var $ F.Regular "unr")]

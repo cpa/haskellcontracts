@@ -1,13 +1,14 @@
 # Install
 
  * Install equinox (https://github.com/nick8325/equinox/) and put it somewhere in your PATH
+ * Install the others engines (SPASS,vampire,E) if you want to compare them to Equinox and put them in your PATH too.
  * Get some packages: cabal install graphscc
  * Get the code: git clone https://github.com/cpa/haskellcontracts 
  * Compile the executable in the contracts directory: ghc --make Check.hs
 
 # Use
 
-./Check file [-t n] [-p] [-q] [-c f] [--dry-run] [--engine equinox|vampire|SPASS] [--weak]
+./Check file [-t n] [-p] [-q] [-c f] [--dry-run] [--engine equinox|vampire|SPASS|E] [--weak]
 
 Default behaviour is: ./Check file -t 10 --engine equinox
 
