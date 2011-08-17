@@ -47,70 +47,102 @@ head xs = case xs of
 First, we need to encode the List structure. 
 
 We start by stating that $Nil$ and $Cons$ can never be equal:
-$$\forall a,b.~Cons(a,b) \neq Nil$$
+\begin{equation*}
+\forall a,b.~Cons(a,b) \neq Nil
+\end{equation*}
 
 Then, we must state that $Nil$ never crashes (ie cannot be evaluated
 to an exception) and that $Cons(x,y)$ crashes iff either $x$ or $y$
 crashes. The statement $x$ crashes is encoded by the term $\cf{x}$.
 
-$$\cf{Nil}$$
-$$\forall a,b.~\cf{a} \land \cf{b} \iff \cf{Cons(a,b)}$$
+\begin{equation*}
+\cf{Nil}
+\end{equation*}
+\begin{equation}
+  \label{cfcons}
+\forall a,b.~\cf{a} \land \cf{b} \iff \cf{Cons(a,b)}
+\end{equation}
 
 We also say some stuff about unreachibility but I can't think of a
 good way to explain it right now.
-$$\forall y,ys.~Cons(y,ys) \neq \unr $$
-$$Nil \neq \unr $$
+\begin{equation*}
+\forall y,ys.~Cons(y,ys) \neq \unr 
+\end{equation*}
+\begin{equation*}
+Nil \neq \unr 
+\end{equation*}
 
 Finally, we define projections for $Cons$. It is not strictly
 necessary, but it will be handy:
-$$\forall xs,y,ys.~sel_{1,Cons}(Cons(y,ys)) = xs \implies xs = y $$
-$$\forall xs,y,ys.~sel_{2,Cons}(Cons(y,ys)) = xs \implies xs = ys $$
+\begin{equation**}
+\forall xs,y,ys.~sel_{1,Cons}(Cons(y,ys)) = xs \implies xs = y 
+\end{equation**}
+\begin{equation*}
+\forall xs,y,ys.~sel_{2,Cons}(Cons(y,ys)) = xs \implies xs = ys 
+\end{equation*}
 
 Now we translate the $null$ function. Note that the symbols $true$ and
 $false$ are the representation of the data constructors $True$ and
 $False$ in Haskell, not the boolean values $\top$ and $\bot$ in our
 logic.
-$$\forall xs.~ xs=Nil \implies notnull(xs) = false$$
-$$\forall xs,y,ys.~ x=Cons(y,ys) \implies notnull(xs) = true$$
+\begin{equation*}
+\forall xs.~ xs=Nil \implies notnull(xs) = false
+\end{equation*}
+
+\begin{equation}
+  \label{defnotnull}
+\forall xs,y,ys.~ x=Cons(y,ys) \implies notnull(xs) = true
+\end{equation}
 
 We also need to specify the translation of calls to $notnull$ with
 $\bad$ values (to encode the fact that $notnull(\bad) = \bad$.
-$$\forall xs.~xs=\bad \to notnull(xs) = \bad$$
+\begin{equation*}
+\forall xs.~xs=\bad \to notnull(xs) = \bad
+\end{equation*}
 
 Finally, we say that one call $notnull$ with a an argument which is
 not $Nil$ or $Cons$ or $\bad$ then the result is $\unr$.
-$$\forall xs.~xs \neq \bad \land xs \neq Nil$$
-$$\land xs \neq Cons(sel_{1,Cons}(xs),sel_{2,Cons}(xs)) \to $$
-$$ notnull(X) = \unr$$
+\begin{align}
+  \label{unrnotnull}
+  \forall xs.~xs \neq \bad \land xs \neq Nil  \notag \\
+  \land xs \neq Cons(sel_{1,Cons}(xs),sel_{2,Cons}(xs)) \to  \notag \\
+  notnull(X) = \unr 
+\end{align}
 
 The translation of $head$ follows the same pattern:
-$$\forall xs.~ x=Nil \implies head(xs) = \bad$$
-$$\forall xs,y,ys.~ x=Cons(y,ys) \implies head(xs) = y$$
+\begin{align}
+  \forall xs.~ x=Nil \implies head(xs) = \bad \notag\\
+  \forall xs,y,ys.~ x=Cons(y,ys) \implies head(xs) = y     \label{defhead} \\
+    \forall xs.~xs=\bad \to head(xs) = \bad \notag
+\end{align}
 
-$$\forall xs.~xs=\bad \to head(xs) = \bad$$
-
-$$\forall xs.~xs \neq \bad \land xs \neq Nil$$
-$$ \land xs \neq Cons(sel_{1,Cons}(xs),sel_{2,Cons}(xs)) \to $$
-$$ head(X) = \unr$$
+\begin{align*}
+ \forall xs.~xs \neq \bad \land xs \neq Nil \notag \\
+ \land xs \neq Cons(sel_{1,Cons}(xs),sel_{2,Cons}(xs)) \to  \notag \\
+ head(X) = \unr 
+\end{algin*}
 
 We now have translated the source code. Let us call all those formulae
 the theory $T$. We translate separatly the contract:
-$$ \phi := \forall xs.~\cf{xs} \land not(null(xs)) = true \to \cf{head(xs)} $$
+\begin{equation*}
+  \phi := \forall xs.~\cf{xs} \land notnull(xs) = true \to \cf{head(xs)} 
+\end{equation*}
 
 Now that we translated everything to first-order logic, we can ask the
 theorem prover if the theory formed by those formulae is
 consistent, ie if $T \vdash \phi$.
 
-Intuitivly, $T$ is consistent (ie $T \not \vdash \bot$), because each
+Intuitively, $T$ is consistent (ie $T \not \vdash \bot$), because each
 formula serves a specific purpose. Now, assume that $xs$ satisfies
 $\cf{xs}$ and $notnull(xs) = true$.  We can derive that $xs \neq \bad$
-because we have $\cf{xs}$ and $\not \cf{\bad}$. The constraint
+because we have $\cf{xs}$ and $\lnot \cf{\bad}$. The constraint
 $notnull(xs) = true$ doesn't directly imply that $xs = Cons(y,ys)$ for
-some $y$ and $ys$. But the translation of $notnull$ is total, ie the
-function is totally defined. This implies that there exist $y$ and
-$ys$ such that $xs = Cons(y,ys)$. Recalling $\cf{xs}$, we can now
-derive $\cf{y}$ and $\cf{ys}$. But $head(xs) = y$ in our setting, and
-$y$ is crash-free. QED.
+some $y$ and $ys$. But $notnull$ is totally defined, because of
+\eqref{unrnotnull}. This implies (by \eqref{defnotnull}) that there exist
+$y$ and $ys$ such that $xs = Cons(y,ys)$. Recalling $\cf{xs}$, we can
+now derive $\cf{y}$ and $\cf{ys}$ (by \eqref{cfcons}). But $head(xs) =
+y$ because of \eqref{defhead}, and $y$ is crash-free, so we can finally
+derive $\cf{head(xs)}$. QED.
 
 
 \section{Languages}
