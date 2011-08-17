@@ -13,13 +13,18 @@
 \newcommand{\strans}[1]{\mathcal{S} \llbracket #1 \rrbracket}
 \newcommand{\trans}[1]{\llbracket #1 \rrbracket}
 
+\newcommand{\tot}{\leftrightarrow}
+
 \newcommand{\unr}{\texttt{UNR}}
 \newcommand{\bad}{\texttt{BAD}}
 \newcommand{\any}{\texttt{Any}}
 \newcommand{\ok}{\texttt{Ok}}
 \newcommand{\hprime}{\mathcal{H}'}
-\newcommand{\cf}[1]{\texttt{CF}(#1)}
 \newcommand{\cfc}{\texttt{CF}}
+\newcommand{\cf}[1]{\texttt{CF}(#1)}
+\newcommand{\weak}[1]{\mbox{$\$$weak}(#1)}
+\renewcommand{\min}[1]{\mbox{$\$$min}(#1)}
+
 
 \title{Static contract checking for Haskell}
 \maketitle
@@ -313,8 +318,6 @@ type-checking mecanism directly in our first-order theory.
 
 \subsection{First-order logic with equality}
 We use first-order logic with equality, defined in figure \ref{fol-stx}.
-There are two different symbols for implication : $\to$ and
-$\implies$. Altough they share the same semantics, their operational behaviour differs, as explained in \ref{guarded-pat}.
 
 \begin{figure}
   \label{fol-stx}
@@ -323,7 +326,7 @@ $\implies$. Altough they share the same semantics, their operational behaviour d
     v,w,s,t &:=& x \mid K(t,\dots,t) \mid f(t,\dots,t) \mid app(t,t)\\
     && \mid \bad \mid \unr & \\
     \phi &:=& \forall x.\phi \mid \lnot \phi \mid \phi \lor \phi \mid \top \mid \bot \mid t=t \mid \mbox{CF}(t)\\
-    && \mid \phi \land \phi \mid \phi \implies \phi \mid \phi \to \phi \mid \phi \leftrightarrow \phi & \\
+    && \mid \phi \land \phi \mid \phi \to \phi \mid \phi \tot \phi & \\
     \Phi &:=& \epsilon \mid \phi \mid \Phi \cup \Phi \\
   \end{array}
   \caption{First-order logic syntax}
@@ -370,15 +373,24 @@ pattern-matched on $\bad$ then the result should be $\unr$.
 
 \begin{figure}
   \label{dtrans-reg}
-  $$\dtrans{f(x_1,\dots,x_n) = e} = Y = f(X_1,\dots,X_n) \implies Y = \dtrans{e}$$
+  $$\dtrans{f(\vec{x}) = e}$$
+  $$ \forall \vec{x},y.~ \min{y} \land y = f(\vec{x}) \to y = \etrans{e}$$
   \caption{$\dtrans{}$ -- Regular definitions}
 \end{figure}
 
 
 \begin{figure*}
   \label{dtrans-case}
-  $$ \dtrans{f(x_1,\dots,x_n) = \mbox{case } e \mbox{ of } [K_i(\overline{z})] = e_i } = \bigwedge_{1 \leq i \leq n} Y = f(K_i(x_1,\dots,x_{K_i})) \implies Y = \etrans{e_i} $$
-  $$ \cup f(X_1,\dots,X_n) = Y \implies Y = \unr \lor \bigvee_{1 \leq i \leq n} \etrans{e} = K_i(sel_{1,K_i}(\etrans{e}),\dots,sel_{n_K,K_i}(\etrans{e})) \lor \etrans{e} = \bad $$
+  $$ \dtrans{f(x_1,\dots,x_n) = \mbox{case } e \mbox{ of } [K_1(\vec{x_1}) = e_1,\dots,K_n(\vec{x_n}) = e_n]}$$
+  \begin{center}
+    \begin{array}{rccccccl}
+      \forall \vec{a},y,\vec{x}_{1 \leq i \leq n}.~&\min{y} &\land& \etrans{e} = K_1(\vec{x_1}) &\land& f~\vec{a} = y &\to& y = \etrans{e_1}\\
+                                               &&&&&& \cdots & \\
+                                               &\min{y} &\land& \etrans{e} = K_n(\vec{x_n}) &\land& f~\vec{a} = y &\to& y = \etrans{e_n}\\
+                                               &\min{y} &\land& \etrans{e} = \bad          &\land& f~\vec{a} = y &\to& y = \bad\\
+                                               &\min{y} && \land                           &&      f~\vec{a} = y &\to& \min{a} \land (a=\bad \lor \bigvee_i a = \weak{K_i(\vec{x})} \lor y = \unr)
+    \end{array}
+    \end{center}
   \caption{$\dtrans{}$ -- Case definitions}
 \end{figure*}
 
@@ -390,7 +402,7 @@ $$\ttrans{\mbox{data } T = K_1, \dots, K_n} = S_1 \cup S_2 \cup S_3 \cup S_4$$
 
 \begin{itemize}
 \item $(S_1)$ For each $K_i$ of arity $a_i$ we introduce selectors
-  $sel_{k,K_i}$, which are the projection of $K_i(x_1,\dots,x_{n_i)$
+  $sel_{k,K_i}$, which are the projection of $K_i(x_1,\dots,x_{n_i))$
   on its $k$-th component.
 \item $(S_2)$ For each pair of constructors $K_i,K_j$, we state that they can
   never map to the same value.
@@ -420,32 +432,36 @@ $$\ttrans{\mbox{data } T = K_1, \dots, K_n} = S_1 \cup S_2 \cup S_3 \cup S_4$$
 
 \begin{figure*}
   \label{ttrans}
-  $$ S_1 := \bigwedge_{1 \leq i \leq n} sel_{i,K_j}(K_j(X_1,\dots,X_n)) = Y \implies Y = X_i  \mid 1 \leq j \leq n$$
-  $$ S_2 := \forall x_1,\dots,x_{n_i}~\forall y_1,\dots,y_{n_j} . K_i(x_1,\dots,x_{n_i}) \neq K_j(y_1,\dots,y_{n_j}) \mid 1 \leq i < j \leq n$$
-  $$ S_3 := \forall x_1,\dots,x_{n_i} . (\cf{x_1} \land \dots \land \cf{x_{n_i}} \leftrightarrow \cf{K_i(x_1,\dots,x_{n_i})}) \mid 1 \leq i \leq n$$
-  $$ S_4 := \forall x_1,\dots,x_n.~K_i(x_1,\dots,x_n) \neq \unr \mid 1 \leq i \leq n$$
+  $$ S_1 := \forall \vec{x},a.~(\min{a} \land K_i(\vec{x}) = a) \to \bigwedge_{1 \leq j \leq k} x_j = \weak{sel_{j,K_i}(a)}  \mid 1 \leq i \leq n$$
+  $$ S_2 := \forall \vec{x},\vec{y},a,b.~(\min{a} \land \min{b} \land K_i(\vec{x}) = a \land K_j(\vec{y}) = b) \to a \neq b \mid 1 \leq i < j \leq n$$
+  $$ S_3 := \forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to (\bigwedge_{1 \leq j \leq k} \cf{x_j}) \tot \cf{K_i(\vec{x})} \mid 1 \leq i \leq n$$
+  $$ S_4 := \forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to a \neq \unr \land a \neq \bad \mid 1 \leq i \leq n$$
   \caption{$\ttrans{}$ -- Data type translation}
 \end{figure*}
 
 
 \subsection{$\strans{}$ -- Contracts}
 We give in \ref{strans} the translation of contract satisfaction.
+$true$ refers to the translation to a term of the data constructor
+\texttt{True} in $\hprime$, not to the actual true value.
 
 \begin{figure*}
-$$ \strans{f \in c} = \top \to f \in c \lor \bot $$
-
-Given $r$ a fresh predicate and $a$ a fresh variable,
 \begin{eqnarray*}
-  p \to f \in \{x \mid b(x) \} \lor q &=& p \land f=X \implies b(X)=true \lor b(X) = \unr \lor q  \\
-  p \to f \in x:c_1 \to c_2(x) \lor q &=&  p \to f(X) \in c_2(X) \lor r(X), r(X) \to X \not \in c_1 \lor q \\
-  p \to f \in \cfc \lor q &=& p \land \forall x_1,\dots,x_n. \bigwedge_i \cf{x_i} \to \cf{f(x_1,\dots,x_n)} \lor q 
+  \strans{e ::: \{x \mid b(x) \}} &=&  \min{\etrans{b(e)}} \land (\etrans{b(e)} = true \lor \etrans{b(e)} = \unr)\\
+  \strans{e ::: x:c_1 \to c_2(x)} &=& \forall x.~\min{\etrans{f(x)}} \to (\strans{x :/: c_1} \lor  \strans{\etrans{e(x)} ::: c_2(x)})\\
+  \strans{e ::: \cfc} &=& \cf{e}
 \end{eqnarray*}
 
 \begin{eqnarray*}
-  p \to f \not \in \{x \mid b(x) \} \lor q &=&  p \land f=X \implies b(X)=false \lor b(X) = \bad \lor q  \\
-  p \to f \not \in x:c_1 \to c_2(x) \lor q &=&  p \to a \in c_1 \lor q, p \to f(a) \not \in c_2(a) \lor q \\
-  p \to f \not \in \cfc \lor q &=&  p \land \forall x_1,\dots,x_n. \lnot \bigwedge_i \cf{x_i} \to \cf{f(x_1,\dots,x_n)} \lor q 
+  \strans{e :/: \{x \mid b(x) \}} &=&  \min{\etrans{b(e)}} \land (\etrans{b(e)} \neq true \land \etrans{b(e)} \land \unr)\\
+  \strans{e :/: x:c_1 \to c_2(x)} &=& \exists x.~\min{\etrans{f(x)}} \to (\strans{x ::: c_1} \land  \strans{\etrans{e(x)} :/: c_2(x)})\\
+  \strans{e :/: \cfc} &=& ~\cf{e}
 \end{eqnarray*}
+
+$$ \strans{e ::: c_1 && c_2} = \strans{e ::: c_1} \land \strans{e ::: c_2} $$
+$$ \strans{e ::: c_1 || c_2} = \strans{e ::: c_1} \lor \strans{e ::: c_2} $$
+$$ \strans{(a,b) ::: (c_1,c_2)}   = \strans{a ::: c_1} && \strans{b ::: c_2} $$
+
 \caption{$\strans{}$ -- Contract translation}
 \label{strans}
 \end{figure*}
@@ -532,45 +548,28 @@ For the translation to be useful, $\trans{M} \vdash \strans{f \in c} $
 should imply that $f \in c$.
 
 
-
-\section{Guarded patterns}
-It is our first encounter with the guarded-pattern operator
-($\implies$). 
-It syntax is:
-$$ s_1 = t_1 \land \dots \land s_k = t_k \implies v_1 = w_1 \lor \dots \lor v_n = w_n $$ 
-
-$s_i,t_i,v_i,w_i$ are terms, and all the variables on the right-hand
-side should appear somewhere on the left-hand side.
-
-The semantics are: if during the proof by the theorem prover, we have
-equations that match the LHS than the theorem prover should strongly
-consider the equations on the RHS. Those semantics are sound (we can
-interpret $\implies$ as normal implication) but if modifies the
-operational behabviour of Equinox, because it tells it very finely
-when to use equations and how to instantiate them.
-
 \section{Higher-orderness}
 \label{ho}
 Our current translation only considers fully applied functions and
-first-order functions. For example, we cannot translate any contract
-for $map$ because it would involve quantifying over a function, a
-thing that is not first-order.
+first-order functions. For example, so far, we cannot give any
+contract to $map$ because it would involve quantifying over a
+function, a thing that is not first-order.
 
-There is a possible workaround, which involves the ``app'' function in
-first-order logic. Assume we have a function $f$ that is not fully
-applied somewhere in a module. We create the term $f\_ptr$ which
-relates to $f$ by the equations given in \ref{ho-fig}
+There is a possible workaround, which involves the ``app'' function
+defined in our first-order logic. Assume we have a function $f$ that
+is not fully applied somewhere in a module. We create the term
+$f\_ptr$ which relates to $f$ by the equations given in \ref{ho-fig}
 
-This way, we can emulate quantification over function by
-quantification on their $ptr$ counterpart.
+This way, we can emulate quantification over function by quantifying
+on their $ptr$ counterpart.
 
 
 \begin{figure*}
 \label{ho-fig}
 $$\etrans{e_1~e_2} = app(e_1,e_2)$$
 $$ \forall x_1,\dots,x_n.~f(x_1,\dots,x_n) = app(app(\dots app(f\_ptr,x_1),x_2),\dots,x_n)$$
-$$ \cf{f\_ptr} \iff \forall x_1,\dots,x_n.~\cf{x_1} \land \dots \land \cf{x_n} \implies \cf{f(x_1,\dots,x_n)}$$
-$$\forall f\_ptr,x~\cf{f\_ptr} \land \cf{x} \implies \cf{app(f\_ptr,x)}$$
+$$ \cf{f\_ptr} \tot \forall x_1,\dots,x_n.~\cf{x_1} \land \dots \land \cf{x_n} \to \cf{f(x_1,\dots,x_n)}$$
+$$\forall f\_ptr,x.~\cf{f\_ptr} \land \cf{x} \to \cf{app(f\_ptr,x)}$$
 \caption{Encoding of higher-orderness}
 \end{figure*}
 
