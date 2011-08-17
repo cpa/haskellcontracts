@@ -30,6 +30,7 @@ data MetaDefGeneral a = ContSat (MetaContSat a)
 
 
 data MetaContSat a = Satisfies Variable (MetaContract a)
+                   | DoesntSatisfy Variable (MetaContract a)
                    deriving (Show,Eq,Functor,Ord)
                
 data MetaDefinition a = Let Variable [Variable] a
@@ -44,7 +45,6 @@ data MetaContract a = AppC Variable (MetaContract a) (MetaContract a) -- x : c -
                     | And (MetaContract a) (MetaContract a)
                     | Or  (MetaContract a) (MetaContract a)
                     | CF
-                    | Any
                     deriving (Show,Eq,Functor,Ord)
 
 data Type a = Fun a Int
@@ -126,7 +126,6 @@ substC x y (Pred u e)     = if u/=y then Pred u (subst x y e) else (Pred u e)
 substC x y (And c1 c2)    = And (substC x y c1) (substC x y c2)
 substC x y (Or c1 c2)     = Or (substC x y c1) (substC x y c2)
 substC x y CF             = CF 
-substC _ _ Any            = Any
 
 
 -- FIXME: it's needed to compile but utterly useless it's needed

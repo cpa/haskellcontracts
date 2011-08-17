@@ -447,13 +447,13 @@ $true$ refers to the translation to a term of the data constructor
 
 \begin{figure*}
 \begin{eqnarray*}
-  \strans{e \in \{x \mid b(x) \}} &=&  \min{\etrans{b(e)}} \land (\etrans{b(e)} = true \lor \etrans{b(e)} = \unr)\\
-  \strans{e \in x:c_1 \to c_2(x)} &=& \forall x.~\min{\etrans{f(x)}} \to (\strans{x \not \in c_1} \lor  \strans{\etrans{e(x)} \in c_2(x)})\\
+  \strans{e \in \{x \mid b(x) \}} &=&  \min{\etrans{b(e)}} \land (\etrans{b(e)} = true \lor \etrans{e} = \unr)\\
+  \strans{e \in x:c_1 \to c_2(x)} &=& \forall x.~\min{\etrans{e(x)}} \to (\strans{x \not \in c_1} \lor  \strans{\etrans{e(x)} \in c_2(x)})\\
   \strans{e \in \cfc} &=& \cf{e}
 \end{eqnarray*}
 
 \begin{eqnarray*}
-  \strans{e \not \in \{x \mid b(x) \}} &=&  \min{\etrans{b(e)}} \land (\etrans{b(e)} = false \lor \etrans{b(e)} = \bad)\\
+  \strans{e \not \in \{x \mid b(x) \}} &=&  \min{\etrans{b(e)}} \land (\etrans{b(e)} = false \lor \etrans{e} = \bad)\\
   \strans{e \not \in x:c_1 \to c_2(x)} &=& \exists x.~ \strans{x \in c_1} \land  \strans{\etrans{e(x)} \not \in c_2(x)}\\
   \strans{e \not \in \cfc} &=& \lnot \cf{e}
 \end{eqnarray*}
