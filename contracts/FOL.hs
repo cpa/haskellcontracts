@@ -25,6 +25,7 @@ data MetaTerm a = Var a
                 | App [MetaTerm a]
                 | FullApp a [MetaTerm a]
                 | Weak (MetaTerm a)
+                | Min (MetaTerm a)
                 deriving (Eq,Functor)
 
 instance Show a => Show (MetaTerm a) where
@@ -33,6 +34,7 @@ instance Show a => Show (MetaTerm a) where
   show (App [t]) = show t
   show (App ts) = "app(" ++ show (App (init ts)) ++ "," ++ show (last ts) ++ ")"
   show (Weak v) = show v
+  show (Min v) = show v
   show (FullApp f []) = show f
   show (FullApp f as) = show f ++ "(" ++ (concat $ intersperse "," $ map show as) ++ ")"
 
@@ -107,6 +109,7 @@ auxUpper c (Var v) = Var v
 auxUpper c (App ts) = App $ map (auxUpper c) ts
 auxUpper c (FullApp x ts) = FullApp x (map (auxUpper c) ts) -- TODO think about it
 auxUpper c (Weak t) = Weak $ auxUpper c t
+auxUpper c (Min t) = Min $ auxUpper c t
 
 toTPTP :: Formula -> String
 toTPTP f = header ++ "\n" ++ (go $ upperIfy [] f) ++ "\n" ++ footer
@@ -131,6 +134,7 @@ toTPTP f = header ++ "\n" ++ (go $ upperIfy [] f) ++ "\n" ++ footer
         goTerm (FullApp f []) = show f
         goTerm (FullApp f as) = show f ++ "(" ++ (concat $ intersperse "," $ map show as) ++ ")"
         goTerm (Weak t) = "$weak(" ++ goTerm t ++")"
+        goTerm (Min t) = "$min(" ++ goTerm t ++")"
 
 
 
@@ -142,14 +146,16 @@ appifyF a fs = map (fmap go) fs
           Just n -> Var (Regular $ v ++ "_ptr")
           Nothing -> Var $ Regular v
         go (App ts) = App (map go ts)
-        go (FullApp f ts) = FullApp f (map go ts)
+        go (FullApp f ts) = FullApp f (map go ts) 
         go (Weak t) = Weak $ go t
+        go (Min t) = Min $ go t
         go t = t
         trim = filter (\s -> case s of H.Fun _ _ -> True; _ -> False)
         
 removeWeakAnnotations :: Formula -> Formula
 removeWeakAnnotations = fmap go
-  where go (Weak t) = t
+  where go (Weak t) = go t
+        go (Min t)  = Min $ go t
         go (Var x) = Var x
         go (App ts) = App $ map go ts
         go (FullApp v ts) = FullApp v $ map go ts

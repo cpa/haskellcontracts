@@ -1,6 +1,5 @@
 module Translation where
 
-import Debug.Trace
 import qualified Haskell as H
 import qualified FOL as F
 import FOL (MetaFormula(..))
