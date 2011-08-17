@@ -70,7 +70,6 @@ dTrans (H.LetCase f vs e pes) = do
 sTrans e H.Any = return [Top]
 
 sTrans e (H.Pred x u) =  do
-  a <- liftM arities get
   let  u' = H.subst e x u
   et' <- eTrans e 
   ut' <- eTrans u'
@@ -81,9 +80,10 @@ sTrans e (H.Pred x u) =  do
   return $ [F.And $ [F.Or [(et :=: F.Var F.UNR) ,F.And [F.Var F.BAD :/=: ut' , ut' :/=: (F.Var $ F.Regular "false")]]]] -- The data constructor False.
 
 sTrans e (H.AppC x c1 c2) = do
-  S s k a <- get
-  put $ S s (k+1) a
-  let freshX = s++(show k) 
+  s <- get
+  let k = count s
+  put $ s {count = k + 1}
+  let freshX = (prefix s)++(show $ k) 
       c2' = H.substC (H.Var freshX) x c2
   [f1] <- sTrans (H.Var freshX) c1
   [f2] <- case e of 
@@ -178,7 +178,7 @@ isToCheck fs (H.ContSat (H.Satisfies f _)) = f `elem` fs
 isToCheck _ _                              = False
 
 trans :: H.Program -> [H.Variable] -> [F.Formula]
-trans ds fs = evalState (go fs (H.appify ds)) (S "Z" 0 (H.arities ds))
+trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
   where go fs ds = do 
           let (toCheck,regDefs) = partition (isToCheck fs) ds
               recVar x = x ++ "p"

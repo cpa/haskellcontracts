@@ -2,11 +2,12 @@
 
 module Haskell where
 
+import Data.Maybe (isJust)
+
 type Variable = String
 type Constructor = String
 
 -- All this meta stuff is just here to allow me to derive functors for free.
-
 type DataType = MetaDataType Expression
 type Expression = MetaExpression Variable
 type DefGeneral = MetaDefGeneral Expression
@@ -70,7 +71,15 @@ appify :: Program -> Program
 appify p = map (fmap $ appifyExpr a) p 
   where a = arities p
 
-
+prefixWithAorC :: Program -> Program
+prefixWithAorC p = (map $ fmap $ fmap prefixVar) p
+  where as = arities p
+        prefixVar v = case lookupT v as of
+          Nothing -> v
+          Just _  -> if v `isConstructor` as then "c_"++v else "a_"++v
+        isConstructor v = any (\f -> case f of Fun _ _ -> False ; _ -> True)
+        
+lookupT :: String -> [Type Variable] -> Maybe Int
 lookupT v [] = Nothing
 lookupT v (Fun f n:as)  = if f == v  then Just n else lookupT v as
 lookupT v (Cons f n:as) =  if f == v  then Just n else lookupT v as

@@ -86,9 +86,9 @@ simplify f = filter (/= Top) $ splitOnAnd $ removeConstants f
 extractVR (Var (Regular x)) = x
 
 
--- The TPTP format says that only quantified variables should be uppercase
--- So we make everything lowercase (it's supposed to be already done)
--- And upperIfy makes the good variables uppercase.
+-- The TPTP spec says that only quantified variables should be
+-- uppercase So we make everything lowercase (it's supposed to be
+-- already done) And upperIfy makes the good variables uppercase.
 upperIfy :: [String] -> Formula -> Formula
 upperIfy c (Forall xs f) = Forall (map (Var . Regular . map toUpper . extractVR) xs) (upperIfy c' f)
   where c' = (map extractVR xs)++c
