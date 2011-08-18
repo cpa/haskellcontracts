@@ -71,13 +71,18 @@ removeConstants :: Formula -> Formula
 removeConstants (Forall [] f) = removeConstants f
 removeConstants (Forall xs f) = Forall xs (removeConstants f)
 removeConstants (Bottom :=>: _) = Top
-removeConstants (Top :<=>: f) = f
-removeConstants (f :<=>: Top) = f
-removeConstants (Bottom :<=>: f) = Not f
-removeConstants (f :<=>: Bottom) = Not f
+removeConstants (f :=>: Top) = removeConstants f
+removeConstants (Top :<=>: f) = removeConstants f
+removeConstants (f :<=>: Top) = removeConstants f
+removeConstants (And []) = Bottom
+removeConstants (Or []) = Top
+removeConstants (Bottom :<=>: f) = Not $ removeConstants f
+removeConstants (f :<=>: Bottom) = Not $ removeConstants f
 removeConstants (Not f) = Not $ removeConstants f
-removeConstants (Or fs) = if any (==Top) fs then Top else Or $ filter (/=Bottom) fs
-removeConstants (And fs) = if any (==Bottom) fs then Bottom else And $ filter (/=Top) fs
+removeConstants (Or fs) = if any (==Top) fs then Top else Or $ [removeConstants f | f <- fs, f /=Bottom]
+removeConstants (And fs) = if any (==Bottom) fs then Bottom else And $ [removeConstants f | f <- fs, f /= Top]
+removeConstants (f1 :=>: f2) = removeConstants f1 :=>: removeConstants f2
+removeConstants (f1 :<=>: f2) = removeConstants f1 :<=>: removeConstants f2
 removeConstants f = f
 
 simplify f = filter (/= Top) $ splitOnAnd $ removeConstants f
@@ -126,7 +131,7 @@ toTPTP f = header ++ "\n" ++ (go $ upperIfy [] f) ++ "\n" ++ footer
         go (t1 :=: t2) = goTerm t1 ++ " = " ++ goTerm t2
         go (t1 :/=: t2) = goTerm t1 ++ " != " ++ goTerm t2
         go (CF t) = "cf(" ++ goTerm t ++ ")"
-        go (Min t) = "$min(" ++ goTerm t ++")"
+        go (Min t) = "min(" ++ goTerm t ++")"
         goTerm (Var v) = show v
         goTerm (App []) = error "Cannot apply nothing"
         goTerm (App [t]) = goTerm t

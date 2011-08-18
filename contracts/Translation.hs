@@ -228,6 +228,10 @@ isToCheck _ _                              = False
 trans :: H.Program -> [H.Variable] -> [F.Formula]
 trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
   where go fs ds = do 
+          booleanPrelude <- tTrans $ H.Data "Bool" [("true",0,H.ok),("false",0,H.ok)]
+          let prelude = [(F.Forall (map (F.Var . F.Regular) ["F","X"]) $ (F.And [F.CF $ F.Var $ F.Regular "X", F.CF $ F.Var $ F.Regular "F"]) :=>: (F.CF $ (F.App [(F.Var $ F.Regular "F"), (F.Var $ F.Regular "X")])))] ++ booleanPrelude
+                        --   ,F.Not $ F.CF $ F.Var $ F.BAD,F.CF $ F.Var $ F.UNR,(F.Var $ F.Regular "false") :/=: (F.Var $ F.Regular "true")
+                        --   ,F.CF (F.Var $ F.Regular "true"),F.CF (F.Var $ F.Regular "false"),(F.Var $ F.Regular "true") :/=: (F.Var $ F.Regular "unr"),(F.Var $ F.Regular "false") :/=: (F.Var $ F.Regular "unr")]
           let (toCheck,regDefs) = partition (isToCheck fs) ds
               recVar x = x ++ "p"
           a <- fmap arities get
@@ -244,6 +248,3 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
               notCont <- map F.Not <$> F.appifyF a <$> sTrans (H.Var x) y
               return $ notCont ++ contP
           return $ concat $ prelude : regFormulae ++ speFormulae 
-            where prelude = [(F.Forall (map (F.Var . F.Regular) ["F","X"]) $ (F.And [F.CF $ F.Var $ F.Regular "X", F.CF $ F.Var $ F.Regular "F"]) :=>: (F.CF $ (F.App [(F.Var $ F.Regular "F"), (F.Var $ F.Regular "X")])))
-                           ,F.Not $ F.CF $ F.Var $ F.BAD,F.CF $ F.Var $ F.UNR,(F.Var $ F.Regular "false") :/=: (F.Var $ F.Regular "true")
-                           ,F.CF (F.Var $ F.Regular "true"),F.CF (F.Var $ F.Regular "false"),(F.Var $ F.Regular "true") :/=: (F.Var $ F.Regular "unr"),(F.Var $ F.Regular "false") :/=: (F.Var $ F.Regular "unr")]

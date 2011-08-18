@@ -44,7 +44,7 @@ main = do
     then unless (dryRun cfg || quiet cfg) $ putStrLn $ f ++ ": all the contracts hold."
     else do
     unless (quiet cfg) $ 
-      putStrLn $ "There's at least one contract in " ++ f ++ " that took more than " ++ show (timeLimit cfg) ++ " sec to prove."
+      putStrLn $ "There's at least one contract in " ++ f ++ " that took more than " ++ show (timeLimit cfg) ++ " sec to prove, or that doesn't hold."
     exitWith $ ExitFailure 1
 
 checkFile :: String -> Conf -> IO Bool  
