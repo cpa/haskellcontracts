@@ -9,8 +9,8 @@
 
 \newcommand{\etrans}[1]{\mathcal{E} \llbracket #1 \rrbracket}
 \newcommand{\dtrans}[1]{\mathcal{D} \llbracket #1 \rrbracket}
-\newcommand{\ttrans}[1]{\mathcal{T} \llbracket #1 \rrbracket}
-\newcommand{\strans}[1]{\mathcal{S} \llbracket #1 \rrbracket}
+\newcommand{\ktrans}[1]{\mathcal{K} \llbracket #1 \rrbracket}
+\newcommand{\ctrans}[1]{\mathcal{C} \llbracket #1 \rrbracket}
 \newcommand{\trans}[1]{\llbracket #1 \rrbracket}
 
 \newcommand{\tot}{\leftrightarrow}
@@ -334,6 +334,21 @@ We use first-order logic with equality, defined in figure \ref{fol-stx}.
 
 
 \section{Translations}
+For an overview of the different translations we define, see \ref{trans}
+
+\begin{figure}
+  \label{trans}
+  \begin{center}
+  \begin{array}{rcl}
+    \etrans{\mbox{expression}} &\to& t~(\mbox{Term}) \\
+    \dtrans{f~\vec{x} = \dots} &\to& \Phi~(\mbox{Set of formulae}) \\
+    \ktrans{\mbox{data } T = \dots} &\to& \Phi~(\mbox{Set of formulae}) \\
+    \ctrans{f \in c} &\to& \Phi~(\mbox{Set of formulae}) \\
+  \end{array}
+  \end{center}
+  \caption{Translations}
+\end{figure}
+
 
 \subsection{$\etrans{}$ -- Expressions}
 Our most basic translation is from expressions in $\hprime$ to terms
@@ -383,12 +398,11 @@ pattern-matched on $\bad$ then the result should be $\unr$.
   \label{dtrans-case}
   $$ \dtrans{f(x_1,\dots,x_n) = \mbox{case } e \mbox{ of } [K_1(\vec{x_1}) = e_1,\dots,K_n(\vec{x_n}) = e_n]}$$
   \begin{center}
-    \begin{array}{rccccccl}
-      \forall \vec{a},y,\vec{x}_{1 \leq i \leq n}.~&\min{y} &\land& \etrans{e} = K_1(\vec{x_1}) &\land& f~\vec{a} = y &\to& y = \etrans{e_1}\\
-                                               &&&&&& \cdots & \\
-                                               &\min{y} &\land& \etrans{e} = K_n(\vec{x_n}) &\land& f~\vec{a} = y &\to& y = \etrans{e_n}\\
-                                               &\min{y} &\land& \etrans{e} = \bad          &\land& f~\vec{a} = y &\to& y = \bad\\
-                                               &\min{y} && \land                           &&      f~\vec{a} = y &\to& \min{e} \land (e=\bad \lor \bigvee_i e = \weak{K_i(\vec{x})} \lor y = \unr)
+    \begin{array}{rclcl}
+      \forall \vec{a},y.~\min{y} \land f(\vec{a}) = y &\to& (\multicolumn{3}{c}{\min{e} \land (e = \bad \lor \bigvee_i \forall \vec{x}.~e = K_i(\vec{x}) \lor y = \unr)} \\      
+      &\land& \forall \vec{x_1}.~\etrans{e} = K_1(\vec{x_1}) &\to& y = \etrans{e_1} \\
+      &\land& & \cdots & \\
+      &\land& \forall \vec{x_n}.~\etrans{e} = K_n(\vec{x_n}) &\to& y = \etrans{e_n}) \\
     \end{array}
     \end{center}
   \caption{$\dtrans{}$ -- Case definitions}
@@ -396,17 +410,17 @@ pattern-matched on $\bad$ then the result should be $\unr$.
 
 
 
-\subsection{$\ttrans{}$ -- Datatypes}
-We break down the translation for datatypes in four parts, described in \ref{ttrans}
-$$\ttrans{\mbox{data } T = K_1, \dots, K_n} = S_1 \cup S_2 \cup S_3 \cup S_4$$
+\subsection{$\ktrans{}$ -- Datatypes}
+We break down the translation for datatypes in four parts, described in \ref{ktrans}
+$$\ktrans{\mbox{data } T = K_1, \dots, K_n} = \Phi_1 \cup \Phi_2 \cup \Phi_3 \cup \Phi_4$$
 
 \begin{itemize}
-\item $(S_1)$ For each $K_i$ of arity $a_i$ we introduce selectors
+\item $(\Phi_1)$ For each $K_i$ of arity $a_i$ we introduce selectors
   $sel_{k,K_i}$, which are the projection of $K_i(x_1,\dots,x_{n_i))$
   on its $k$-th component.
-\item $(S_2)$ For each pair of constructors $K_i,K_j$, we state that they can
+\item $(\Phi_2)$ For each pair of constructors $K_i,K_j$, we state that they can
   never map to the same value.
-\item $(S_3)$ Then, we have to give crash-freeness conditions for each $K_i$:
+\item $(\Phi_3)$ Then, we have to give crash-freeness conditions for each $K_i$:
   Notice that we have a equivalence.
   \begin{itemize}
   \item $\leftarrow$: if we pack crash-free values in a data
@@ -424,53 +438,63 @@ $$\ttrans{\mbox{data } T = K_1, \dots, K_n} = S_1 \cup S_2 \cup S_3 \cup S_4$$
   being crash-free or not doesn't matter.
   \end{itemize}
 
-\item $(S_4)$ None of the $K_i$ is unreachable.
+\item $(\Phi_4)$ None of the $K_i$ is unreachable.
 \item One may want to also state that if $\vec{x} \neq \bad$ then
   $K_i(\vec{x}) \neq \bad$. It is already implied by the fact that
   $\cf{\vec{x}} \to \cf{K_i(\vec{x})}$.
 \end{itemize}
 
 \begin{figure*}
-  \label{ttrans}
-  $$ S_1 := \forall \vec{x},a.~(\min{a} \land K_i(\vec{x}) = a) \to \bigwedge_{1 \leq j \leq k} x_j = \weak{sel_{j,K_i}(a)}  \mid 1 \leq i \leq n$$
-  $$ S_2 := \forall \vec{x},\vec{y},a.~ \lnot (\min{a} \land K_i(\vec{x}) = a \land K_j(\vec{x}) = a) \mid 1 \leq i < j \leq n$$
-  $$ S_3 := \forall \vec{x},a.~\min{a} \land a = K_i(\vec{x}) \to ((\bigwedge_{1 \leq j \leq k} \cf{x_j}) \tot \cf{K_i(\vec{x})}) \mid 1 \leq i \leq n$$
-  $$ S_4 := \forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to a \neq \unr \land a \neq \bad \mid 1 \leq i \leq n$$
-  \caption{$\ttrans{}$ -- Data type translation}
+  \label{ktrans}
+  $$\ktrans{\mbox{data } T = K_1, \dots, K_n} = \Phi_1 \cup \Phi_2 \cup \Phi_3 \cup \Phi_4$$
+  where
+  \begin{center}
+    \begin{array}{rcl}
+      \Phi_1 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land K_i(\vec{x}) = a) \to \bigwedge_{1 \leq j \leq k} x_j = sel_{j,K_i}(a) \\
+      \Phi_2 &=& \bigcup_{1 \leq i < j \leq n}~\forall \vec{x},\vec{y},a.~ \lnot (\min{a} \land K_i(\vec{x}) = a \land K_j(\vec{x}) = a) \\
+      \Phi_3 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~\min{a} \land a = K_i(\vec{x}) \to ((\bigwedge_{1 \leq j \leq k} \cf{x_j}) \tot \cf{K_i(\vec{x})}) \\
+      \Phi_4 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to a \neq \unr \land a \neq \bad 
+    \end{array}
+  \end{center}
+  \caption{$\ktrans{}$ -- Data type translation}
 \end{figure*}
 
 
-\subsection{$\strans{}$ -- Contracts}
-We give in \ref{strans} the translation of contract satisfaction.
+\subsection{$\ctrans{}$ -- Contracts}
+We give in \ref{ctrans} the translation of contract satisfaction.
 $true$ refers to the translation to a term of the data constructor
 \texttt{True} in $\hprime$, not to the actual true value.
 
+Note that we define the translation of $f \in c$ and of $f \not \in
+c$. We have to do that because one is not the negation of the other,
+even though $\lnot (f \not \in c)$ implies $f \in c$.
+
 \begin{figure*}
 \begin{eqnarray*}
-  \strans{e \in \{x \mid b(x) \}} &=&  \min{\etrans{b(e)}} \land (\etrans{b(e)} = true \lor \etrans{e} = \unr)\\
-  \strans{e \in x:c_1 \to c_2(x)} &=& \forall x.~\min{\etrans{e(x)}} \to (\strans{x \not \in c_1} \lor  \strans{\etrans{e(x)} \in c_2(x)})\\
-  \strans{e \in \cfc} &=& \cf{e}
+  \ctrans{e \in \{x \mid b(x) \}} &=&  \min{\etrans{b(e)}} \land (\etrans{b(e)} = true \lor \etrans{e} = \unr)\\
+  \ctrans{e \in x:c_1 \to c_2(x)} &=& \forall x.~\min{\etrans{e(x)}} \to (\ctrans{x \not \in c_1} \lor  \ctrans{\etrans{e(x)} \in c_2(x)})\\
+  \ctrans{e \in \cfc} &=& \cf{\etrans{e}}
 \end{eqnarray*}
 
 \begin{eqnarray*}
-  \strans{e \not \in \{x \mid b(x) \}} &=&  \min{\etrans{b(e)}} \land (\etrans{b(e)} = false \lor \etrans{e} = \bad)\\
-  \strans{e \not \in x:c_1 \to c_2(x)} &=& \exists x.~ \strans{x \in c_1} \land  \strans{\etrans{e(x)} \not \in c_2(x)}\\
-  \strans{e \not \in \cfc} &=& \lnot \cf{e}
+  \ctrans{e \not \in \{x \mid b(x) \}} &=&  \min{\etrans{b(e)}} \land (\etrans{b(e)} = false \lor \etrans{e} = \bad)\\
+  \ctrans{e \not \in x:c_1 \to c_2(x)} &=& \exists x.~ \ctrans{x \in c_1} \land  \ctrans{\etrans{e(x)} \not \in c_2(x)}\\
+  \ctrans{e \not \in \cfc} &=& \lnot \cf{\etrans{e}}
 \end{eqnarray*}
 
 \begin{center}
 \begin{array}{rcl}
- \strans{e \in c_1 \&\& c_2} &=& \strans{e \in c_1} \land \strans{e \in c_2} \\
- \strans{e \not \in c_1 \&\& c_2} &=& \strans{e \not \in c_1} \lor \strans{e \not \in c_2}\\
- \strans{e \in c_1 || c_2} &=& \strans{e \in c_1} \lor \strans{e \in c_2} \\
-  \strans{e \not \in c_1 || c_2} &=& \strans{e \not \in c_1} \land \strans{e \not \in c_2}\\
- \strans{(a,b) \in (c_1,c_2)}   &=& \strans{a \in c_1} \land \strans{b \in c_2} \\
- \strans{(a,b) \not \in (c_1,c_2)}   &=& \strans{a \not \in c_1} \lor \strans{b \not \in c_2} \\
+ \ctrans{e \in c_1 \&\& c_2} &=& \ctrans{e \in c_1} \land \ctrans{e \in c_2} \\
+ \ctrans{e \not \in c_1 \&\& c_2} &=& \ctrans{e \not \in c_1} \lor \ctrans{e \not \in c_2}\\
+ \ctrans{e \in c_1 || c_2} &=& \ctrans{e \in c_1} \lor \ctrans{e \in c_2} \\
+  \ctrans{e \not \in c_1 || c_2} &=& \ctrans{e \not \in c_1} \land \ctrans{e \not \in c_2}\\
+ \ctrans{(a,b) \in (c_1,c_2)}   &=& \ctrans{a \in c_1} \land \ctrans{b \in c_2} \\
+ \ctrans{(a,b) \not \in (c_1,c_2)}   &=& \ctrans{a \not \in c_1} \lor \ctrans{b \not \in c_2} \\
 \end{array}
 \end{center}
 
-\caption{$\strans{}$ -- Contract translation}
-\label{strans}
+\caption{$\ctrans{}$ -- Contract translation}
+\label{ctrans}
 \end{figure*}
 
 \section{$\trans{}$ -- Checking a module}
@@ -498,13 +522,13 @@ contracts and a contract $c$ for a non-recursive function $f$ this is
 defined in $M$.
 
 We say that the function implementation is correct wrt to its contract
-iff $$\trans{M} \vdash \strans{f \in c}$$
+iff $$\trans{M} \vdash \ctrans{f \in c}$$
 
 \subsection{Contract checking -- Recursive case}
 If the function $f=e$ is recursive, then we ask the theorem prover the
 following:
 
-$$\trans{M - f}, \dtrans{f=e[f/f_p]}, \strans{f_p \in c} \vdash \strans{f \in c}$$
+$$\trans{M - f}, \dtrans{f=e[f/f_p]}, \ctrans{f_p \in c} \vdash \ctrans{f \in c}$$
 
 Where $M - f $ means the content of the module $M$ without $f$'s
 definition and $f$'s contract. TODO Stress that it's not always enough
@@ -526,7 +550,7 @@ is $last$.
 
 First, we want to check $f$'s contract. So we ask the theorem prover
 if
-$$ \dtrans{f}, \dtrans{g}, \strans{g} \vdash \strans{f} $$
+$$ \dtrans{f}, \dtrans{g}, \ctrans{g} \vdash \ctrans{f} $$
 
 But, given that $g$'s contract does not hold, we can derive $\bot$ and
 then prove that $f$'s contract hold.
@@ -546,12 +570,12 @@ and $g$.
 We should only include formulae that belongs to functions that are
 actually used. For example, to prove $a$'s contract, we should only
 include $f$ and $g$ translations, and we would ask equinox:
-$$ \dtrans{f},\dtrans{g},\dtrans{a},\strans{f},\strans{g} \vdash
-\strans{a}$$
+$$ \dtrans{f},\dtrans{g},\dtrans{a},\ctrans{f},\ctrans{g} \vdash
+\ctrans{a}$$
 
 
 \section{Correctness of the translation}
-For the translation to be useful, $\trans{M} \vdash \strans{f \in c} $
+For the translation to be useful, $\trans{M} \vdash \ctrans{f \in c} $
 should imply that $f \in c$.
 
 

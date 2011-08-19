@@ -61,7 +61,7 @@ dTrans (H.LetCase f vs e pes) = do
 
 --      eq3 = (F.And $ (et :/=: F.Var F.BAD):bigAndSel ) :=>: eq4
       eq4 = (F.FullApp (F.Regular f) vvs :=: F.Var F.UNR)
-      bigAndSel = [et :/=: F.Weak (F.FullApp (F.Regular di) [F.FullApp (F.Regular ("sel_"++(show i)++"_"++di)) [et] | i <- [1..ai]]) | (di,ai) <- arities]
+--      bigAndSel = [et :/=: F.Weak (F.FullApp (F.Regular di) [F.FullApp (F.Regular ("sel_"++(show i)++"_"++di)) [et] | i <- [1..ai]]) | (di,ai) <- arities]
       fptr1 = (F.Forall vvs $ (F.And [F.CF v | v <- vvs]) :=>: F.CF (F.FullApp (F.Regular f) vvs)) :<=>: (F.CF $ F.Var $ F.Regular (f++"_ptr"))
       fptr2 = F.Forall vvs $ (F.FullApp (F.Regular f) vvs) :=: (F.Weak (F.App $ (F.Var . F.Regular) (f++"_ptr") : vvs))
       fptr3 = F.Forall vvs $ (F.FullApp (F.Regular (f ++ "p")) vvs) :=: (F.Weak (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vvs))
@@ -230,8 +230,6 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
   where go fs ds = do 
           booleanPrelude <- tTrans $ H.Data "Bool" [("true",0,H.ok),("false",0,H.ok)]
           let prelude = [(F.Forall (map (F.Var . F.Regular) ["F","X"]) $ (F.And [F.CF $ F.Var $ F.Regular "X", F.CF $ F.Var $ F.Regular "F"]) :=>: (F.CF $ (F.App [(F.Var $ F.Regular "F"), (F.Var $ F.Regular "X")])))] ++ booleanPrelude
-                        --   ,F.Not $ F.CF $ F.Var $ F.BAD,F.CF $ F.Var $ F.UNR,(F.Var $ F.Regular "false") :/=: (F.Var $ F.Regular "true")
-                        --   ,F.CF (F.Var $ F.Regular "true"),F.CF (F.Var $ F.Regular "false"),(F.Var $ F.Regular "true") :/=: (F.Var $ F.Regular "unr"),(F.Var $ F.Regular "false") :/=: (F.Var $ F.Regular "unr")]
           let (toCheck,regDefs) = partition (isToCheck fs) ds
               recVar x = x ++ "p"
           a <- fmap arities get
