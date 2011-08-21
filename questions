@@ -1,3 +1,0 @@
-* Do we need to state that if a function has its arguments CF then it is CF?
-* Better notation for the user interaction (and more consistent)
-* e sometimes refers to case e' of ... ; that's not very good
