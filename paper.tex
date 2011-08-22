@@ -1,6 +1,7 @@
 \documentclass[preprint]{sigplanconf}
 
 \usepackage{amsmath}
+\usepackage{amsthm}
 \usepackage{amssymb}
 \usepackage{stmaryrd}
 \usepackage[pdftex]{graphicx}
@@ -12,6 +13,8 @@
 \newcommand{\ttrans}[1]{\mathcal{T} \llbracket #1 \rrbracket}
 \newcommand{\strans}[1]{\mathcal{S} \llbracket #1 \rrbracket}
 \newcommand{\trans}[1]{\llbracket #1 \rrbracket}
+
+\newtheorem{definition}{Definition}
 
 \newcommand{\tot}{\leftrightarrow}
 
@@ -27,6 +30,7 @@
 
 
 \title{Static contract checking for Haskell}
+\authorinfo{Simon, Koen, Dimitrios, Charles-Pierre}
 \maketitle
 
 \section{Introduction}
@@ -79,9 +83,9 @@ Nil \neq \unr
 
 Finally, we define projections for $Cons$. It is not strictly
 necessary, but it will be handy:
-\begin{equation**}
+\begin{equation*}
 \forall xs,y,ys.~sel_{1,Cons}(Cons(y,ys)) = xs \implies xs = y 
-\end{equation**}
+\end{equation*}
 \begin{equation*}
 \forall xs,y,ys.~sel_{2,Cons}(Cons(y,ys)) = xs \implies xs = ys 
 \end{equation*}
@@ -125,7 +129,7 @@ The translation of $head$ follows the same pattern:
  \forall xs.~xs \neq \bad \land xs \neq Nil \notag \\
  \land xs \neq Cons(sel_{1,Cons}(xs),sel_{2,Cons}(xs)) \to  \notag \\
  head(X) = \unr 
-\end{algin*}
+\end{align*}
 
 We now have translated the source code. Let us call all those formulae
 the theory $T$. We translate separatly the contract:
@@ -162,40 +166,40 @@ contracts and data definitions.
   them to toplevel declaration.
 \item We do not allow nested case expressions, because once again, we
   can always lift them to the toplevel.
-\item Until \label{ho} we will only consider full application of
+\item Until \ref{ho} we will only consider full application of
   functions ($f(x,y)$), in order to remove clutter. Dealing with
   partial application is not hard but a bit cumbersome.
 \end{itemize}
 
 \begin{figure}[h]
   \centering
-  \begin{array}{rclr}
+  \[  \begin{array}{rclr}
     mod &:=& def_1,\dots,def_n &\\
     def &\in& \mbox{Definition} & \\
     def &:=& \texttt{data } T = K_1 \mid \cdots \mid K_n & \\
     &\mid& f \in c & \\
     &\mid& f~\vec{x}~=~e & \\
     &\mid& \hspace{-0.2cm}
-       \begin{array}{rcl}
+         \begin{array}{rcl}
          f~\vec{x} &=& \texttt{case } e \texttt{ of } \\
          && K_1(\vec{x}) \to e_1 \mid \cdots \mid K_n(\vec{x}) \to e_n \\
        \end{array} & \\
-  \end{array}
+  \end{array} \]
   
-  \begin{array}{rclr}
+  \[  \begin{array}{rclr}
     x,y,f,g,a,b & \in & \mbox{Variables} \\
     T &\in& \mbox{Type Constructors} \\
     K &\in& \mbox{Data Constructors} \\
-  \end{array}
+  \end{array} \]
 
-  \begin{array}{rclr}
+  \[  \begin{array}{rclr}
     e &\in& \mbox{Expressions} & \\
     e &::=& x & \\
     &\mid& \bad & \\
     &\mid& e~e & \\
     &\mid& f(e,\dots,e) & \\
     &\mid& K(e,\dots,e) & \\
-  \end{array}
+  \end{array} \]
 
 \caption{Syntax of the language $\hprime$}
 \label{hprime-stx}
@@ -212,14 +216,14 @@ issue with generalisation to arbitrary tuples.
 \begin{figure}[h]
   \label{cont-stx}
   \centering 
-  \begin{array}{rclr}
+  \[  \begin{array}{rclr}
   c &:=& x:c \to c\\
   &\mid& (c,c) \\
   &\mid& c \land c \\
   &\mid& c \lor c \\
   &\mid& \{ x \mid p \}\\
   &\mid& \cfc \\
-  \end{array}
+  \end{array} \]
   \caption{Contract syntax}
 \end{figure}
 
@@ -231,7 +235,7 @@ meets the specification given by its contract.
 \begin{figure}[h]
   \label{cont-smt}
   \centering
-  \begin{array}{rcl}
+  \[  \begin{array}{rcl}
     e \in \{x \mid p \} &\iff& e \mbox{ diverges or } p[e/x] \not \to^\star \{\bad,False\}\\
     e \in x:c_1 \to c_2 &\iff& \forall e_1 \in c_1, (e~e_1) \in c_2[e_1/x]\\
     e \in (c_1,c_2) &\iff& e \mbox{ diverges or }\\
@@ -239,7 +243,7 @@ meets the specification given by its contract.
     e \in c_1 \land c_2 &\iff& e \in c_1 \mbox{ and } e \in c_2 \\
     e \in c_1 \lor c_2 &\iff& e \in c_1 \mbox{ or } e \in c_2 \\
     e \in \cfc &\iff& e \mbox{ is crash-free}
-  \end{array}
+  \end{array} \]
   \caption{Semantics of contract satisfaction}
 \end{figure}
 
@@ -322,13 +326,13 @@ We use first-order logic with equality, defined in figure \ref{fol-stx}.
 \begin{figure}
   \label{fol-stx}
   \centering
-  \begin{array}{rcl}
+  \[  \begin{array}{rcl}
     v,w,s,t &:=& x \mid K(t,\dots,t) \mid f(t,\dots,t) \mid app(t,t)\\
-    && \mid \bad \mid \unr & \\
+    && \mid \bad \mid \unr \\
     \phi &:=& \forall x.\phi \mid \lnot \phi \mid \phi \lor \phi \mid \top \mid \bot \mid t=t \mid \mbox{CF}(t)\\
-    && \mid \phi \land \phi \mid \phi \to \phi \mid \phi \tot \phi & \\
+    && \mid \phi \land \phi \mid \phi \to \phi \mid \phi \tot \phi  \\
     \Phi &:=& \epsilon \mid \phi \mid \Phi \cup \Phi \\
-  \end{array}
+  \end{array} \]
   \caption{First-order logic syntax}
 \end{figure}
 
@@ -383,13 +387,13 @@ pattern-matched on $\bad$ then the result should be $\unr$.
   \label{dtrans-case}
   $$ \dtrans{f(x_1,\dots,x_n) = \mbox{case } e \mbox{ of } [K_1(\vec{x_1}) = e_1,\dots,K_n(\vec{x_n}) = e_n]}$$
   \begin{center}
-    \begin{array}{rccccccl}
+    \[  \begin{array}{rccccccl}
       \forall \vec{a},y,\vec{x}_{1 \leq i \leq n}.~&\min{y} &\land& \etrans{e} = K_1(\vec{x_1}) &\land& f~\vec{a} = y &\to& y = \etrans{e_1}\\
                                                &&&&&& \cdots & \\
                                                &\min{y} &\land& \etrans{e} = K_n(\vec{x_n}) &\land& f~\vec{a} = y &\to& y = \etrans{e_n}\\
                                                &\min{y} &\land& \etrans{e} = \bad          &\land& f~\vec{a} = y &\to& y = \bad\\
                                                &\min{y} && \land                           &&      f~\vec{a} = y &\to& \min{e} \land (e=\bad \lor \bigvee_i e = \weak{K_i(\vec{x})} \lor y = \unr)
-    \end{array}
+    \end{array} \]
     \end{center}
   \caption{$\dtrans{}$ -- Case definitions}
 \end{figure*}
@@ -402,7 +406,7 @@ $$\ttrans{\mbox{data } T = K_1, \dots, K_n} = S_1 \cup S_2 \cup S_3 \cup S_4$$
 
 \begin{itemize}
 \item $(S_1)$ For each $K_i$ of arity $a_i$ we introduce selectors
-  $sel_{k,K_i}$, which are the projection of $K_i(x_1,\dots,x_{n_i))$
+  $sel_{k,K_i}$, which are the projection of $K_i(x_1,\dots,x_{n_i})$
   on its $k$-th component.
 \item $(S_2)$ For each pair of constructors $K_i,K_j$, we state that they can
   never map to the same value.
@@ -459,14 +463,14 @@ $true$ refers to the translation to a term of the data constructor
 \end{eqnarray*}
 
 \begin{center}
-\begin{array}{rcl}
+\[  \begin{array}{rcl}
  \strans{e \in c_1 \&\& c_2} &=& \strans{e \in c_1} \land \strans{e \in c_2} \\
  \strans{e \not \in c_1 \&\& c_2} &=& \strans{e \not \in c_1} \lor \strans{e \not \in c_2}\\
  \strans{e \in c_1 || c_2} &=& \strans{e \in c_1} \lor \strans{e \in c_2} \\
   \strans{e \not \in c_1 || c_2} &=& \strans{e \not \in c_1} \land \strans{e \not \in c_2}\\
  \strans{(a,b) \in (c_1,c_2)}   &=& \strans{a \in c_1} \land \strans{b \in c_2} \\
  \strans{(a,b) \not \in (c_1,c_2)}   &=& \strans{a \not \in c_1} \lor \strans{b \not \in c_2} \\
-\end{array}
+\end{array} \]
 \end{center}
 
 \caption{$\strans{}$ -- Contract translation}
