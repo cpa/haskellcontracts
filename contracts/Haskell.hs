@@ -14,7 +14,7 @@ type DefGeneral = MetaDefGeneral Expression
 type Program = [DefGeneral]
 type Pattern = [Variable]
 type Contract = MetaContract Expression
-
+type Definition = MetaDefinition Expression
 
 
 data MetaExpression v = Var v

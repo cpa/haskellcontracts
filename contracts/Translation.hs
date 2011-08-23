@@ -8,15 +8,15 @@ import Data.List (partition)
 import Control.Applicative
 
 type Fresh = State TransState
-
 data TransState = S { prefix  :: String -- the prefix of our fresh variables
                     , count   :: Int    -- a counter for the suffix of our fresh variables
-                    , arities :: [H.Type H.Variable]} -- The arities of functions/data constructors in the program
+                    , arities :: [H.Type H.Variable]} -- The arities of functions/data constructors in the program, which should be read-only
 
 
 -- Expression
 -------------
 
+eTrans :: H.Expression -> Fresh F.Term
 eTrans (H.Var v) = return $ (F.Var $ F.Regular v)
 eTrans (H.App e1 e2) = do 
   t1 <- eTrans e1
@@ -32,10 +32,13 @@ eTrans H.BAD = return $ F.Var F.BAD
 -- Definition
 -------------
 
+dTrans :: H.Definition -> Fresh [F.Formula]
 dTrans (H.Let f vs e) = do
   et <- eTrans e
   return $ [F.Forall vvs $ (F.FullApp (F.Regular f) vvs) :=: (F.Weak $ et),fptr1,fptr2,fptr3]
   where vvs = map (F.Var . F.Regular) vs
+        -- fptri are equations defining functions relatively to their app counterparts.
+        -- eg that app(app(f_ptr,x),y) = f(x,y)
         fptr1 = (F.Forall vvs $ (F.And [F.CF v | v <- vvs]) :=>: F.CF (F.FullApp (F.Regular f) vvs)) :<=>: (F.CF $ F.Var $ F.Regular (f++"_ptr"))
         fptr2 = F.Forall vvs $ (F.FullApp (F.Regular f) vvs) :=: (F.Weak (F.App $ (F.Var . F.Regular) (f++"_ptr") : vvs))
         fptr3 = F.Forall vvs $ (F.FullApp (F.Regular (f ++ "p")) vvs) :=: (F.Weak (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vvs))
@@ -57,7 +60,6 @@ dTrans (H.LetCase f vs e pes) = do
       fptr1 = (F.Forall vvs $ (F.And [F.CF v | v <- vvs]) :=>: F.CF (F.FullApp (F.Regular f) vvs)) :<=>: (F.CF $ F.Var $ F.Regular (f++"_ptr"))
       fptr2 = F.Forall vvs $ (F.FullApp (F.Regular f) vvs) :=: (F.Weak (F.App $ (F.Var . F.Regular) (f++"_ptr") : vvs))
       fptr3 = F.Forall vvs $ (F.FullApp (F.Regular (f ++ "p")) vvs) :=: (F.Weak (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vvs))
-
   return $ [F.Forall (vvs ++ zs) $ F.And (eq1++[eq2,eq3]),fptr1,fptr2,fptr3]
 
 
@@ -66,7 +68,7 @@ dTrans (H.LetCase f vs e pes) = do
 -- Contract satisfaction
 ------------------------
 
-
+sTrans :: H.Expression -> H.Contract -> Fresh [F.Formula]
 sTrans e H.Any = return [Top]
 
 sTrans e (H.Pred x u) =  do
@@ -108,6 +110,7 @@ sTrans e (H.CF) = do
 -- -- Data constructors
 -----------------------
 
+tTrans :: H.DataType -> Fresh [F.Formula]
 tTrans d = concat <$> (sequence [s1 d,s2 d,s3 d,s4 d])
 
 --s1 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
@@ -172,6 +175,7 @@ s4D (d,a,c) = do
 -- Final translation
 --------------------
 
+isToCheck :: [H.Variable] -> H.DefGeneral -> Bool
 isToCheck fs (H.Def (H.Let f _ _))         = f `elem` fs
 isToCheck fs (H.Def (H.LetCase f _ _ _))   = f `elem` fs
 isToCheck fs (H.ContSat (H.Satisfies f _)) = f `elem` fs

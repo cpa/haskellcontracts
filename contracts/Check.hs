@@ -44,7 +44,7 @@ main = do
     then unless (dryRun cfg || quiet cfg) $ putStrLn $ f ++ ": all the contracts hold."
     else do
     unless (quiet cfg) $ 
-      putStrLn $ "There's at least one contract in " ++ f ++ " that took more than " ++ show (timeLimit cfg) ++ " sec to prove."
+      putStrLn $ "There's at least one contract in " ++ f ++ " that took more than " ++ show (timeLimit cfg) ++ " sec to prove, or that doesn't hold."
     exitWith $ ExitFailure 1
 
 checkFile :: String -> Conf -> IO Bool  
@@ -109,7 +109,7 @@ check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
     return res
     else do
     unless (quiet cfg) $ 
-      putStrLn ""
+      putStrLn "" -- just print a newline
     return True
   
 check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
@@ -131,9 +131,9 @@ check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
     then do 
     writeFile tmpFile tptpTheory
     let (enginePath,engineOpts,engineUnsat) = case lookup (engine cfg) provers of
-          Nothing -> error "Engine not recognized. Supported engines are: equinox, SPASS, vampire"
+          Nothing -> error "Engine not recognized. Supported engines are: equinox, SPASS, vampire, E"
           Just x  -> (path x,opts x,unsat x)
-    res <- engineUnsat <$> readProcess  enginePath (engineOpts ++ [tmpFile]) ""
+    res <- engineUnsat <$> readProcess enginePath (engineOpts ++ [tmpFile]) ""
     removeFile tmpFile
     when res $
       unless (quiet cfg) $
@@ -141,6 +141,6 @@ check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
     return res
     else do
     unless (quiet cfg) $
-      putStrLn ""
+      putStrLn "" -- just print a newline
     return True
     where showfs fs = (concat $ intersperse " " fs) ++ " "
