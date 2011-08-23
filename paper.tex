@@ -8,6 +8,7 @@
 
 \begin{document}
 
+\def\ruleform#1{{\setlength{\fboxrule}{1.2pt}\fbox{\normalsize $#1$}}}
 \newcommand{\etrans}[1]{\mathcal{E} \llbracket #1 \rrbracket}
 \newcommand{\dtrans}[1]{\mathcal{D} \llbracket #1 \rrbracket}
 \newcommand{\ktrans}[1]{\mathcal{K} \llbracket #1 \rrbracket}
@@ -362,12 +363,15 @@ translate definitions, data types and contracts to first-order
 formulae. It is described in figure~\ref{etrans}.
 
 \begin{figure}
-\begin{eqnarray*}
+$$
+\begin{array}{rcl}
+\multicolumn{3}{c}{\ruleform{\etrans{e} = t}} \\[2.5mm]
   \etrans{x} &=& x\\
   \etrans{f(e_1,\dots,e_n)} &=& f(\etrans{e_1},\dots,\etrans{e_n})\\
   \etrans{K(e_1,\dots,e_n)} &=& K(\etrans{e_1},\dots,\etrans{e_n})\\
   \etrans{\bad} &=& \bad
-\end{eqnarray*}
+\end{array}
+$$
 \caption{$\etrans{}$ -- Expression translation}
 \label{etrans}
 \end{figure}
