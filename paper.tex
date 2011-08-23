@@ -178,14 +178,15 @@ contracts and data definitions.
   \begin{array}{rclr}
     mod &:=& def_1,\dots,def_n &\\
     def &\in& \mbox{Definition} & \\
-    def &:=& \texttt{data } T = K_1 \mid \cdots \mid K_n & \\
-    &\mid& f \in c & \\
+    def &:=& \texttt{data } T = K_1 \mid \cdots \mid K_n & \mbox{Data definition}\\
+    &\mid& f \in c & \mbox{Contract claim}\\
     &\mid& f~\vec{x}~=~e & \\
-    &\mid& \hspace{-0.2cm}
-       \begin{array}{rcl}
-         f~\vec{x} &=& \texttt{case } e \texttt{ of } \\
-         && K_1(\vec{x}) \to e_1 \mid \cdots \mid K_n(\vec{x}) \to e_n \\
-       \end{array} & \\
+    &\raisebox{ 0.18 cm }{$\mid$}& \multicolumn{2}{c}{
+      \begin{array}{rcl}
+        \hspace{-0.2cm} f~\vec{x} &=& \texttt{case } e \texttt{ of } \\
+         && K_1(\vec{x}_1) \to e_1 \mid \cdots \mid K_n(\vec{x}_n) \to e_n \\
+       \end{array} 
+       } \\
   \end{array} \]
   
   \[  \begin{array}{rclr}
@@ -366,7 +367,7 @@ formulae. It is described in figure~\ref{etrans}.
 $$
 \begin{array}{rcl}
 \multicolumn{3}{c}{\ruleform{\etrans{e} = t}} \\[2.5mm]
-  \etrans{x} &=& x\\
+ \etrans{x} &=& x\\
   \etrans{f(e_1,\dots,e_n)} &=& f(\etrans{e_1},\dots,\etrans{e_n})\\
   \etrans{K(e_1,\dots,e_n)} &=& K(\etrans{e_1},\dots,\etrans{e_n})\\
   \etrans{\bad} &=& \bad
@@ -398,6 +399,7 @@ pattern-matched on $\bad$ then the result should be $\unr$.
 \begin{figure*}
 \[
 \begin{array}{rcl}
+  \multicolumn{3}{c}{\ruleform{\dtrans{def} = \Phi}} \\[2.5mm]
   \dtrans{\mbox{data } T = K_1, \dots, K_n} &=& \ktrans{\mbox{data } T = K_1, \dots, K_n} \\
   \dtrans{f \in c} &=& \ctrans{f \in c} \\
   \dtrans{f(\vec{x}) = e} &=& \forall \vec{x},y.~ \min{y} \land y =
@@ -453,7 +455,8 @@ $$\ktrans{\mbox{data } T = K_1, \dots, K_n} = \Phi_1 \cup \Phi_2 \cup \Phi_3 \cu
 \end{itemize}
 
 \begin{figure*}
- $$\ktrans{\mbox{data } T = K_1, \dots, K_n} = \Phi_1 \cup \Phi_2 \cup \Phi_3 \cup \Phi_4$$
+  $$ \ruleform{\ktrans{data~def} = \Phi} $$
+$$\ktrans{\mbox{data } T = K_1, \dots, K_n} = \Phi_1 \cup \Phi_2 \cup \Phi_3 \cup \Phi_4$$
  \hspace{5.6cm}where
   \begin{center}
     \[  \begin{array}{rcl}
@@ -478,6 +481,7 @@ c$. We have to do that because one is not the negation of the other,
 even though $\lnot (f \not \in c)$ implies $f \in c$.
 
 \begin{figure*}
+  $$ \ruleform{\ctrans{contract} = \Phi} $$
 \begin{eqnarray*}
   \ctrans{e \in \{x \mid b(x) \}} &=&  \min{\etrans{b(e)}} \land (\etrans{b(e)} = true \lor \etrans{e} = \unr)\\
   \ctrans{e \in x:c_1 \to c_2(x)} &=& \forall x.~\min{\etrans{e(x)}} \to (\ctrans{x \not \in c_1} \lor  \ctrans{\etrans{e(x)} \in c_2(x)})\\
@@ -572,7 +576,7 @@ Finally, the user thinks he's done, but in fact he has proven nothing.
 Consider the following situation, where $a$'s definition relies on $f$
 and $g$.
 \begin{center}
-\includegraphics[scale=0.5]{flow.png}
+\includegraphics[scale=0.3]{flow.png}
 \end{center}
 
 We should only include formulae that belongs to functions that are
