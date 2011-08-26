@@ -483,15 +483,15 @@ even though $\lnot (f \not \in c)$ implies $f \in c$.
 \begin{figure*}
   $$ \ruleform{\ctrans{contract} = \Phi} $$
 \begin{eqnarray*}
-  \ctrans{e \in \{x \mid b(x) \}} &=&  \min{\etrans{b(e)}} \land (\etrans{b(e)} = true \lor \etrans{e} = \unr)\\
-  \ctrans{e \in x:c_1 \to c_2(x)} &=& \forall x.~\min{\etrans{e(x)}} \to (\ctrans{x \not \in c_1} \lor  \ctrans{\etrans{e(x)} \in c_2(x)})\\
-  \ctrans{e \in \cfc} &=& \cf{\etrans{e}}
+  \ctrans{e \in \{x \mid b \}} &=&  \min{\etrans{b[e/x]}} \land (\etrans{b[e/x]} = true \lor \etrans{e} = \unr)\\
+  \ctrans{e \in x:c_1 \to c_2} &=& \forall x.~\min{\etrans{e~x}} \to (\ctrans{x \not \in c_1} \lor  \ctrans{e~x \in c_2})\\
+  \ctrans{e \in \cfc} &=& \min{\etrans{e}} \land \cf{\etrans{e}}
 \end{eqnarray*}
 
 \begin{eqnarray*}
-  \ctrans{e \not \in \{x \mid b(x) \}} &=&  \min{\etrans{b(e)}} \land (\etrans{b(e)} = false \lor \etrans{e} = \bad)\\
-  \ctrans{e \not \in x:c_1 \to c_2(x)} &=& \exists x.~ \ctrans{x \in c_1} \land  \ctrans{\etrans{e(x)} \not \in c_2(x)}\\
-  \ctrans{e \not \in \cfc} &=& \lnot \cf{\etrans{e}}
+  \ctrans{e \not \in \{x \mid b \}} &=&  \min{\etrans{b[e/x]}} \land (\etrans{b[e/x]} = false \lor \etrans{e} = \bad)\\
+  \ctrans{e \not \in x:c_1 \to c_2} &=& \exists x.~ \ctrans{x \in c_1} \land  \ctrans{e~x \not \in c_2}\\
+  \ctrans{e \not \in \cfc} &=& \min{\etrans{e}} \land \lnot \cf{\etrans{e}}
 \end{eqnarray*}
 
 \begin{center}

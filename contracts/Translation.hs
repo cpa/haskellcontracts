@@ -111,7 +111,7 @@ sTrans e (H.CF) = do
 -----------------------
 
 tTrans :: H.DataType -> Fresh [F.Formula]
-tTrans d = concat <$> (sequence [s1 d,s2 d,s3 d,s4 d])
+tTrans d = concat <$> sequence [s1 d,s2 d,s3 d,s4 d]
 
 --s1 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
 s1 (H.Data _ dns) = sequence $ map s1D dns
@@ -186,7 +186,7 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
   where go fs ds = do 
           let (toCheck,regDefs) = partition (isToCheck fs) ds
               recVar x = x ++ "p"
-          a <- fmap arities get
+          a <- arities <$> get
           regFormulae <- forM regDefs $ \d -> case d of
             H.DataType t                -> tTrans t
             H.Def d                     -> dTrans d

@@ -76,8 +76,9 @@ hasNoContract f prog = and $ (flip map) prog $ \d -> case d of
   _ -> True
 
 
--- the distinction between one or several functions to check at the same time is 
--- not stricly necessary but it gives a nicer output to the user
+-- the distinction between one or several functions to check at the
+-- same time is not stricly necessary but it gives a nicer output to
+-- the user
 check :: Program -> [Variable] -> Conf -> [Variable] -> IO Bool
 check prog [] cfg _ = error "There should be at least one definition!"
 check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
