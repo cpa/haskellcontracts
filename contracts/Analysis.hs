@@ -36,7 +36,6 @@ contVars f xs (Pred x e)     = freeVars (x:xs) e
 contVars f xs (And c1 c2)    = contVars f xs c1 ++ contVars f xs c2
 contVars f xs (Or c1 c2)     = contVars f xs c1 ++ contVars f xs c2
 contVars f xs CF             = []
-contVars f xs Any            = []
         
 dataVars :: DefGeneral -> [Variable]
 dataVars (DataType (Data _ vacs)) = map fst3 vacs

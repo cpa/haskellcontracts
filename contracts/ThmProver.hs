@@ -2,9 +2,9 @@ module ThmProver where
 
 import Data.List (isInfixOf)
 
-data ThmProverOpt = T { path :: FilePath
-                      , opts :: [String]
-                      , unsat  :: String -> Bool }
+data ThmProverOpt = T { path  :: FilePath
+                      , opts  :: [String]
+                      , unsat :: String -> Bool }
 
 type ThmProver = (String,ThmProverOpt)
                     
