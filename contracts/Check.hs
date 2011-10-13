@@ -16,8 +16,7 @@ import System.Process (system,readProcess)
 import System.Directory (removeFile)
 import Control.Applicative
 
-data Conf = Conf { timeLimit :: Int
-                 , printTPTP :: Bool
+data Conf = Conf { printTPTP :: Bool
                  , toCheck   :: [String] 
                  , dryRun    :: Bool 
                  , engine    :: String
@@ -25,9 +24,8 @@ data Conf = Conf { timeLimit :: Int
                  , quiet     :: Bool
                  }
 
-conf flags = go flags (Conf 10 False [] False "equinox" True False)
-  where go ("-t":n:flags)       cfg = go flags (cfg {timeLimit=read n :: Int})
-        go ("-p":flags)         cfg = go flags (cfg {printTPTP=True})
+conf flags = go flags defaults
+  where go ("-p":flags)         cfg = go flags (cfg {printTPTP=True})
         go ("-c":f:flags)       cfg = go flags (cfg {toCheck=f:(toCheck cfg)})
         go ("--dry-run":flags)  cfg = go flags (cfg {dryRun=True})
         go ("--engine":e:flags) cfg = go flags (cfg {engine=e})
@@ -36,15 +34,37 @@ conf flags = go flags (Conf 10 False [] False "equinox" True False)
         go (f:flags)            cfg = error $ f ++": unrecognized option"
         go []                   cfg = cfg
 
+        defaults = Conf {printTPTP=False, toCheck=[], dryRun=False,
+                         engine="equinox",  noWeak=True, quiet=False}
+usage = unlines
+  [ "usage: ./Check file [-p] [-q] [-c f] [--dry-run] [--engine equinox|vampire|SPASS|E] [--weak]"
+  , ""
+  , "Default behaviour is: ./Check file --engine equinox"
+  , ""
+  , " * -p means that the first-order TPTP theory is written in files for each contract proof (the name of the file is outputed on stdout)"
+  , " * -q outputs nothing, not even the result (I use it to make time measurements less painful)"
+  , " * -c f means that only the contract for f (and the contracts of functions that are mutually recursive with f, if any) will be checked, assuming every other contract. If there is no -c option, all the contracts in the file will be checked."
+  , " * --dry-run just prints the order in which contracts would be checked but doesn't check anything. If used in conjunction with -p it'll still write then tptp files."
+  , " * --weak adds $weak annotations to the TPTP formulae. It's equinox specific, default is OFF."
+  , " * --engine equinox|vampire|SPASS|E let you choose the automated theorem prover to use as backend. More provers can be easily added in ThmProver.hs"
+  ]
+
 main = do
+  n <- length <$> getArgs
+  unless (n > 0) usageAndExit
   f:flags <- getArgs
+  when (f == "-h" || f == "--help") usageAndExit
   let cfg = conf flags
   res <- checkFile f cfg
   if res
     then unless (dryRun cfg || quiet cfg) $ putStrLn $ f ++ ": all the contracts hold."
     else do
     unless (quiet cfg) $ 
-      putStrLn $ "There's at least one contract in " ++ f ++ " that took more than " ++ show (timeLimit cfg) ++ " sec to prove, or that doesn't hold."
+      putStrLn $ "There's at least one contract in " ++ f ++ " that doesn't hold."
+    exitWith $ ExitFailure 1
+ where
+  usageAndExit = do
+    putStrLn usage
     exitWith $ ExitFailure 1
 
 checkFile :: String -> Conf -> IO Bool  
@@ -53,9 +73,6 @@ checkFile f cfg = do
   let prog = haskell $ lexer s
       order = checkOrder prog
       cfg' = if toCheck cfg == [] then cfg {toCheck = concat order} else cfg
-  system $ "ulimit -t " ++ show (timeLimit cfg)
-  unless (quiet cfg) $ 
-    putStrLn $ "Time limit for each contract is: " ++ show (timeLimit cfg) ++ " sec. WARNING: ulimit may or may not work on your box..."
   res <- sequence $ go prog [] cfg' order
   return $ and res
     where go prog checkedDefs cfg [] = []
