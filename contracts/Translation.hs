@@ -68,10 +68,10 @@ dTrans (H.LetCase f vs e pes) = do
 -- Contract satisfaction
 ------------------------
 
-sTrans :: H.Expression -> H.Contract -> Fresh [F.Formula]
-sTrans e H.Any = return [Top]
+cTrans :: H.Expression -> H.Contract -> Fresh [F.Formula]
+cTrans e H.Any = return [Top]
 
-sTrans e (H.Pred x u) =  do
+cTrans e (H.Pred x u) =  do
   let  u' = H.subst e x u
   et' <- eTrans e 
   ut' <- eTrans u'
@@ -81,29 +81,29 @@ sTrans e (H.Pred x u) =  do
       b = count s
   return $ [F.And $ [F.Or [(et :=: F.Var F.UNR) ,F.And [F.Var F.BAD :/=: ut' , ut' :/=: (F.Var $ F.Regular "false")]]]] -- The data constructor False.
 
-sTrans e (H.AppC x c1 c2) = do
+cTrans e (H.AppC x c1 c2) = do
   s <- get
   let k = count s
   put $ s {count = k + 1}
   let freshX = (prefix s)++(show $ k) 
       c2' = H.substC (H.Var freshX) x c2
-  [f1] <- sTrans (H.Var freshX) c1
+  [f1] <- cTrans (H.Var freshX) c1
   [f2] <- case e of 
-    H.Var x -> sTrans (H.apps $ H.Var x:[H.Var $ freshX]) c2'
-    _ -> sTrans (H.App e (H.Var freshX)) c2'
+    H.Var x -> cTrans (H.apps $ H.Var x:[H.Var $ freshX]) c2'
+    _ -> cTrans (H.App e (H.Var freshX)) c2'
   return $ [F.Forall [F.Var $ F.Regular $ freshX] (f1 :=>: f2)]
 
-sTrans e (H.And c1 c2) = do
-  [f1] <- sTrans e c1
-  [f2] <- sTrans e c2
+cTrans e (H.And c1 c2) = do
+  [f1] <- cTrans e c1
+  [f2] <- cTrans e c2
   return $ [F.And [f1,f2]]
   
-sTrans e (H.Or c1 c2) = do
-  [f1] <- sTrans e c1
-  [f2] <- sTrans e c2
+cTrans e (H.Or c1 c2) = do
+  [f1] <- cTrans e c1
+  [f2] <- cTrans e c2
   return $ [F.Or [f1,f2]]
 
-sTrans e (H.CF) = do
+cTrans e (H.CF) = do
   et <- eTrans e
   return $ [F.CF $ et]
 
@@ -190,14 +190,14 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
           regFormulae <- forM regDefs $ \d -> case d of
             H.DataType t                -> tTrans t
             H.Def d                     -> dTrans d
-            H.ContSat (H.Satisfies x y) -> F.appifyF a <$> sTrans (H.Var x) y
+            H.ContSat (H.Satisfies x y) -> F.appifyF a <$> cTrans (H.Var x) y
           speFormulae <- forM toCheck $ \d -> case d of
             H.DataType t                 -> error "No contracts for datatypes yet!"
             H.Def (H.Let f xs e)         -> dTrans $ H.Let f xs (H.substs (zip (map (H.Var . recVar) fs) fs) e)
             H.Def (H.LetCase f xs e pes) -> dTrans $ H.LetCase f xs (H.substs (zip (map (H.Var . recVar) fs) fs) e) [(p,(H.substs (zip (map (H.Var . recVar) fs) fs) e)) | (p,e) <- pes]
             H.ContSat (H.Satisfies x y)  -> do
-              contP   <- F.appifyF a <$> sTrans (H.Var $ recVar x) (H.substsC (zip (map (H.Var . recVar) fs) fs) y)
-              notCont <- map F.Not <$> F.appifyF a <$> sTrans (H.Var x) y
+              contP   <- F.appifyF a <$> cTrans (H.Var $ recVar x) (H.substsC (zip (map (H.Var . recVar) fs) fs) y)
+              notCont <- map F.Not <$> F.appifyF a <$> cTrans (H.Var x) y
               return $ notCont ++ contP
           return $ concat $ prelude : regFormulae ++ speFormulae 
             where prelude = [(F.Forall (map (F.Var . F.Regular) ["F","X"]) $ (F.And [F.CF $ F.Var $ F.Regular "X", F.CF $ F.Var $ F.Regular "F"]) :=>: (F.CF $ (F.App [(F.Var $ F.Regular "F"), (F.Var $ F.Regular "X")])))
