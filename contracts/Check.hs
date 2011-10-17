@@ -50,10 +50,8 @@ usage = unlines
   ]
 
 main = do
-  n <- length <$> getArgs
-  unless (n > 0) usageAndExit
-  f:flags <- getArgs
-  when (f == "-h" || f == "--help") usageAndExit
+  ffs@(f:flags) <- getArgs
+  when ("-h" `elem` ffs || "--help" `elem` ffs) usageAndExit
   let cfg = conf flags
   res <- checkFile f cfg
   if res
