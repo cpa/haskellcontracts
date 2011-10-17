@@ -11,11 +11,11 @@ import Parser
 -- takes a program and returns a graph where nodes are functions
 -- and a is connected to b iff b's definition uses a
 graphFromProgram :: Program -> (Graph,Vertex -> (Variable, Variable, [Variable]),Variable -> Maybe Vertex)
-graphFromProgram p = graphFromEdges [ go d | d <- p, case d of Def _ -> True ; _ -> False ]
+graphFromProgram p = graphFromEdges [go d | d@(Def _) <- p]
   where go (Def (Let f xs e)) = (f,f,freeVars (xs++dataV) e ++ varsInCont p f)
         go (Def (LetCase f xs e pes)) = (f,f,varsInCont p f ++ (concatMap (\(p,e) -> freeVars (xs++dataV++p) e) $ ([],e):pes))
 --        go (ContSat (Satisfies f c))  = (f,f,contVars f dataV c)
-        dataV = dataVars =<< [ d | d <- p, case d of DataType _ -> True ; _ -> False ]
+        dataV = dataVars =<< [d | d@(DataType _) <- p]
 
 -- finds the contract for f in p and returns the variables in it
 -- Consider this example: 
@@ -23,12 +23,7 @@ graphFromProgram p = graphFromEdges [ go d | d <- p, case d of Def _ -> True ; _
 -- f ::: {x: eq x 0} -> {y: eq y 0}
 -- f doesn't use any function so it has nothing pointing to it in the graph
 -- but still, we need to include eq's definition in the theory!
-varsInCont p f = 
-  if all (==Nothing) contracts
-  then []
-  else contVars f [] (fromJust $ head $ filter (/= Nothing) contracts)
-    where contracts = map (\d -> case d of ContSat (Satisfies x c) -> if x == f then Just c else Nothing ; _ -> Nothing) p
--- TODO Here I assume there's only one contract per function.
+varsInCont p f = contVars f [] =<< [c | ContSat (Satisfies x c) <- p, x == f]
 
 -- returns the variables used in a contract
 contVars f xs (AppC x c1 c2) = contVars f xs c1 ++ contVars f xs c2
