@@ -35,7 +35,10 @@ eTrans H.BAD = return $ F.Var F.BAD
 dTrans :: H.Definition -> Fresh [F.Formula]
 dTrans (H.Let f vs e) = do
   et <- eTrans e
-  return $ [F.Forall vvs $ (F.FullApp (F.Regular f) vvs) :=: (F.Weak $ et),fptr1,fptr2,fptr3]
+  if null vs
+  then return $ [(F.Var $ F.Regular f) :=: et]
+  else return $ [F.Forall vvs $ (F.FullApp (F.Regular f) vvs) 
+                :=: (F.Weak $ et),fptr1,fptr2,fptr3]
   where vvs = map (F.Var . F.Regular) vs
         -- fptri are equations defining functions relatively to their app counterparts.
         -- eg that app(app(f_ptr,x),y) = f(x,y)
