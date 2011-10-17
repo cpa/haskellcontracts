@@ -83,10 +83,7 @@ hasBeenChecked checkedDefs (ContSat (Satisfies f _)) = f `elem` checkedDefs
 hasBeenChecked _ _  = True
 
 hasNoContract :: Variable -> [DefGeneral] -> Bool
-hasNoContract f prog = and $ (flip map) prog $ \d -> case d of
-  ContSat (Satisfies g _) -> f /= g
-  _ -> True
-
+hasNoContract f prog = not $ f `elem` [g | ContSat (Satisfies g _) <- prog]
 
 check :: Program -> [Variable] -> Conf -> [Variable] -> IO Bool
 check prog [] cfg _ = error "There should be at least one definition!"
