@@ -88,41 +88,8 @@ hasNoContract f prog = and $ (flip map) prog $ \d -> case d of
   _ -> True
 
 
--- the distinction between one or several functions to check at the
--- same time is not stricly necessary but it gives a nicer output to
--- the user
 check :: Program -> [Variable] -> Conf -> [Variable] -> IO Bool
 check prog [] cfg _ = error "There should be at least one definition!"
-check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
-                               | otherwise = do
-  let safeSubset prog checkedDefs = filter (hasBeenChecked (f:checkedDefs)) prog
-      tptpTheory = (trans (safeSubset prog checkedDefs) [f])
-                   >>= simplify >>= toTPTP
-      tmpFile = "tmp.tptp"
-  when (printTPTP cfg) $ do
-    writeFile (f++".tptp") tptpTheory
-    unless (quiet cfg) $
-      putStrLn $ "Writing " ++ f ++ ".tptp"
-  unless (quiet cfg) $
-    putStr $ "Checking " ++ f ++ "..."
-  hFlush stdout
-  if not $ dryRun cfg  
-    then do 
-    writeFile tmpFile tptpTheory
-    let (enginePath,engineOpts,engineUnsat) = case lookup (engine cfg) provers of
-          Nothing -> error "Engine not recognized. Supported engines are: equinox, SPASS, vampire and E"
-          Just x  -> (path x,opts x,unsat x)
-    res <- engineUnsat <$> readProcess  enginePath (engineOpts ++ [tmpFile]) ""
-    removeFile tmpFile
-    when res $ 
-      unless (quiet cfg) $ 
-        putStrLn "\tOK!"
-    return res
-    else do
-    unless (quiet cfg) $ 
-      putStrLn "" -- just print a newline
-    return True
-  
 check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
                               | otherwise = do
   let safeSubset prog checkedDefs = filter (hasBeenChecked (fs++checkedDefs)) prog
@@ -134,7 +101,7 @@ check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
     unless (quiet cfg) $
       putStrLn $ "Writing " ++ (head fs) ++ ".tptp"
   unless (quiet cfg) $
-    putStr $ showfs fs ++ "are mutually recursive. Checking them altogether..."
+    putStr $ show fs ++ " are mutually recursive. Checking them altogether..."
   hFlush stdout
   if not $ dryRun cfg  
     then do 
@@ -152,4 +119,3 @@ check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
     unless (quiet cfg) $
       putStrLn "" -- just print a newline
     return True
-    where showfs fs = (concat $ intersperse " " fs) ++ " "
