@@ -4,7 +4,7 @@ import Analysis (checkOrder)
 import Parser hiding (main)
 import Translation (trans)
 import Haskell
-import FOL (toTPTP,simplify,removeWeakAnnotations)
+import FOL (toTPTP,simplify)
 import ThmProver
 
 import Control.Monad (when,unless)
@@ -20,7 +20,6 @@ data Conf = Conf { printTPTP :: Bool
                  , toCheck   :: [String] 
                  , dryRun    :: Bool 
                  , engine    :: String
-                 , noWeak    :: Bool
                  , quiet     :: Bool
                  }
 
@@ -29,15 +28,14 @@ conf flags = go flags defaults
         go ("-c":f:flags)       cfg = go flags (cfg {toCheck=f:(toCheck cfg)})
         go ("--dry-run":flags)  cfg = go flags (cfg {dryRun=True})
         go ("--engine":e:flags) cfg = go flags (cfg {engine=e})
-        go ("--weak":flags)     cfg = go flags (cfg {noWeak=False})
         go ("-q":flags)         cfg = go flags (cfg {quiet=True})
         go (f:flags)            cfg = error $ f ++": unrecognized option"
         go []                   cfg = cfg
 
         defaults = Conf {printTPTP=False, toCheck=[], dryRun=False,
-                         engine="equinox",  noWeak=True, quiet=False}
+                         engine="equinox", quiet=False}
 usage = unlines
-  [ "usage: ./Check file [-p] [-q] [-c f] [--dry-run] [--engine equinox|vampire|SPASS|E] [--weak]"
+  [ "usage: ./Check file [-p] [-q] [-c f] [--dry-run] [--engine equinox|vampire|SPASS|E]"
   , ""
   , "Default behaviour is: ./Check file --engine equinox"
   , ""
@@ -45,7 +43,6 @@ usage = unlines
   , " * -q outputs nothing, not even the result (I use it to make time measurements less painful)"
   , " * -c f means that only the contract for f (and the contracts of functions that are mutually recursive with f, if any) will be checked, assuming every other contract. If there is no -c option, all the contracts in the file will be checked."
   , " * --dry-run just prints the order in which contracts would be checked but doesn't check anything. If used in conjunction with -p it'll still write then tptp files."
-  , " * --weak adds $weak annotations to the TPTP formulae. It's equinox specific, default is OFF."
   , " * --engine equinox|vampire|SPASS|E let you choose the automated theorem prover to use as backend. More provers can be easily added in ThmProver.hs"
   ]
 
@@ -99,9 +96,7 @@ check prog [] cfg _ = error "There should be at least one definition!"
 check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
                                | otherwise = do
   let safeSubset prog checkedDefs = filter (hasBeenChecked (f:checkedDefs)) prog
-      tptpTheory = (if (noWeak cfg) 
-                    then map removeWeakAnnotations $ trans (safeSubset prog checkedDefs) [f] 
-                    else trans (safeSubset prog checkedDefs) [f])
+      tptpTheory = (trans (safeSubset prog checkedDefs) [f])
                    >>= simplify >>= toTPTP
       tmpFile = "tmp.tptp"
   when (printTPTP cfg) $ do
@@ -131,9 +126,7 @@ check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
 check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
                               | otherwise = do
   let safeSubset prog checkedDefs = filter (hasBeenChecked (fs++checkedDefs)) prog
-      tptpTheory = (if (noWeak cfg) 
-                    then map removeWeakAnnotations $ trans (safeSubset prog checkedDefs) fs
-                    else trans (safeSubset prog checkedDefs) fs)
+      tptpTheory = (trans (safeSubset prog checkedDefs) fs)
                    >>= simplify >>= toTPTP
       tmpFile = "tmp.tptp"
   when (printTPTP cfg) $ do

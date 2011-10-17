@@ -24,7 +24,6 @@ instance Show Variable where
 data MetaTerm a = Var a
                 | App [MetaTerm a]
                 | FullApp a [MetaTerm a]
-                | Weak (MetaTerm a)
                 deriving (Eq,Functor)
 
 instance Show a => Show (MetaTerm a) where
@@ -32,7 +31,6 @@ instance Show a => Show (MetaTerm a) where
   show (App []) = error "Cannot apply nothing"
   show (App [t]) = show t
   show (App ts) = "app(" ++ show (App (init ts)) ++ "," ++ show (last ts) ++ ")"
-  show (Weak v) = show v
   show (FullApp f []) = show f
   show (FullApp f as) = show f ++ "(" ++ (concat $ intersperse "," $ map show as) ++ ")"
 
@@ -106,7 +104,6 @@ auxUpper c (Var (Regular v)) = if v `elem` c then (Var . Regular) (map toUpper v
 auxUpper c (Var v) = Var v
 auxUpper c (App ts) = App $ map (auxUpper c) ts
 auxUpper c (FullApp x ts) = FullApp x (map (auxUpper c) ts) -- TODO think about it
-auxUpper c (Weak t) = Weak $ auxUpper c t
 
 toTPTP :: Formula -> String
 toTPTP f = header ++ "\n" ++ (go $ upperIfy [] f) ++ "\n" ++ footer
@@ -130,7 +127,6 @@ toTPTP f = header ++ "\n" ++ (go $ upperIfy [] f) ++ "\n" ++ footer
         goTerm (App ts) = "app(" ++ goTerm (App (init ts)) ++ "," ++ goTerm (last ts) ++ ")"
         goTerm (FullApp f []) = show f
         goTerm (FullApp f as) = show f ++ "(" ++ (concat $ intersperse "," $ map show as) ++ ")"
-        goTerm (Weak t) = "$weak(" ++ goTerm t ++")"
 
 -- takes a program and a list of arities for each definition
 appifyF :: [H.Type H.Variable] -> [Formula] -> [Formula]
@@ -140,13 +136,5 @@ appifyF a fs = map (fmap go) fs
           Nothing -> Var $ Regular v
         go (App ts) = App (map go ts)
         go (FullApp f ts) = FullApp f (map go ts) 
-        go (Weak t) = Weak $ go t
         go t = t
         trim = filter (\s -> case s of H.Fun _ _ -> True; _ -> False)
-        
-removeWeakAnnotations :: Formula -> Formula
-removeWeakAnnotations = fmap go
-  where go (Weak t) = go t
-        go (Var x) = Var x
-        go (App ts) = App $ map go ts
-        go (FullApp v ts) = FullApp v $ map go ts

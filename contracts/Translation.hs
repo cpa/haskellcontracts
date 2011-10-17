@@ -38,13 +38,13 @@ dTrans (H.Let f vs e) = do
   if null vs
   then return $ [(F.Var $ F.Regular f) :=: et]
   else return $ [F.Forall vvs $ (F.FullApp (F.Regular f) vvs) 
-                :=: (F.Weak $ et),fptr1,fptr2,fptr3]
+                :=: et,fptr1,fptr2,fptr3]
   where vvs = map (F.Var . F.Regular) vs
         -- fptri are equations defining functions relatively to their app counterparts.
         -- eg that app(app(f_ptr,x),y) = f(x,y)
         fptr1 = (F.Forall vvs $ (F.And [F.CF v | v <- vvs]) :=>: F.CF (F.FullApp (F.Regular f) vvs)) :<=>: (F.CF $ F.Var $ F.Regular (f++"_ptr"))
-        fptr2 = F.Forall vvs $ (F.FullApp (F.Regular f) vvs) :=: (F.Weak (F.App $ (F.Var . F.Regular) (f++"_ptr") : vvs))
-        fptr3 = F.Forall vvs $ (F.FullApp (F.Regular (f ++ "p")) vvs) :=: (F.Weak (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vvs))
+        fptr2 = F.Forall vvs $ (F.FullApp (F.Regular f) vvs) :=: (F.App $ (F.Var . F.Regular) (f++"_ptr") : vvs)
+        fptr3 = F.Forall vvs $ (F.FullApp (F.Regular (f ++ "p")) vvs) :=: (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vvs)
 
 dTrans (H.LetCase f vs e pes) = do
   et <- eTrans e
@@ -55,14 +55,14 @@ dTrans (H.LetCase f vs e pes) = do
       zs = [F.Var $ F.Regular $ "Zdef" ++ show x | x <- [1..(foldl1 max [snd y | y <- arities])]]
   tpieis <- sequence [eTrans (zedify ei pi) | (pi,ei) <- pes]
   let vvs = map (F.Var . F.Regular) vs
-      eq1 = [(et :=: (F.FullApp (F.Regular $ head pi) (take (length pi - 1) [ z | (v,z) <- zip (tail pi) zs ]))) :=>: (F.FullApp (F.Regular f) vvs :=: (F.Weak $ tpiei)) | ((pi,ei),tpiei) <- zip pes tpieis]
+      eq1 = [(et :=: (F.FullApp (F.Regular $ head pi) (take (length pi - 1) [ z | (v,z) <- zip (tail pi) zs ]))) :=>: (F.FullApp (F.Regular f) vvs :=: tpiei) | ((pi,ei),tpiei) <- zip pes tpieis]
       eq2 = (et :=: (F.Var F.BAD)) :=>: (F.FullApp (F.Regular f) vvs :=: F.Var F.BAD)
       eq3 = (F.And $ (et :/=: F.Var F.BAD):bigAndSel ) :=>: eq4
       eq4 = (F.FullApp (F.Regular f) vvs :=: F.Var F.UNR)
-      bigAndSel = [et :/=: F.Weak (F.FullApp (F.Regular di) [F.FullApp (F.Regular ("sel_"++(show i)++"_"++di)) [et] | i <- [1..ai]]) | (di,ai) <- arities]
+      bigAndSel = [et :/=: (F.FullApp (F.Regular di) [F.FullApp (F.Regular ("sel_"++(show i)++"_"++di)) [et] | i <- [1..ai]]) | (di,ai) <- arities]
       fptr1 = (F.Forall vvs $ (F.And [F.CF v | v <- vvs]) :=>: F.CF (F.FullApp (F.Regular f) vvs)) :<=>: (F.CF $ F.Var $ F.Regular (f++"_ptr"))
-      fptr2 = F.Forall vvs $ (F.FullApp (F.Regular f) vvs) :=: (F.Weak (F.App $ (F.Var . F.Regular) (f++"_ptr") : vvs))
-      fptr3 = F.Forall vvs $ (F.FullApp (F.Regular (f ++ "p")) vvs) :=: (F.Weak (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vvs))
+      fptr2 = F.Forall vvs $ (F.FullApp (F.Regular f) vvs) :=: (F.App $ (F.Var . F.Regular) (f++"_ptr") : vvs)
+      fptr3 = F.Forall vvs $ (F.FullApp (F.Regular (f ++ "p")) vvs) :=: (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vvs)
   return $ [F.Forall (vvs ++ zs) $ F.And (eq1++[eq2,eq3]),fptr1,fptr2,fptr3]
 
 
