@@ -34,21 +34,20 @@ import Haskell
         '||'  {TokenOr}
         '&&'  {TokenAnd}
 %%
-ListGeneral : sep(General,';;') {$1}
 
 -- Parameterized parsers based on section 6.4.1 of the Happy manual (I
 -- can't copy paste from windows to emacs right now :P).
---
--- Get "Internal Happy error"s with these.
+fst(p,q)  : p q              {$1}
 snd(p,q)  : p q              {$2}
---list(p)   : list1(p)         {$1}    | {[]}
---list1(p)  : p list(p)        {$1:$2}
 list(p)   : p list(p)        {$1:$2} | {[]}
---list1(p)  : p list(p)        {$1:$2}
-sep(p,q)  : sep1(p,q)        {$1}    | {[]}
-sep1(p,q) : p list(snd(q,p)) {$1:$2}
+sep(p,s)  : sep1(p,s)        {$1}    | {[]} -- p's separated by s's
+sep1(p,s) : p list(snd(s,p)) {$1:$2}
 
---ListGeneral : sep(General,';;') {$1}
+-- Careful: I got "Internal Happy error", not a parse error, when I
+-- erroneously used sep(General,';;') here.
+--
+-- XXX: that was probably a bug, ask Simon M.
+ListGeneral : list(fst(General,';;')) {$1}
 
 Vars : list(lvar) {$1}
 -- Sanitized constructor (TPTP doesn't allow upper case constant).  It
@@ -78,16 +77,14 @@ Expr : Expr Atom    { App $1 $2 }
 -- XXX: there was a commented out FullApp rule.  Might be better to
 -- only allow FullApp, until we add support for the "function pointer"
 -- translation?
-Contr : cf {CF}
-{-
-Contr : '{' lvar ':' Expr '}'     { Pred $2 $4 }
-      | '(' Contr ')'             { $2 }
-      | Contr '&&' Contr          { And $1 $3 }
-      | Contr '||' Contr          { Or  $1 $3 }
-      | lvar ':' Contr '->' Contr { AppC $1 $3 $5 }
-      | Contr '->' Contr          { AppC "_" $1 $3 }
-      | cf                        { CF }
--}
+ContrAtom : '{' lvar ':' Expr '}'     { Pred $2 $4 }
+          | cf                        { CF }
+          | '(' Contr ')'             { $2 }
+Contr : ContrAtom '&&' ContrAtom      { And $1 $3 }
+      | ContrAtom '||' ContrAtom      { Or  $1 $3 }
+      | lvar ':' ContrAtom '->' Contr { AppC $1 $3 $5 }
+      |          ContrAtom '->' Contr { AppC "_" $1 $3 }
+      | ContrAtom                     { $1 }
 {
 happyError :: [Token] -> a
 happyError x = error $ "Parse error: " ++ show x
