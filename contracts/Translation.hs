@@ -18,10 +18,10 @@ data TransState = S { prefix  :: String -- the prefix of our fresh variables
 
 eTrans :: H.Expression -> Fresh F.Term
 eTrans (H.Var v) = return $ (F.Var $ F.Regular v)
-eTrans (H.App e1 e2) = do 
+eTrans (H.App e1 e2) = do
   t1 <- eTrans e1
-  t2 <- eTrans e2 
-  return $ F.App [t1,t2] 
+  t2 <- eTrans e2
+  return $ F.App [t1,t2]
 eTrans (H.FullApp f es) = do
   ts <- sequence $ map eTrans es
   return $ F.FullApp (F.Regular f) ts
@@ -37,7 +37,7 @@ dTrans (H.Let f vs e) = do
   et <- eTrans e
   if null vs
   then return $ [(F.Var $ F.Regular f) :=: et]
-  else return $ [F.Forall vvs $ (F.FullApp (F.Regular f) vvs) 
+  else return $ [F.Forall vvs $ (F.FullApp (F.Regular f) vvs)
                 :=: et,fptr1,fptr2,fptr3]
   where vvs = map (F.Var . F.Regular) vs
         -- fptri are equations defining functions relatively to their app counterparts.
@@ -50,7 +50,7 @@ dTrans (H.LetCase f vs e pes) = do
   et <- eTrans e
   ft <- eTrans $ H.Var f
   let zedify ei pi = foldl (\e (v,z) -> H.subst (H.Var $ extractVR z) v e) ei (take (length (tail pi)) $ zip (tail pi) zs)
-      extractVR (F.Var (F.Regular v)) = v 
+      extractVR (F.Var (F.Regular v)) = v
       arities = map (\p -> (head p, length $ tail p)) $ map fst pes :: [(String,Int)]
       zs = [F.Var $ F.Regular $ "Zdef" ++ show x | x <- [1..(foldl1 max [snd y | y <- arities])]]
   tpieis <- sequence [eTrans (zedify ei pi) | (pi,ei) <- pes]
@@ -73,7 +73,7 @@ cTrans e H.Any = return [Top]
 
 cTrans e (H.Pred x u) =  do
   let  u' = H.subst e x u
-  et' <- eTrans e 
+  et' <- eTrans e
   ut' <- eTrans u'
   et <- eTrans e
   s <- get
@@ -85,10 +85,10 @@ cTrans e (H.AppC x c1 c2) = do
   s <- get
   let k = count s
   put $ s {count = k + 1}
-  let freshX = (prefix s)++(show $ k) 
+  let freshX = (prefix s)++(show $ k)
       c2' = H.substC (H.Var freshX) x c2
   [f1] <- cTrans (H.Var freshX) c1
-  [f2] <- case e of 
+  [f2] <- case e of
     H.Var x -> cTrans (H.apps $ H.Var x:[H.Var $ freshX]) c2'
     _ -> cTrans (H.App e (H.Var freshX)) c2'
   return $ [F.Forall [F.Var $ F.Regular $ freshX] (f1 :=>: f2)]
@@ -97,7 +97,7 @@ cTrans e (H.And c1 c2) = do
   [f1] <- cTrans e c1
   [f2] <- cTrans e c2
   return $ [F.And [f1,f2]]
-  
+
 cTrans e (H.Or c1 c2) = do
   [f1] <- cTrans e c1
   [f2] <- cTrans e c2
@@ -110,20 +110,8 @@ cTrans e (H.CF) = do
 -- -- Data constructors
 -----------------------
 
-tTrans :: H.DataType -> Fresh [F.Formula]
-tTrans d = concat <$> sequence [s1 d,s2 d,s3 d,s4 d]
-
---s1 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
-s1 (H.Data _ dns) = sequence $ map s1D dns
-
--- It's the set S1 but for only one data constructor
---s1D :: (String,Int,H.Contract) -> Fresh (F.Formula (F.Term F.Variable))
-s1D (d,a,c) = do
-  s <- get
-  let k = count s 
-  put $ s {count = k+1}
-  let xs = map (\n -> (prefix s)++"_"++(show n)) [1..a]
-  return $ F.Forall (map (F.Var . F.Regular) xs) $ F.And [(F.Var $ F.Regular x) :=: F.FullApp (F.Regular $ makeSel k d) [(F.FullApp (F.Regular d) $ map (F.Var . F.Regular) xs)] | (x,k) <- zip xs [1..a]]
+-- Make k distinction variables s_1 ... s_k
+makeVars k s = map (F.Var . F.Regular . (s++) . show) [1..k]
 
 -- Make a selector function name.
 makeSel k d = "sel_"++show k++"_"++unquote d where
@@ -133,51 +121,47 @@ makeSel k d = "sel_"++show k++"_"++unquote d where
   -- in the parser.  I.e., *not* have single quotes yet at this point.
   unquote ('\'':cs) = init cs
 
---s2 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
-s2 (H.Data _ dns) = sequence $ map s2D [(a,b) | a <- dns, b <- dns, a < b]
+-- Tranlate at datatype decl.
+--
+-- The axioms phi_* have type :: H.DataType -> [F.Formula (F.Term F.Variable)]
+tTrans :: H.DataType -> Fresh [F.Formula]
+tTrans d = return $ concat [phi_project d,phi_disjoint d,phi_cf d,phi_total d]
 
--- It's S2 for a pair of data constructors.
---s2D :: ((String,Int,H.Contract),(String,Int,H.Contract)) -> Fresh (F.Formula (F.Term F.Variable))
-s2D ((d1,a1,c1),(d2,a2,c2)) = do
-  s <- get
-  let k = count s
-  put $ s { count = k+2 }
-  let xs1 = map (\n -> (prefix s)++(show k)++"_"++(show n)) [1..a1]
-      xs2 = map (\n -> (prefix s)++(show $ k + 1)++"_"++(show n)) [1..a2]
-  return $ F.Forall (map (F.Var . F.Regular) (xs1 ++ xs2)) $ (F.FullApp (F.Regular d1) (map (F.Var . F.Regular) xs1)) :/=: (F.FullApp (F.Regular d2) (map (F.Var . F.Regular) xs2))
+-- Axiom: Term constructors are invertable (Phi_1 in paper).
+phi_project (H.Data _ dns) = map f dns where
+  f (d,a,_) =
+    let xs = makeVars a "X"
+    in F.Forall xs $ F.And [x :=: F.FullApp (F.Regular $ makeSel k d)
+                                    [F.FullApp (F.Regular d) $ xs]
+                           | (x,k) <- zip xs [1..a]]
 
+-- Axiom: Term constructors have disjoint ranges (Phi_2 in paper).
+phi_disjoint (H.Data _ dns) = map f [(a,b) | a <- dns, b <- dns, a < b] where
+  f ((d1,a1,_),(d2,a2,_)) =
+    let xs = makeVars a1 "X"
+        ys = makeVars a2 "Y"
+    in F.Forall (xs++ys) $
+      (F.FullApp (F.Regular d1) xs) :/=: (F.FullApp (F.Regular d2) ys)
 
---s3 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
-s3 (H.Data _ dns) = sequence $ map s3D dns
+-- Axiom: Term constructors are CF (Phi_3 in paper).
+phi_cf (H.Data _ dns) = map f dns where
+  f (d,a,_) =
+    let xs = makeVars a "X" in
+    if xs /= []
+    -- XXX: maybe better to handle the special cas of empty
+    -- quantifications in the translation to a tptp file?
+    then F.Forall xs $ (F.CF $ F.FullApp (F.Regular d) xs)
+                       :<=>: (F.And [F.CF x | x <- xs])
+    else F.CF $ F.Var $ F.Regular d
 
---- It's S3 but only for one data constructor
---s3D :: (String,Int,H.Contract) -> Fresh (F.Formula (F.Term F.Variable))
-s3D (d,a,c) = do
-  s <- get
-  let k = count s
-  put $ s { count = k+1 }
-  let xs = map (\n -> (prefix s)++(show k)++"_"++(show n)) [1..a]
-  if xs /= []
-    then (return $ F.Forall (map (F.Var . F.Regular) xs) $ (F.CF $ F.FullApp (F.Regular d) (map (F.Var . F.Regular) xs)) :<=>: (F.And [F.CF (F.Var $ F.Regular x) | x <- xs]))
-    else return $ F.CF $ F.App [F.Var $ F.Regular d]
-
---s4 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
-s4 (H.Data _ dns) = sequence $ map s4D dns
-
---s4D :: (String,Int,H.Contract) -> Fresh (F.Formula (F.Term F.Variable))
-s4D (d,a,c) = do
-  s <- get
-  let k = count s
-  put $ s { count = k+1 }
-  let xs = map (\n -> (prefix s)++(show k)++"_"++(show n)) [1..a]
-  et <- eTrans $ H.FullApp d (map H.Var xs)
-  if xs /= [] 
-    then return $ F.Forall (map (F.Var . F.Regular) xs) $ et :/=: unr
-    else return $ (F.Var $ F.Regular d) :/=: unr
-
-
-
-
+-- Axiom: Term constructors are total/lazy (Phi_4 in paper).
+phi_total (H.Data _ dns) = map f dns where
+  f (d,a,_) =
+    let xs = makeVars a "X" in
+    if xs /= []
+    then F.Forall xs $
+           F.FullApp (F.Regular d) xs :/=: unr
+    else (F.Var $ F.Regular d) :/=: unr
 
 -- Final translation
 --------------------
@@ -190,7 +174,7 @@ isToCheck _ _                              = False
 
 trans :: H.Program -> [H.Variable] -> [F.Formula]
 trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
-  where go fs ds = do 
+  where go fs ds = do
           let (toCheck,regDefs) = partition (isToCheck fs) ds
               recVar x = x ++ "p"
           a <- arities <$> get
@@ -206,7 +190,7 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
               contP   <- F.appifyF a <$> cTrans (H.Var $ recVar x) (H.substsC (zip (map (H.Var . recVar) fs) fs) y)
               notCont <- map F.Not <$> F.appifyF a <$> cTrans (H.Var x) y
               return $ notCont ++ contP
-          return $ concat $ prelude : regFormulae ++ speFormulae 
+          return $ concat $ prelude : regFormulae ++ speFormulae
             where prelude = [F.Forall [f,x]
                              $ F.And [F.CF f, F.CF x]
                                :=>: (F.CF $ F.App [f, x])
