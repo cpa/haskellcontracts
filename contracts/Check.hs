@@ -21,6 +21,7 @@ data Conf = Conf { printTPTP :: Bool
                  , dryRun    :: Bool 
                  , engine    :: String
                  , quiet     :: Bool
+                 , verbose   :: Bool
                  }
 
 conf flags = go flags defaults
@@ -29,11 +30,12 @@ conf flags = go flags defaults
         go ("--dry-run":flags)  cfg = go flags (cfg {dryRun=True})
         go ("--engine":e:flags) cfg = go flags (cfg {engine=e})
         go ("-q":flags)         cfg = go flags (cfg {quiet=True})
+        go ("-v":flags)         cfg = go flags (cfg {verbose=True})
         go (f:flags)            cfg = error $ f ++": unrecognized option"
         go []                   cfg = cfg
 
         defaults = Conf {printTPTP=False, toCheck=[], dryRun=False,
-                         engine="equinox", quiet=False}
+                         engine="equinox", quiet=False, verbose=False}
 usage = unlines
   [ "usage: ./Check file [-p] [-q] [-c f] [--dry-run] [--engine equinox|vampire|SPASS|E]"
   , ""
@@ -92,27 +94,24 @@ check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
   let safeSubset prog checkedDefs = filter (hasBeenChecked (fs++checkedDefs)) prog
       tptpTheory = (trans (safeSubset prog checkedDefs) fs)
                    >>= simplify >>= toTPTP
-      tmpFile = "tmp.tptp"
-  when (printTPTP cfg) $ do
-    writeFile (head fs ++ ".tptp") tptpTheory
-    unless (quiet cfg) $
-      putStrLn $ "Writing " ++ (head fs) ++ ".tptp"
-  unless (quiet cfg) $
-    putStr $ show fs ++ " are mutually recursive. Checking them altogether..."
+      tmpFile = head fs ++ ".tptp"
+  unless (quiet cfg) $ do
+    putStrLn $ "Writing " ++ tmpFile
+    putStrLn $ show fs ++ " are mutually recursive. Checking them altogether..."
+  writeFile tmpFile tptpTheory
   hFlush stdout
-  if not $ dryRun cfg  
+  res <- if not $ dryRun cfg
     then do 
-    writeFile tmpFile tptpTheory
     let (enginePath,engineOpts,engineUnsat) = case lookup (engine cfg) provers of
           Nothing -> error "Engine not recognized. Supported engines are: equinox, SPASS, vampire, E"
           Just x  -> (path x,opts x,unsat x)
-    res <- engineUnsat <$> readProcess enginePath (engineOpts ++ [tmpFile]) ""
-    removeFile tmpFile
-    when res $
-      unless (quiet cfg) $
-        putStrLn "\tOK!"
+    out <- readProcess enginePath (engineOpts ++ [tmpFile]) ""
+    let res = engineUnsat out
+    unless (quiet cfg) $ do
+      when (verbose cfg) $ putStrLn out
+      putStrLn $ if res then "OK :)" else "Not OK :("
     return res
-    else do
-    unless (quiet cfg) $
-      putStrLn "" -- just print a newline
-    return True
+    else return True
+  unless (printTPTP cfg) $
+    removeFile tmpFile
+  return res
