@@ -207,6 +207,16 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
               notCont <- map F.Not <$> F.appifyF a <$> cTrans (H.Var x) y
               return $ notCont ++ contP
           return $ concat $ prelude : regFormulae ++ speFormulae 
-            where prelude = [(F.Forall (map (F.Var . F.Regular) ["F","X"]) $ (F.And [F.CF $ F.Var $ F.Regular "X", F.CF $ F.Var $ F.Regular "F"]) :=>: (F.CF $ (F.App [(F.Var $ F.Regular "F"), (F.Var $ F.Regular "X")])))
-                           ,F.Not $ F.CF $ F.Var $ F.BAD,F.CF $ F.Var $ F.UNR,(F.Var $ F.Regular "false") :/=: (F.Var $ F.Regular "true")
-                           ,F.CF (F.Var $ F.Regular "true"),F.CF (F.Var $ F.Regular "false"),(F.Var $ F.Regular "true") :/=: (F.Var $ F.Regular "unr"),(F.Var $ F.Regular "false") :/=: (F.Var $ F.Regular "unr")]
+            where prelude = [F.Forall [f,x]
+                             $ F.And [F.CF f, F.CF x]
+                               :=>: (F.CF $ F.App [f, x])
+                            ,F.Not $ F.CF bad
+                            ,F.CF unr
+                            ,false :/=: true
+                            ,F.CF true
+                            ,F.CF false
+                            ,true  :/=: unr
+                            ,false :/=: unr]
+                  [f,x,false,true] = map (F.Var . F.Regular) ["F","X","'False'","'True'"]
+                  unr = F.Var $ F.UNR
+                  bad = F.Var $ F.BAD
