@@ -25,7 +25,7 @@ eTrans (H.App e1 e2) = do
 eTrans (H.FullApp f es) = do
   ts <- sequence $ map eTrans es
   return $ F.FullApp (F.Regular f) ts
-eTrans H.BAD = return $ F.Var F.BAD
+eTrans H.BAD = return bad
 
 
 
@@ -56,9 +56,9 @@ dTrans (H.LetCase f vs e pes) = do
   tpieis <- sequence [eTrans (zedify ei pi) | (pi,ei) <- pes]
   let vvs = map (F.Var . F.Regular) vs
       eq1 = [(et :=: (F.FullApp (F.Regular $ head pi) (take (length pi - 1) [ z | (v,z) <- zip (tail pi) zs ]))) :=>: (F.FullApp (F.Regular f) vvs :=: tpiei) | ((pi,ei),tpiei) <- zip pes tpieis]
-      eq2 = (et :=: (F.Var F.BAD)) :=>: (F.FullApp (F.Regular f) vvs :=: F.Var F.BAD)
-      eq3 = (F.And $ (et :/=: F.Var F.BAD):bigAndSel ) :=>: eq4
-      eq4 = (F.FullApp (F.Regular f) vvs :=: F.Var F.UNR)
+      eq2 = (et :=: bad) :=>: (F.FullApp (F.Regular f) vvs :=: bad)
+      eq3 = (F.And $ (et :/=: bad):bigAndSel ) :=>: eq4
+      eq4 = (F.FullApp (F.Regular f) vvs :=: unr)
       bigAndSel = [et :/=: (F.FullApp (F.Regular di) [F.FullApp (F.Regular $ makeSel i di) [et] | i <- [1..ai]]) | (di,ai) <- arities]
       fptr1 = (F.Forall vvs $ (F.And [F.CF v | v <- vvs]) :=>: F.CF (F.FullApp (F.Regular f) vvs)) :<=>: (F.CF $ F.Var $ F.Regular (f++"_ptr"))
       fptr2 = F.Forall vvs $ (F.FullApp (F.Regular f) vvs) :=: (F.App $ (F.Var . F.Regular) (f++"_ptr") : vvs)
@@ -79,7 +79,7 @@ cTrans e (H.Pred x u) =  do
   s <- get
   let a = prefix s
       b = count s
-  return $ [F.And $ [F.Or [(et :=: F.Var F.UNR) ,F.And [F.Var F.BAD :/=: ut' , ut' :/=: (F.Var $ F.Regular "false")]]]] -- The data constructor False.
+  return $ [F.And $ [F.Or [(et :=: unr) ,F.And [bad :/=: ut' , ut' :/=: false]]]] -- The data constructor False.
 
 cTrans e (H.AppC x c1 c2) = do
   s <- get
@@ -172,8 +172,8 @@ s4D (d,a,c) = do
   let xs = map (\n -> (prefix s)++(show k)++"_"++(show n)) [1..a]
   et <- eTrans $ H.FullApp d (map H.Var xs)
   if xs /= [] 
-    then return $ F.Forall (map (F.Var . F.Regular) xs) $ et :/=: F.Var F.UNR
-    else return $ (F.Var $ F.Regular d) :/=: F.Var F.UNR
+    then return $ F.Forall (map (F.Var . F.Regular) xs) $ et :/=: unr
+    else return $ (F.Var $ F.Regular d) :/=: unr
 
 
 
@@ -217,6 +217,9 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
                             ,F.CF false
                             ,true  :/=: unr
                             ,false :/=: unr]
-                  [f,x,false,true] = map (F.Var . F.Regular) ["F","X","'False'","'True'"]
-                  unr = F.Var $ F.UNR
-                  bad = F.Var $ F.BAD
+
+-- Define constants in one place: more concise code and easier to
+-- change their definitions.
+[f,x,false,true] = map (F.Var . F.Regular) ["F","X","'False'","'True'"]
+unr = F.Var $ F.UNR
+bad = F.Var $ F.BAD
