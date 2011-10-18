@@ -189,7 +189,10 @@ trans :: H.Program -> [H.Variable] -> [F.Formula]
 trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
   where go fs ds = do
           let (toCheck,regDefs) = partition (isToCheck fs) ds
-              recVar x = x ++ "p"
+              recSubst  = H.substs  recVars
+              recSubstC = H.substsC recVars
+              recVars = zip (map recVar fs) fs
+              recVar x = H.Var $ x ++ "p"
           a <- arities <$> get
           regFormulae <- forM regDefs $ \d -> case d of
             H.DataType t                -> tTrans t
@@ -197,10 +200,11 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
             H.ContSat (H.Satisfies x y) -> F.appifyF a <$> cTrans (H.Var x) y
           speFormulae <- forM toCheck $ \d -> case d of
             H.DataType t                 -> error "No contracts for datatypes yet!"
-            H.Def (H.Let f xs e)         -> dTrans $ H.Let f xs (H.substs (zip (map (H.Var . recVar) fs) fs) e)
-            H.Def (H.LetCase f xs e pes) -> dTrans $ H.LetCase f xs (H.substs (zip (map (H.Var . recVar) fs) fs) e) [(p,(H.substs (zip (map (H.Var . recVar) fs) fs) e)) | (p,e) <- pes]
+            H.Def (H.Let f xs e)         -> dTrans $ H.Let     f xs (recSubst e)
+            H.Def (H.LetCase f xs e pes) -> dTrans $ H.LetCase f xs (recSubst e)
+                                                       [(p,(recSubst e)) | (p,e) <- pes]
             H.ContSat (H.Satisfies x y)  -> do
-              contP   <- F.appifyF a <$> cTrans (H.Var $ recVar x) (H.substsC (zip (map (H.Var . recVar) fs) fs) y)
+              contP   <- F.appifyF a <$> cTrans (recVar x) (recSubstC y)
               notCont <- map F.Not <$> F.appifyF a <$> cTrans (H.Var x) y
               return $ notCont ++ contP
           return $ concat $ prelude : regFormulae ++ speFormulae
