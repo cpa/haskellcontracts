@@ -5,6 +5,7 @@ import qualified FOL as F
 import FOL (MetaFormula(..))
 import Control.Monad.State
 import Data.List (partition)
+import Data.Char (toUpper)
 import Control.Applicative
 
 type Fresh = State TransState
@@ -12,9 +13,41 @@ data TransState = S { prefix  :: String -- the prefix of our fresh variables
                     , count   :: Int    -- a counter for the suffix of our fresh variables
                     , arities :: [H.Type H.Variable]} -- The arities of functions/data constructors in the program, which should be read-only
 
+-- Utilities
+------------
 
--- Expression
--------------
+-- Define constants in one place: more concise code and easier to
+-- change their definitions.
+[f,x,false,true] = map (F.Var . F.Regular) ["F","X","'False'","'True'"]
+unr = F.Var $ F.UNR
+bad = F.Var $ F.BAD
+
+-- Generate a fresh name.  Only used in one place :P
+fresh :: Fresh String
+fresh = do
+  s <- get
+  let k = count s
+  put $ s {count = k + 1}
+  return $ makeVar (prefix s) ++ show k
+
+-- Make a TPTP variable from a string.
+--
+-- NB: unlike makeVars, this does not wrap the result in 'F.Var . F.Regular'.
+makeVar (c:cs) = toUpper c : cs
+
+-- Make k distinction variables s_1 ... s_k
+makeVars k s = map (F.Var . F.Regular . (makeVar s++) . show) [1..k]
+
+-- Make a selector function name.
+makeSel k d = "sel_"++show k++"_"++unquote d where
+  -- Strip single quotes.
+  --
+  -- XXX: maybe better to postpone any special handling of constructors
+  -- in the parser.  I.e., *not* have single quotes yet at this point.
+  unquote ('\'':cs) = init cs
+
+-- Expression translation
+-------------------------
 
 eTrans :: H.Expression -> Fresh F.Term
 eTrans (H.Var v) = return $ (F.Var $ F.Regular v)
@@ -27,10 +60,8 @@ eTrans (H.FullApp f es) = do
   return $ F.FullApp (F.Regular f) ts
 eTrans H.BAD = return bad
 
-
-
--- Definition
--------------
+-- Definition translation
+-------------------------
 
 dTrans :: H.Definition -> Fresh [F.Formula]
 dTrans (H.Let f vs e) = do
@@ -65,8 +96,8 @@ dTrans (H.LetCase f vs e pes) = do
       fptr3 = F.Forall vvs $ (F.FullApp (F.Regular (f ++ "p")) vvs) :=: (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vvs)
   return $ [F.Forall (vvs ++ zs) $ F.And (eq1++[eq2,eq3]),fptr1,fptr2,fptr3]
 
--- Contract satisfaction
-------------------------
+-- Contract translation
+-----------------------
 
 cTrans :: H.Expression -> H.Contract -> Fresh [F.Formula]
 cTrans e H.Any = return [Top]
@@ -76,22 +107,17 @@ cTrans e (H.Pred x u) =  do
   et' <- eTrans e
   ut' <- eTrans u'
   et <- eTrans e
-  s <- get
-  let a = prefix s
-      b = count s
   return $ [F.And $ [F.Or [(et :=: unr) ,F.And [bad :/=: ut' , ut' :/=: false]]]] -- The data constructor False.
 
-cTrans e (H.AppC x c1 c2) = do
-  s <- get
-  let k = count s
-  put $ s {count = k + 1}
-  let freshX = (prefix s)++(show $ k)
-      c2' = H.substC (H.Var freshX) x c2
-  [f1] <- cTrans (H.Var freshX) c1
-  [f2] <- case e of
-    H.Var x -> cTrans (H.apps $ H.Var x:[H.Var $ freshX]) c2'
-    _ -> cTrans (H.App e (H.Var freshX)) c2'
-  return $ [F.Forall [F.Var $ F.Regular $ freshX] (f1 :=>: f2)]
+cTrans e (H.Arr x c1 c2) = do
+  -- XXX, HACK: the parser inserts "" for arrows with unlabeled
+  -- arguments.  I think this the only place in the whole translation
+  -- where we actually need fresh names :P
+  x' <- if x == "" then fresh else return $ makeVar x
+  let c2' = H.substC (H.Var x') x c2
+  [f1] <- cTrans (H.Var x') c1
+  [f2] <- cTrans (H.App e (H.Var x')) c2'
+  return $ [F.Forall [F.Var $ F.Regular $ x'] (f1 :=>: f2)]
 
 cTrans e (H.And c1 c2) = do
   [f1] <- cTrans e c1
@@ -107,22 +133,9 @@ cTrans e (H.CF) = do
   et <- eTrans e
   return $ [F.CF $ et]
 
--- -- Data constructors
------------------------
+-- Data decl translation
+------------------------
 
--- Make k distinction variables s_1 ... s_k
-makeVars k s = map (F.Var . F.Regular . (s++) . show) [1..k]
-
--- Make a selector function name.
-makeSel k d = "sel_"++show k++"_"++unquote d where
-  -- Strip single quotes.
-  --
-  -- XXX: maybe better to postpone any special handling of constructors
-  -- in the parser.  I.e., *not* have single quotes yet at this point.
-  unquote ('\'':cs) = init cs
-
--- Tranlate at datatype decl.
---
 -- The axioms phi_* have type :: H.DataType -> [F.Formula (F.Term F.Variable)]
 tTrans :: H.DataType -> Fresh [F.Formula]
 tTrans d = return $ concat [phi_project d,phi_disjoint d,phi_cf d,phi_total d]
@@ -201,9 +214,3 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
                             ,F.CF false
                             ,true  :/=: unr
                             ,false :/=: unr]
-
--- Define constants in one place: more concise code and easier to
--- change their definitions.
-[f,x,false,true] = map (F.Var . F.Regular) ["F","X","'False'","'True'"]
-unr = F.Var $ F.UNR
-bad = F.Var $ F.BAD

@@ -82,8 +82,9 @@ ContrAtom : '{' lvar ':' Expr '}'     { Pred $2 $4 }
           | '(' Contr ')'             { $2 }
 Contr : ContrAtom '&&' ContrAtom      { And $1 $3 }
       | ContrAtom '||' ContrAtom      { Or  $1 $3 }
-      | lvar ':' ContrAtom '->' Contr { AppC $1 $3 $5 }
-      |          ContrAtom '->' Contr { AppC "_" $1 $3 }
+      | lvar ':' ContrAtom '->' Contr { Arr $1 $3 $5 }
+       -- XXX, HACK: "" becomes a fresh name in cTrans.
+      |          ContrAtom '->' Contr { Arr "" $1 $3 }
       | ContrAtom                     { $1 }
 {
 happyError :: [Token] -> a

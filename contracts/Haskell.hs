@@ -39,7 +39,7 @@ data MetaDefinition a = Let Variable [Variable] a
 data MetaDataType a = Data Variable [(Variable,Int,MetaContract a)] -- Data constructors + arity + contract
                     deriving (Eq,Show,Functor,Ord)
                        
-data MetaContract a = AppC Variable (MetaContract a) (MetaContract a) -- x : c -> c'
+data MetaContract a = Arr Variable (MetaContract a) (MetaContract a) -- x : c -> c'
                     | Pred Variable a  -- {x:e}
                     | And (MetaContract a) (MetaContract a)
                     | Or  (MetaContract a) (MetaContract a)
@@ -113,7 +113,7 @@ substsC [] c = c
 substsC ((x,y):xys) c = substsC xys $ substC x y c
 
 substC :: Expression -> Variable -> Contract -> Contract
-substC x y (AppC u c1 c2) = AppC u (substC x y c1) (substC x y c2) -- TODO and if u==y the semantics aren't very clear.
+substC x y (Arr u c1 c2) = Arr u (substC x y c1) (substC x y c2) -- TODO and if u==y the semantics aren't very clear.
 substC x y (Pred u e)     = if u/=y then Pred u (subst x y e) else (Pred u e)
 substC x y (And c1 c2)    = And (substC x y c1) (substC x y c2)
 substC x y (Or c1 c2)     = Or (substC x y c1) (substC x y c2)
@@ -128,6 +128,6 @@ ok :: Contract
 ok = Pred "dummy" (Var "true")
 
 okContract 0 = ok
-okContract n = AppC "okDummy" (okContract $ n-1) ok
+okContract n = Arr "okDummy" (okContract $ n-1) ok
 
 

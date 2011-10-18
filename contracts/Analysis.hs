@@ -26,7 +26,7 @@ graphFromProgram p = graphFromEdges [go d | d@(Def _) <- p]
 varsInCont p f = contVars f [] =<< [c | ContSat (Satisfies x c) <- p, x == f]
 
 -- returns the variables used in a contract
-contVars f xs (AppC x c1 c2) = contVars f xs c1 ++ contVars f xs c2
+contVars f xs (Arr x c1 c2) = contVars f xs c1 ++ contVars f xs c2
 contVars f xs (Pred x e)     = freeVars (x:xs) e
 contVars f xs (And c1 c2)    = contVars f xs c1 ++ contVars f xs c2
 contVars f xs (Or c1 c2)     = contVars f xs c1 ++ contVars f xs c2
