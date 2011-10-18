@@ -59,14 +59,11 @@ dTrans (H.LetCase f vs e pes) = do
       eq2 = (et :=: (F.Var F.BAD)) :=>: (F.FullApp (F.Regular f) vvs :=: F.Var F.BAD)
       eq3 = (F.And $ (et :/=: F.Var F.BAD):bigAndSel ) :=>: eq4
       eq4 = (F.FullApp (F.Regular f) vvs :=: F.Var F.UNR)
-      bigAndSel = [et :/=: (F.FullApp (F.Regular di) [F.FullApp (F.Regular ("sel_"++(show i)++"_"++di)) [et] | i <- [1..ai]]) | (di,ai) <- arities]
+      bigAndSel = [et :/=: (F.FullApp (F.Regular di) [F.FullApp (F.Regular $ makeSel i di) [et] | i <- [1..ai]]) | (di,ai) <- arities]
       fptr1 = (F.Forall vvs $ (F.And [F.CF v | v <- vvs]) :=>: F.CF (F.FullApp (F.Regular f) vvs)) :<=>: (F.CF $ F.Var $ F.Regular (f++"_ptr"))
       fptr2 = F.Forall vvs $ (F.FullApp (F.Regular f) vvs) :=: (F.App $ (F.Var . F.Regular) (f++"_ptr") : vvs)
       fptr3 = F.Forall vvs $ (F.FullApp (F.Regular (f ++ "p")) vvs) :=: (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vvs)
   return $ [F.Forall (vvs ++ zs) $ F.And (eq1++[eq2,eq3]),fptr1,fptr2,fptr3]
-
-
-
 
 -- Contract satisfaction
 ------------------------
@@ -126,8 +123,15 @@ s1D (d,a,c) = do
   let k = count s 
   put $ s {count = k+1}
   let xs = map (\n -> (prefix s)++"_"++(show n)) [1..a]
-  return $ F.Forall (map (F.Var . F.Regular) xs) $ F.And [(F.Var $ F.Regular x) :=: F.FullApp (F.Regular ("sel_"++(show k)++"_"++d)) [(F.FullApp (F.Regular d) $ map (F.Var . F.Regular) xs)] | (x,k) <- zip xs [1..a]]
+  return $ F.Forall (map (F.Var . F.Regular) xs) $ F.And [(F.Var $ F.Regular x) :=: F.FullApp (F.Regular $ makeSel k d) [(F.FullApp (F.Regular d) $ map (F.Var . F.Regular) xs)] | (x,k) <- zip xs [1..a]]
 
+-- Make a selector function name.
+makeSel k d = "sel_"++show k++"_"++unquote d where
+  -- Strip single quotes.
+  --
+  -- XXX: maybe better to postpone any special handling of constructors
+  -- in the parser.  I.e., *not* have single quotes yet at this point.
+  unquote ('\'':cs) = init cs
 
 --s2 :: H.DataType -> Fresh [F.Formula (F.Term F.Variable)]
 s2 (H.Data _ dns) = sequence $ map s2D [(a,b) | a <- dns, b <- dns, a < b]
