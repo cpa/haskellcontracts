@@ -33,6 +33,7 @@ data MetaContSat a = Satisfies Variable (MetaContract a)
                    deriving (Show,Eq,Functor,Ord)
                
 data MetaDefinition a = Let Variable [Variable] a
+                      -- LetCase f xs e [(p_i,e_i)]_i ~ f xs = case e of [p_i -> e_i]_i
                       | LetCase Variable [Variable] a [(Pattern,a)]
                       deriving (Show,Eq,Functor,Ord)
                   

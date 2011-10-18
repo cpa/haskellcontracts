@@ -66,7 +66,7 @@ eTrans H.BAD = return bad
 
 dTrans :: H.Definition -> Fresh [F.Formula]
 dTrans (H.Let f vs e) = do
-  et <- eTrans e
+  et <- eTrans $ sub e
   if null vs
   -- XXX: again, could be simpler to handle emtpy quantification
   -- later, in the TPTP file generation phase.  This is at least the
@@ -74,7 +74,9 @@ dTrans (H.Let f vs e) = do
   then return $ [(F.Var $ F.Regular f) :=: et]
   else return $ [F.Forall vs' $ (F.FullApp (F.Regular f) vs') :=: et]
 --                ,fptr1,fptr2,fptr3]
-  where vs' = map makeVar vs
+  where vs'  = map makeVar vs
+        vs'H = map fVar2HVar vs'
+        sub  = H.substs (zip vs'H vs)
 -- XXX, TODO: add back f_ptr support.
 {-
         -- fptri are equations defining functions relatively to their app counterparts.
@@ -85,23 +87,30 @@ dTrans (H.Let f vs e) = do
 -}
 
 dTrans (H.LetCase f vs e pes) = do
-  et <- eTrans e
+  let vs'  = map makeVar vs
+      -- Uppercasified variables wrapped in Haskell constructors.
+      vs'H = map fVar2HVar vs'
+      sub  = H.substs (zip vs'H vs)
+  -- Uppercasify any quantified vars in e before translation.
+  et <- eTrans $ sub e
   ft <- eTrans $ H.Var f
-  let zedify ei pi = foldl (\e (v,z) -> H.subst (H.Var $ extractVR z) v e) ei (take (length (tail pi)) $ zip (tail pi) zs)
-      extractVR (F.Var (F.Regular v)) = v
+  let zedify ei pi = foldl (\e (v,z) -> H.subst (fVar2HVar z) v e) ei (take (length (tail pi)) $ zip (tail pi) zs)
       arities = map (\p -> (head p, length $ tail p)) $ map fst pes :: [(String,Int)]
       zs = [F.Var $ F.Regular $ "Zdef" ++ show x | x <- [1..(foldl1 max [snd y | y <- arities])]]
   tpieis <- sequence [eTrans (zedify ei pi) | (pi,ei) <- pes]
-  let vvs = map (F.Var . F.Regular) vs
-      eq1 = [(et :=: (F.FullApp (F.Regular $ head pi) (take (length pi - 1) [ z | (v,z) <- zip (tail pi) zs ]))) :=>: (F.FullApp (F.Regular f) vvs :=: tpiei) | ((pi,ei),tpiei) <- zip pes tpieis]
-      eq2 = (et :=: bad) :=>: (F.FullApp (F.Regular f) vvs :=: bad)
+  let eq1 = [(et :=: (F.FullApp (F.Regular $ head pi) (take (length pi - 1) [ z | (v,z) <- zip (tail pi) zs ]))) :=>: (F.FullApp (F.Regular f) vs' :=: tpiei) | ((pi,ei),tpiei) <- zip pes tpieis]
+      -- XXX: this equation is not in the paper, altho it looks reasonable.
+      eq2 = (et :=: bad) :=>: (F.FullApp (F.Regular f) vs' :=: bad)
       eq3 = (F.And $ (et :/=: bad):bigAndSel ) :=>: eq4
-      eq4 = (F.FullApp (F.Regular f) vvs :=: unr)
+      eq4 = (F.FullApp (F.Regular f) vs' :=: unr)
       bigAndSel = [et :/=: (F.FullApp (F.Regular di) [F.FullApp (F.Regular $ makeSel i di) [et] | i <- [1..ai]]) | (di,ai) <- arities]
-      fptr1 = (F.Forall vvs $ (F.And [F.CF v | v <- vvs]) :=>: F.CF (F.FullApp (F.Regular f) vvs)) :<=>: (F.CF $ F.Var $ F.Regular (f++"_ptr"))
-      fptr2 = F.Forall vvs $ (F.FullApp (F.Regular f) vvs) :=: (F.App $ (F.Var . F.Regular) (f++"_ptr") : vvs)
-      fptr3 = F.Forall vvs $ (F.FullApp (F.Regular (f ++ "p")) vvs) :=: (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vvs)
-  return $ [F.Forall (vvs ++ zs) $ F.And (eq1++[eq2,eq3]),fptr1,fptr2,fptr3]
+-- XXX, TODO: add back f_ptr support.
+{-
+      fptr1 = (F.Forall vs' $ (F.And [F.CF v | v <- vs']) :=>: F.CF (F.FullApp (F.Regular f) vs')) :<=>: (F.CF $ F.Var $ F.Regular (f++"_ptr"))
+      fptr2 = F.Forall vs' $ (F.FullApp (F.Regular f) vs') :=: (F.App $ (F.Var . F.Regular) (f++"_ptr") : vs')
+      fptr3 = F.Forall vs' $ (F.FullApp (F.Regular (f ++ "p")) vs') :=: (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vs')
+-}
+  return $ [F.Forall (vs' ++ zs) $ F.And (eq1++[eq2,eq3])] -- ,fptr1,fptr2,fptr3]
 
 -- Contract translation
 -----------------------
