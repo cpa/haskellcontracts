@@ -18,25 +18,26 @@ data TransState = S { prefix  :: String -- the prefix of our fresh variables
 
 -- Define constants in one place: more concise code and easier to
 -- change their definitions.
-[f,x,false,true] = map (F.Var . F.Regular) ["F","X","'False'","'True'"]
+[false,true] = map (F.Var . F.Regular) ["'False'","'True'"]
 unr = F.Var $ F.UNR
 bad = F.Var $ F.BAD
 
 -- Generate a fresh name.  Only used in one place :P
-fresh :: Fresh String
+fresh :: Fresh F.Term
 fresh = do
   s <- get
   let k = count s
   put $ s {count = k + 1}
-  return $ makeVar (prefix s) ++ show k
+  return $ makeVar (prefix s ++ show k)
+
+-- Convert an FOL Var to a Haskell Var.
+fVar2HVar (F.Var (F.Regular x)) = H.Var x
 
 -- Make a TPTP variable from a string.
---
--- NB: unlike makeVars, this does not wrap the result in 'F.Var . F.Regular'.
-makeVar (c:cs) = toUpper c : cs
+makeVar (c:cs) = F.Var $ F.Regular $ toUpper c : cs
 
 -- Make k distinction variables s_1 ... s_k
-makeVars k s = map (F.Var . F.Regular . (makeVar s++) . show) [1..k]
+makeVars k s = map (makeVar . (s++) . show) [1..k]
 
 -- Make a selector function name.
 makeSel k d = "sel_"++show k++"_"++unquote d where
@@ -67,15 +68,21 @@ dTrans :: H.Definition -> Fresh [F.Formula]
 dTrans (H.Let f vs e) = do
   et <- eTrans e
   if null vs
+  -- XXX: again, could be simpler to handle emtpy quantification
+  -- later, in the TPTP file generation phase.  This is at least the
+  -- second place with special treatment.
   then return $ [(F.Var $ F.Regular f) :=: et]
-  else return $ [F.Forall vvs $ (F.FullApp (F.Regular f) vvs)
-                :=: et,fptr1,fptr2,fptr3]
-  where vvs = map (F.Var . F.Regular) vs
+  else return $ [F.Forall vs' $ (F.FullApp (F.Regular f) vs') :=: et]
+--                ,fptr1,fptr2,fptr3]
+  where vs' = map makeVar vs
+-- XXX, TODO: add back f_ptr support.
+{-
         -- fptri are equations defining functions relatively to their app counterparts.
         -- eg that app(app(f_ptr,x),y) = f(x,y)
-        fptr1 = (F.Forall vvs $ (F.And [F.CF v | v <- vvs]) :=>: F.CF (F.FullApp (F.Regular f) vvs)) :<=>: (F.CF $ F.Var $ F.Regular (f++"_ptr"))
-        fptr2 = F.Forall vvs $ (F.FullApp (F.Regular f) vvs) :=: (F.App $ (F.Var . F.Regular) (f++"_ptr") : vvs)
-        fptr3 = F.Forall vvs $ (F.FullApp (F.Regular (f ++ "p")) vvs) :=: (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vvs)
+        fptr1 = (F.Forall vs' $ (F.And [F.CF v | v <- vs']) :=>: F.CF (F.FullApp (F.Regular f) vs')) :<=>: (F.CF $ F.Var $ F.Regular (f++"_ptr"))
+        fptr2 = F.Forall vs' $ (F.FullApp (F.Regular f) vs') :=: (F.App $ (F.Var . F.Regular) (f++"_ptr") : vs')
+        fptr3 = F.Forall vs' $ (F.FullApp (F.Regular (f ++ "p")) vs') :=: (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vs')
+-}
 
 dTrans (H.LetCase f vs e pes) = do
   et <- eTrans e
@@ -114,10 +121,11 @@ cTrans e (H.Arr x c1 c2) = do
   -- arguments.  I think this the only place in the whole translation
   -- where we actually need fresh names :P
   x' <- if x == "" then fresh else return $ makeVar x
-  let c2' = H.substC (H.Var x') x c2
-  [f1] <- cTrans (H.Var x') c1
-  [f2] <- cTrans (H.App e (H.Var x')) c2'
-  return $ [F.Forall [F.Var $ F.Regular $ x'] (f1 :=>: f2)]
+  let x'H = fVar2HVar x'
+      c2' = H.substC x'H x c2
+  [f1] <- cTrans x'H c1
+  [f2] <- cTrans (H.App e x'H) c2'
+  return $ [F.Forall [x'] (f1 :=>: f2)]
 
 cTrans e (H.And c1 c2) = do
   [f1] <- cTrans e c1
@@ -218,3 +226,4 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
                             ,F.CF false
                             ,true  :/=: unr
                             ,false :/=: unr]
+                  [f,x] = map makeVar ["F","X"]
