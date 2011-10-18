@@ -70,14 +70,6 @@ arities x = go x >>= \s -> case s of
 appify :: Program -> Program
 appify p = map (fmap $ appifyExpr a) p 
   where a = arities p
-
-prefixWithAorC :: Program -> Program
-prefixWithAorC p = (map $ fmap $ fmap prefixVar) p
-  where as = arities p
-        prefixVar v = case lookupT v as of
-          Nothing -> v
-          Just _  -> if v `isConstructor` as then "c_"++v else "a_"++v
-        isConstructor v = any (\f -> case f of Fun _ _ -> False ; _ -> True)
         
 lookupT :: String -> [Type Variable] -> Maybe Int
 lookupT v [] = Nothing
