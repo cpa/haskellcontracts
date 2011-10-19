@@ -55,7 +55,7 @@ to a first-order logic theory and
  then use an automated theorem prover
 to check the consistency of the theory.
 
-Consider:
+Consider:\note[nc]{Unlike the POPL '09 paper, $CF(e)$ is not implied by $e \in \{x|p\}$.}
 \begin{verbatim}
 data List a = Nil | Cons a (List a)
 
@@ -77,8 +77,8 @@ We start by stating that $Nil$ and $Cons$ can never be equal:
 \end{equation*}
 
 Then, we must state that $Nil$ never crashes (ie cannot be evaluated
-to an exception) and that $Cons(x,y)$ crashes iff either $x$ or $y$
-crashes. The statement $x$ crashes is encoded by the term $\cf{x}$.
+to an exception) and that $Cons(x,y)$ \add[nc]{never} crashes iff \change[nc]{either}{both} $x$ \change[nc]{or}{and} $y$
+\add[nc]{never} crash. The statement $x$ \add[nc]{never} crashes is encoded by the term $\cf{x}$\note[nc]{Made more precise in section \ref{sec:cf}}.
 
 \begin{equation*}
 \cf{Nil}
@@ -88,31 +88,48 @@ crashes. The statement $x$ crashes is encoded by the term $\cf{x}$.
 \forall a,b.~\cf{a} \land \cf{b} \iff \cf{Cons(a,b)}
 \end{equation}
 
-We also say some stuff about unreachibility but I can't think of a
-good way to explain it right now.
+We also say some stuff about \annote[nc]{unreachibility}{??? e.g. \[
+  CF(fst(x,BAD)) \iff CF(x) \] as in section \ref{sec:cf}?} but I
+can't think of a good way to explain it right now.
 \begin{equation*}
 \forall y,ys.~Cons(y,ys) \neq \unr 
 \end{equation*}
 \begin{equation*}
 Nil \neq \unr 
-\end{equation*}
+\end{equation*}\note[nc]{\unr means ``infinite loop'', approximately (it's also the result of pattern matches on non-loop expressions with the wrong constructor head), and so these rules ($\Phi_4$) say that constructors are ``lazy'' or ``total''.}
 
-Finally, we define projections for $Cons$. It is not strictly
-necessary, but it will be handy:
+Finally, we define projections for $Cons$. \annote[nc]{It is not
+  strictly necessary, but it will be handy:}{??? Why is it handy? It
+  doesn't seem to play any role in formal part of this paper (besides
+  being specified in axioms $\Phi_1$ (projections)). In the current
+  implementation it's used to avoid introducing existentially
+  quantified variables in the $\bigvee_i$ part of $\dtrans{}$ for
+  functions defined by case expressions. Equation \eqref{unrnotnull}
+  below uses it that way. ??? Does Equinox care?}
 \begin{equation*}
 \forall xs,y,ys.~sel_{1,Cons}(Cons(y,ys)) = xs \implies xs = y 
 \end{equation*}
 \begin{equation*}
 \forall xs,y,ys.~sel_{2,Cons}(Cons(y,ys)) = xs \implies xs = ys 
-\end{equation*}
+\end{equation*}\note[nc]{??? Why not the simpler \[\forall y,ys.~sel_{2,Cons}(Cons(y,ys)) = ys\]? Same question in Figure \ref{dtrans}.  (Equinox does have a built in notion of equality, e.g. running equinox on
+\center{\texttt{fof(\_,theorem,? [X,Y] : (X = Y \& f(X) != f(Y))).}}\\
+ results in ``Unsatisfiable'', so support for equality reasoning is not the reason.)}
+%% \[
+%% \text{\texttt{\$ echo "fof(\_,theorem,? [X,Y] : (X = Y & f(X) != f(Y)))."}} \\
+%%                  \text{\texttt{| equinox /dev/stdin}}}}
+%% \]
 
 Now we translate the $null$ function. Note that the symbols $true$ and
 $false$ are the representation of the data constructors $True$ and
 $False$ in Haskell, not the boolean values $\top$ and $\bot$ in our
-logic.
+logic.\note[nc]{XXX, TODO: use $True$ and $False$ in the
+  text.  The lowercase $true$ and $false$ is an artifact of the implementation, i.e. Equinox accepts TPTP format, which doesn't allow bare uppercase function symbols.  Moreover, the lower case here is inconsistent with the rest of the presentation, e.g. $Cons$ and $Nil$ above.}
 \begin{equation*}
 \forall xs.~ xs=Nil \implies notnull(xs) = false
-\end{equation*}
+\end{equation*}\note[nc]{Here we might ask the same question as above: why not use the simpler definition
+\[
+\forall notnull(Nil) = false
+\]? The answer is that this is an expansion of the $etrans{e} = K_i(\vec{x_i}) \to a = \etrans{e_i}$ part of the $\dtrans{}$ rule for functions defined by cases.  I.e., the scrutinee $Nil$ is, in general, an expression involving, but not necessarily equal to, the arguments to the function.  In this special case we could remove the implication, but not in general.  The $a = \etrans{e_i}$ part is missing above, but I guess that's because this text was not updated for the $\min$-translation.}
 
 \begin{equation}
   \label{defnotnull}
@@ -131,20 +148,23 @@ not $Nil$ or $Cons$ or $\bad$ then the result is $\unr$.
   \label{unrnotnull}
   \forall xs.~xs \neq \bad \land xs \neq Nil  \notag \\
   \land xs \neq Cons(sel_{1,Cons}(xs),sel_{2,Cons}(xs)) \to  \notag \\
-  notnull(X) = \unr 
+  notnull(xs) = \unr 
 \end{align}
 
 The translation of $head$ follows the same pattern:
 \begin{align}
   \forall xs.~ x=Nil \implies head(xs) = \bad \notag\\
-  \forall xs,y,ys.~ x=Cons(y,ys) \implies head(xs) = y     \label{defhead} \\
+  \forall xs,y,ys.~ xs=Cons(y,ys) \implies head(xs) = y     \label{defhead} \\
     \forall xs.~xs=\bad \to head(xs) = \bad \notag
-\end{align}
+\end{align}\note[nc]{??? Why not use the same project+construct trick from the last equation?  I.e., why not
+\[
+\forall xs.~ xs=Cons(sel_{Cons,1}(xs),sel_{Cons,2}(xs)) \implies head(xs) = sel_{Cons,1}(xs)
+\]?  Because it's ugly?  Would Equinox care?}
 
 \begin{align*}
  \forall xs.~xs \neq \bad \land xs \neq Nil \notag \\
  \land xs \neq Cons(sel_{1,Cons}(xs),sel_{2,Cons}(xs)) \to  \notag \\
- head(X) = \unr 
+ head(xs) = \unr 
 \end{align*}
 
 We now have translated the source code. Let us call all those formulae
@@ -153,14 +173,84 @@ the theory $T$. We translate separatly the contract:
   \phi := \forall xs.~\cf{xs} \land notnull(xs) = true \to \cf{head(xs)} 
 \end{equation*}
 
-\ncnote*{Thi is  a note}{Now that we translated} everything to first-order logic, we can ask the
-theorem prover if the theory formed by those formulae is
-consistent, ie if $T \vdash \phi$.
+Now that we translated everything to first-order logic, we can ask the
+theorem prover if the theory formed by those formulae \change[nc]{is
+consistent}{entails the contract}, ie if $T \vdash \phi$.
 
 Intuitively, $T$ is consistent (ie $T \not \vdash \bot$), because each
-formula serves a specific purpose. Now, assume that $xs$ satisfies
+formula serves a specific purpose.\note[nc]{
+
+  A more precise consistency argument by exhibiting a model for $T$:
+  in the model we define $\min{}$ to be the trivial predicate,
+  i.e. $\forall x. \min{x}$.  So, we can drop all the $\min{}$'s.  The
+  model for the resulting formulas is a language with the syntax used
+  in this paper ($\mathcal{H}'$ below).
+
+  The carrier consists of all closed (i.e. variable free / grounded)
+  programs that can be written using the functions and constructors in
+  $T$, using the expression syntax of $\mathcal{H}'$ below, and
+  evaluated as described in the following paragraphs.  We assume $T$
+  comes from a ``well-typed'' source program $P$, i.e. s.t. the
+  Haskell program corresponding to $P$ is well-typed.
+
+  The semantics are what you would expect for ``well-typed''
+  terminating expressions (again, ``well-typed'' in the sense that the
+  corresponding Haskell expression is well-typed in an environment
+  including $P$'s decls). For example, \texttt{Cons(Z,Nil)} is
+  ``well-typed'' but \texttt{Cons(Nil,Z)} is ``ill-typed'' in a the
+  context of a program declaring List and Nat types.  
+
+  In general, scrutinizing a \unr{} yields \unr, as does scrutinizing
+  a terminating expression with the wrong constructor head
+  (e.g. \texttt{tail(S Z) =} \unr{}). Scrutinizing an ill-typed
+  expression with a constructor head of the right type evaluates as
+  specified by the pattern (e.g. \texttt{tail(Cons(Nil,Z)) = Z}),
+  unless there is no corresponding pattern (``non-exhaustive
+  pattern''), in which case the result is \bad{}.  NB: wrong-type and
+  no-corresponding-pattern are treated very differently.  The
+  intuition is that the former never happens in a well-typed program.
+
+  Applying \unr{} or \bad{} as a function results in \unr{} or \bad{},
+  respectively.
+
+  Term constructors have disjoint ranges, and are total.
+
+  I think that covers functions and datatypes, but it remains to argue
+  that the axioms for contracts are consistent \ldots.  
+
+  \ldots but maybe this is tricky?  Modeling $CF(e)$ seems easy,
+  i.e. just ask the oracle used above for evaluation if $e$ is \bad{}
+  or not.  But recursion seems problematic, since we get to assume in
+  $T$ that the contract holds in the recursive position (Section
+  \ref{sec:recursiveContracts}), and so it seems we need to argue that
+  \emph{all} expressable contracts are consistent.
+
+  Here's a flawed contradiction ``proof'': consider
+  \[
+  e = e ::: CF \&\& \neg CF.
+  \]
+  Now, $T$ will contain $CF(ep) \land \neg CF(ep)$, and were hosed.
+  This is flawed because there is no $\neg$ in the annotated
+  contracts.
+
+  OK, and actually this might be easy: we simply interpret all
+  recursive function symbols (the $fp$'s for recursive $f$'s) as
+  \unr{}, and use the fact that forall $x$, $\unr{}~x = \unr$.  Now,
+  an easy induction on contract translations (Figure \ref{ctrans})
+  gives \[ \emptyset \vdash \ctrans{\unr \in c}
+  \]
+  for all contracts $c$, and we're done!  Well, this is really just
+  the base case, where all contracts in $T$ are for otherwise
+  undefined recursion symbols ($fp$'s), but the inductive case is just
+  as easy: given a consistent $T$, which may include contracts for
+  defined symbols, we can always extend it to a consistent $T'$ by
+  adjoining constracts for undefined symbols.
+
+}
+
+Now, assume that $xs$ satisfies
 $\cf{xs}$ and $notnull(xs) = true$.  We can derive that $xs \neq \bad$
-because we have $\cf{xs}$ and $\lnot \cf{\bad}$. The constraint
+because we have $\cf{xs}$ and \annote[nc]{$\lnot \cf{\bad}$}{Obviously true, given the definition of $CF$, but it's worth noting that this plays a key part in the axiomitization of $CF$, which is ommited in this draft (so far ...)}. The constraint
 $notnull(xs) = true$ doesn't directly imply that $xs = Cons(y,ys)$ for
 some $y$ and $ys$. But $notnull$ is totally defined, because of
 \eqref{unrnotnull}. This implies (by \eqref{defnotnull}) that there exist
@@ -193,7 +283,7 @@ contracts and data definitions.
   \begin{array}{rclr}
     mod &:=& def_1,\dots,def_n &\\
     def &\in& \mbox{Definition} & \\
-    def &:=& \texttt{data } T = K_1 \mid \cdots \mid K_n & \mbox{Data definition}\\
+    def &:=& \texttt{data } T = K_1 a_1 \mid \cdots \mid K_n a_n& \mbox{Data definition}\\
     &\mid& f \in c & \mbox{Contract claim}\\
     &\mid& f~\vec{x}~=~e & \\
     &\raisebox{ 0.18 cm }{$\mid$}& \multicolumn{2}{c}{
@@ -265,7 +355,7 @@ meets the specification given by its contract.
   \label{cont-smt}
 \end{figure}
 
-\subsection{Crash-freeness}
+\subsection{Crash-freeness}\label{sec:cf}
 Note that $\cfc$ represents two things: it can be a contract, as in $f
 \in \cfc$ or a special formula in first-order logic $\cf{f}$.
 
@@ -555,7 +645,7 @@ defined in $M$.
 We say that the function implementation is correct wrt to its contract
 iff $$\trans{M} \vdash \ctrans{f \in c}$$
 
-\subsection{Contract checking -- Recursive case}
+\subsection{Contract checking -- Recursive case}\label{sec:recursiveContracts}
 If the function $f=e$ is recursive, then we ask the theorem prover the
 following:
 
