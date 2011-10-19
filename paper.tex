@@ -51,10 +51,10 @@
 \section{Introduction}
 
 Our approach to static contract-checking is to translate source code
-to a first-order \note[nc]{this is a note} logic theory and
- then use an \annote[ncc]{this is an annote}{automated theorem prover}
-\add[nc]{new text} to check the \remove[nc]{consistency} of the theory.
-\change[nc]{Old text}{New text}.
+to a first-order logic theory and
+ then use an automated theorem prover
+to check the consistency of the theory.
+
 Consider:
 \begin{verbatim}
 data List a = Nil | Cons a (List a)
@@ -416,21 +416,25 @@ pattern-matched on $\bad$ then the result should be $\unr$.
 \begin{array}{rcl}
   \multicolumn{3}{c}{\ruleform{\dtrans{def} = \Phi}} \\[2.5mm]
   \dtrans{\mbox{data } T = K_1, \dots, K_n} &=& \ktrans{\mbox{data } T = K_1, \dots, K_n} \\
-  \dtrans{f \in c} &=& \ctrans{f \in c} \\
-  \dtrans{f(\vec{x}) = e} &=& \forall \vec{x},y.~ \min{y} \land y =
-  f(\vec{x}) \to y = \etrans{e} \\
-   \raisebox{ 0.5 cm }{$\dtrans{f(x_1,\dots,x_n) = \mbox{case } e \mbox{ of } [K_i(\vec{x_i}) = e_i]}$} &\raisebox{0.5cm}{=}&  \hspace{-0.18cm} \begin{array}{rclcl}
-     \forall \vec{a},y.~\mbox{min}(y) \land f(\vec{a}) = y &\rightarrow&
+  \dtrans{f \in c} &=& \ctrans{f \in c}\\
+  \dtrans{f(\vec{x}) = e} &=& \forall \vec{x},a.~ (\min{a} \land a =
+  f(\vec{x})) \to a = \etrans{e} \\
+   \raisebox{ 0.5 cm }{$\dtrans{f(\vec{x}) = \mbox{case } e \mbox{ of } [K_i(\vec{x_i}) = e_i]}$} &\raisebox{0.5cm}{=}&  \hspace{-0.18cm} \begin{array}{rclcl}
+     \forall \vec{x},a.~(\mbox{min}(a) \land a = f(\vec{x})) &\to&
      \multicolumn{3}{c}{  \texttt{min}(e) \land (e = \texttt{BAD} \lor
-       \bigvee_i \forall \vec{x}.~e = K_i(\vec{x}) \lor y = \texttt{UNR})} \\
-     &\land& \forall \vec{x_1}.~\etrans{e} = K_1(\vec{x_1}) &\to& y = \etrans{e_1} \\
+       \left(\bigvee_i \exists \vec{x_i}.~e = K_i(\vec{x_i})\right) \lor a = \texttt{UNR})} \\
+     &\land& \forall \vec{x_1}.~\etrans{e} = K_1(\vec{x_1}) &\to& a = \etrans{e_1} \\
      &\land& & \cdots & \\
-     &\land& \forall \vec{x_n}.~\etrans{e} = K_n(\vec{x_n}) &\to& y = \etrans{e_n}) \\
+     &\land& \forall \vec{x_n}.~\etrans{e} = K_n(\vec{x_n}) &\to& a = \etrans{e_n}} \\
    \end{array} 
 \end{array}
 \]
 \caption{$\dtrans{}$ -- Defintions translation}
  \label{dtrans}
+ \note[nc]{??? Why do we introduce the extra quantified variable $a$,
+   representing the result (``answer''?), instead of just using the result directly
+   (which is logically equivalent)? Same question for the next
+   Figure.  Does this make a difference to Equinox?}
 \end{figure*}
 
 
@@ -475,9 +479,9 @@ $$\ktrans{\mbox{data } T = K_1, \dots, K_n} = \Phi_1 \cup \Phi_2 \cup \Phi_3 \cu
  \hspace{5.6cm}where
   \begin{center}
     \[  \begin{array}{rcl}
-      \Phi_1 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land K_i(\vec{x}) = a) \to \bigwedge_{1 \leq j \leq k} x_j = sel_{j,K_i}(a) \\
-      \Phi_2 &=& \bigcup_{1 \leq i < j \leq n}~\forall \vec{x},\vec{y},a.~ \lnot (\min{a} \land K_i(\vec{x}) = a \land K_j(\vec{x}) = a) \\
-      \Phi_3 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~\min{a} \land a = K_i(\vec{x}) \to ((\bigwedge_{1 \leq j \leq k} \cf{x_j}) \tot \cf{K_i(\vec{x})}) \\
+      \Phi_1 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to \bigwedge_{1 \leq j \leq k} x_j = sel_{j,K_i}(a) \\
+      \Phi_2 &=& \bigcup_{1 \leq i < j \leq n}~\forall \vec{x},\vec{y},a.~ \lnot (\min{a} \land a = K_i(\vec{x}) \land a = K_j(\vec{x})) \\
+      \Phi_3 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to ((\bigwedge_{1 \leq j \leq k} \cf{x_j}) \tot \cf{a\text{\note[nc]{This was $K_i(\vec{x})$.  Typo, right?}}}) \\
       \Phi_4 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to a \neq \unr \land a \neq \bad 
     \end{array} \]
   \end{center}
