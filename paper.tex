@@ -6,6 +6,20 @@
 \usepackage{stmaryrd}
 \usepackage[pdftex]{graphicx}
 
+% Margin notes (ugly and complicated)
+%% \usepackage[draft]{fixme}
+%% \fxusetheme{color}
+%% %\fxusetheme{signature}
+%% %\fxuselayouts{pdfmargin}
+%% %\fxusetargetlayout{color}
+%% \FXRegisterAuthor{nc}{anc}{NC}
+
+% Margin notes round two (easier and better looking)
+%
+% http://trackchanges.sourceforge.net/help_stylefile.html
+\usepackage[inline]{trackchanges} % [margins] is also good
+\addeditor{nc}
+
 \begin{document}
 
 \def\ruleform#1{{\setlength{\fboxrule}{1.2pt}\fbox{\normalsize $#1$}}}
@@ -37,9 +51,10 @@
 \section{Introduction}
 
 Our approach to static contract-checking is to translate source code
-to a first-order logic theory and then use an automated theorem prover
-to check the consistency of the theory.
-
+to a first-order \note[nc]{this is a note} logic theory and
+ then use an \annote[ncc]{this is an annote}{automated theorem prover}
+\add[nc]{new text} to check the \remove[nc]{consistency} of the theory.
+\change[nc]{Old text}{New text}.
 Consider:
 \begin{verbatim}
 data List a = Nil | Cons a (List a)
@@ -138,7 +153,7 @@ the theory $T$. We translate separatly the contract:
   \phi := \forall xs.~\cf{xs} \land notnull(xs) = true \to \cf{head(xs)} 
 \end{equation*}
 
-Now that we translated everything to first-order logic, we can ask the
+\ncnote*{Thi is  a note}{Now that we translated} everything to first-order logic, we can ask the
 theorem prover if the theory formed by those formulae is
 consistent, ie if $T \vdash \phi$.
 
