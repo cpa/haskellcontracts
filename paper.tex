@@ -17,6 +17,10 @@
 % Margin notes round two (easier and better looking)
 %
 % http://trackchanges.sourceforge.net/help_stylefile.html
+%
+% NB: if you want to add a note in math mode, you need a trick:
+%
+% $ ... \text{\note{$<math note>$}} ... $
 \usepackage[inline]{trackchanges} % [margins] is also good
 \addeditor{nc}
 
@@ -76,9 +80,14 @@ We start by stating that $Nil$ and $Cons$ can never be equal:
 \forall a,b.~Cons(a,b) \neq Nil
 \end{equation*}
 
-Then, we must state that $Nil$ never crashes (ie cannot be evaluated
-to an exception) and that $Cons(x,y)$ \add[nc]{never} crashes iff \change[nc]{either}{both} $x$ \change[nc]{or}{and} $y$
-\add[nc]{never} crash. The statement $x$ \add[nc]{never} crashes is encoded by the term $\cf{x}$\note[nc]{Made more precise in section \ref{sec:cf}}.
+Then, we state that $Nil$ can cannot cause a crash, and that
+$Cons(x,y)$ cannot cause a crash iff both its arguments cannot. The
+statement ``$x$ cannot cause a crash'' is encoded by the formula
+$\cf{x}$.\note[nc]{I just rewrote this, but it still sounds weird: in
+  $head(Nil) = \bad$, who ``caused'' the crash? The precise definition
+  of $\cf$ in Section \ref{sec:cf}, in terms of not leading to crashes
+  when inserted into syntactically \bad-free environments,  is good, but
+  how to state it informally?}
 
 \begin{equation*}
 \cf{Nil}
@@ -128,7 +137,7 @@ logic.\note[nc]{XXX, TODO: use $True$ and $False$ in the
 \forall xs.~ xs=Nil \implies notnull(xs) = false
 \end{equation*}\note[nc]{Here we might ask the same question as above: why not use the simpler definition
 \[
-\forall notnull(Nil) = false
+notnull(Nil) = false
 \]? The answer is that this is an expansion of the $etrans{e} = K_i(\vec{x_i}) \to a = \etrans{e_i}$ part of the $\dtrans{}$ rule for functions defined by cases.  I.e., the scrutinee $Nil$ is, in general, an expression involving, but not necessarily equal to, the arguments to the function.  In this special case we could remove the implication, but not in general.  The $a = \etrans{e_i}$ part is missing above, but I guess that's because this text was not updated for the $\min$-translation.}
 
 \begin{equation}
@@ -237,9 +246,15 @@ formula serves a specific purpose.\note[nc]{
   recursive function symbols (the $fp$'s for recursive $f$'s) as
   \unr{}, and use the fact that forall $x$, $\unr{}~x = \unr$.  Now,
   an easy induction on contract translations (Figure \ref{ctrans})
-  gives \[ \emptyset \vdash \ctrans{\unr \in c}
-  \]
-  for all contracts $c$, and we're done!  Well, this is really just
+  gives \[ \emptyset \vdash \ctrans{\unr \in c} \]\note[nc]{
+
+    Actually, this was not true!  We need an axiom saying $\cf{\unr}$.
+    There was already such an axiom in the implementation, but it
+    wasn't mentioned in this draft.  So, the correct statement is more
+    like
+    \[ \text{The Prelude} \vdash \ctrans{\unr \in c} \]
+
+  } for all contracts $c$, and we're done!  Well, this is really just
   the base case, where all contracts in $T$ are for otherwise
   undefined recursion symbols ($fp$'s), but the inductive case is just
   as easy: given a consistent $T$, which may include contracts for
@@ -250,7 +265,12 @@ formula serves a specific purpose.\note[nc]{
 
 Now, assume that $xs$ satisfies
 $\cf{xs}$ and $notnull(xs) = true$.  We can derive that $xs \neq \bad$
-because we have $\cf{xs}$ and \annote[nc]{$\lnot \cf{\bad}$}{Obviously true, given the definition of $CF$, but it's worth noting that this plays a key part in the axiomitization of $CF$, which is ommited in this draft (so far ...)}. The constraint
+because we have $\cf{xs}$ and \annote[nc]{$\lnot \cf{\bad}$}{
+
+Follows from the definition of $CF$, but it's worth noting that this
+plays a key part in the axiomitization of $CF$.
+
+}. The constraint
 $notnull(xs) = true$ doesn't directly imply that $xs = Cons(y,ys)$ for
 some $y$ and $ys$. But $notnull$ is totally defined, because of
 \eqref{unrnotnull}. This implies (by \eqref{defnotnull}) that there exist
@@ -263,7 +283,7 @@ derive $\cf{head(xs)}$. QED.
 \section{Languages}
 \subsection{$\hprime:~\lambda$-calculus variant}
 
-The syntax of $\mathcal{H}$ is defined in figure~\ref{hprime-stx}. A module
+The syntax of $\mathcal{H}'$ is defined in figure~\ref{hprime-stx}. A module
 is a list of toplevel definitions, claims that functions statisfy
 contracts and data definitions.
 
@@ -273,7 +293,23 @@ contracts and data definitions.
 \item We do not allow nested case expressions, because once again, we
   can always lift them to the toplevel.
 \item Until section~\ref{ho} we will only consider full application of
-  functions ($f(x,y)$), in order to remove clutter. Dealing with
+  functions ($f(x,y)$),\note[nc]{
+
+Not really true: the definition of satisfaction for arrow contracts
+$x:c_1 \to c_2$ already includes partial applications.  We could add a
+special cases for each function arity, e.g.
+\begin{eqnarray*}
+&&\ctrans{f \in x_1:c_1 \to \cdots \to x_n:c_n \to c} \\
+&&      :=\forall x_1, \ldots, x_n. \min{\etrans{f(x_1, \ldots, x_n)}} \\
+&&\quad   \to \left( \bigvee_{i=1}^n \ctrans{x_i \notin c_i} \right)
+              \lor \ctrans{f(x_1, \ldots, x_n) \in c}
+\end{eqnarray*}
+for functions of arity $n$, to make the claim true, but that would add
+more clutter.  This may be related to my confusion where removing the
+$f_{ptr}$ stuff caused problems where no higher-orderness was
+involved?
+
+}, in order to remove clutter. Dealing with
   partial application is not hard but a bit cumbersome.
 \end{itemize}
 
@@ -319,7 +355,16 @@ contracts and data definitions.
 Contract syntax is described in figure \ref{cont-stx}. The predicates
 we use in our contracts can be any boolean $\hprime$ expression. We
 only consider pairs of contract for simplicity, although there is no
-issue with generalisation to arbitrary tuples.
+issue with generalisation to arbitrary tuples.\note[nc]{
+
+So, ``tuples'' refers to the the term constructor, not the type
+constructor, and the generalization is e.g.
+\[
+e \in Cons(c_1,c_2) \iff e \text{ diverges or } 
+      (e \to^\star Cons(e_1,e_2) \mbox{ and } e_1 \in c_1, e_2 \in c_2)
+\]
+?
+}
 
 \begin{figure}[h]
  \centering 
@@ -335,8 +380,9 @@ issue with generalisation to arbitrary tuples.
   \label{cont-stx}
 \end{figure}
 
-We give the semantics of contract by defining ``$e$ satisfies $t$'',
-written $e \in t$ in figure \ref{cont-smt}. Note that this definition
+We give the semantics of contract by defining ``$e$ satisfies $c$'',
+written $e \in c$ in the logic (figure \ref{cont-smt}), and 
+\texttt{e ::: c} in code. Note that this definition
 doesn't yield any operative way to check that an expression actually
 meets the specification given by its contract.
 
@@ -351,45 +397,64 @@ meets the specification given by its contract.
     e \in c_1 \lor c_2 &\iff& e \in c_1 \mbox{ or } e \in c_2 \\
     e \in \cfc &\iff& e \mbox{ is crash-free}
   \end{array} \]
-  \caption{Semantics of contract satisfaction}
+   \caption{Semantics of contract satisfaction}
+
+\note[nc]{
+
+      ??? Does $\unr$ satisfy any contract? It's supposed to in the
+      model sketched in the intro, and does intuitively, since we
+      don't do termination analysis.  But now we can't prove the arrow
+      case for $\unr$ in general, i.e.  $\ctrans{\unr \in x:c_1 \to
+        c_2}$ is not provable for arbitrary $c_1$ and $c_2$ (I don't
+      think).  Two solutions: (1) add the axiom $\forall x. \unr~x =
+      \unr$ (the model uses this); (2) add the premise ``$e$ diverges
+      or'' to the arrow case.
+
+      Now, $\unr \in CF$ is intuitively true, for the Definition
+      \ref{def:cf}, but to actually prove it it seems we need a
+      semantics for evaluation that includes $\forall x. \unr~x =
+      \unr$.  In the translation, $\ctrans{\unr \in CF}$ is provable,
+      but only because of an axiom saying $\cf{\unr}$ :P
+
+}
   \label{cont-smt}
 \end{figure}
 
 \subsection{Crash-freeness}\label{sec:cf}
 Note that $\cfc$ represents two things: it can be a contract, as in $f
-\in \cfc$ or a special formula in first-order logic $\cf{f}$.
+\in \cfc$ or a predicate in first-order logic, as in the formula $\cf{f}$.
 
 We use $\bad$ to signal that something has gone wrong in the program :
-it has crashed.
+it has crashed. (NB: looping is not crashing.)
 
 \begin{definition}[Crash]
-A closed term $e$ crashed iff $e \to^* \bad$.
+A closed term $e$ \emph{crashed} iff $e \to^* \bad$.\note[nc]{Again, the evaluation semantics are not given, but we assume that a pattern match failure is a crash.}
 \end{definition}
 
 \begin{definition}[Diverges]
-A closed expression $e$ diverges iff either $e \to^* \unr$ or there is
+A closed expression $e$ \emph{diverges} iff either $e \to^* \unr$ or there is
 no value $val$ such that $e \to^* val$
 \end{definition}
 
 \begin{definition}[Syntactic safety]
-A (possibly open) expression $e$ is syntactically safe iff $\bad \not
-\in_s e$. Similarly a context \cal C is syntactically safe iff $\bad
+A (possibly open) expression $e$ is \emph{syntactically safe} iff $\bad \not
+\in_s e$. Similarly a context $\mathcal{C}$ is \emph{syntactically safe} iff $\bad
 \not \in_s \mathcal{C}$.
 \end{definition}
 
-The notation $\bad \not \in e$ means that $\bad$ does not appear
+The notation $\bad \notin_s e$ means that $\bad$ does not appear
 anywhere in $e$, similarly for $\bad \not \in_s \mathcal{C}$. For
-example, $Just 3$ is syntactically safe whereas $Just \bad$ is not.
+example, $Just ~3$ is syntactically safe whereas $Just ~\bad$ is not.
 
-\begin{definition}[Crash-free]
-An expression $e$ is said to be crash-free iff 
-$$\forall \mathcal{C}.~\bad \not \in_s \mathcal{C} \mbox{ and } \vdash
-\mathcal{C} \llbracket e \rrbracket :: () \mathcal{C} \not \to^* \bad$$
+\begin{definition}[Crash-free]\label{def:cf}
+An expression $e$ is said to be \emph{crash-free} iff 
+for all $\mathcal{C}$, $\bad \not \in_s \mathcal{C}$ and $\emptyset \vdash
+\mathcal{C} \llbracket e \rrbracket :: ()$ implies $\mathcal{C} \llbracket e \rrbracket \not \to^* \bad$
 \end{definition}
-The notation $\mathcal{C} \llbracket e \rrbracket :: ()$ means that
+The notation $\emptyset \vdash \mathcal{C} \llbracket e \rrbracket :: ()$ means that
 $\mathcal{C} \llbracket e \rrbracket$ is closed and well-typed.  Note
-that there are crash-free expression that are not syntactically safe,
-for example $fst~(1,\bad)$.
+that there are crash-free expressions that are not syntactically safe,
+for example $fst(Nil,\bad)$.
 
 \subsection{BAD and UNR}
 Consider the following piece of code:
@@ -409,14 +474,20 @@ c = error "foo"
 \item $c$ goes through the whole toolchain (compiler, typechecker, contractchecker)
 \end{itemize}
 
-One thing to notice is that $a$ and $b$ are things that ``sould not
+One thing to notice is that $a$ and $b$ are things that ``should not
 happen'' but are caught statically whereas $c$ should not happen but
-can only be dealt with dynamically.
+can only be dealt with dynamically.\note[nc]{
+I find this example confusing: \texttt{error} calls should be just as
+easy to find as \texttt{undefined} calls statically.}
 
 We can now define two types of problematic expressions: those that
 cannot happen during a run of the program and those that can.
 Expressions of the first type are called unreachable (and equated to
-the special value $\unr$ in our first-order theory), whilst
+the special value $\unr$ in our first-order theory)\note[nc]{
+%
+In particular, ill-typed expressions are $\unr$, not $\bad$
+%
+}, whilst
 expressions of the latter type are called bad (and equated to the
 special value $\bad$).
 
@@ -424,23 +495,23 @@ We said earlier that we only considered syntactically correct and
 well-typed programs as input. That implies that the ``$a$'' case
 cannot happen. But given that our first-order logic is not typed, the
 theorem prover may decide to instanciate a variable with an ill-typed
-value! In order to prevent this, we will need to encode some basic
-type-checking mecanism directly in our first-order theory.
-
+value! \change[nc]{In order to prevent this, we will need to encode some basic
+type-checking mecanism directly in our first-order theory.}{This is OK, because the axioms are designed so that scrutinizing an ill-typed constructor-head results in $\unr$.  On the other hand, some ill-typed expressions are not $\unr$, e.g. we can prove that $tail(Cons(Nil,Z)) = Z$.}
 
 \subsection{First-order logic with equality}
-We use first-order logic with equality, defined in figure \ref{fol-stx}.
+We use first-order logic with equality, defined in figure \ref{fol-stx}.\note[nc]{I guess ``with equality'' means that the proof theory has an axiom schema for substition, i.e. forall $phi$, $\forall x,y.x=y \to phi \iff phi[y/x]$, axioms making $=$ an equality relation, and the requirement that all models interpret $=$ as true equality on the carrier.}
 
 \begin{figure}
  \centering
   \[  \begin{array}{rcl}
     v,w,s,t &:=& x \mid K(t,\dots,t) \mid f(t,\dots,t) \mid app(t,t)\\
     && \mid \bad \mid \unr \\
-    \phi &:=& \forall x.\phi \mid \lnot \phi \mid \phi \lor \phi \mid \top \mid \bot \mid t=t \mid \mbox{CF}(t)\\
+    \phi &:=& \forall x.\phi \mid \text{\add[nc]{$\exists x.\phi \mid$}} \lnot \phi \mid \phi \lor \phi \mid \top \mid \bot \mid t=t \mid \mbox{CF}(t)\\
     && \mid \phi \land \phi \mid \phi \to \phi \mid \phi \tot \phi \\
     \Phi &:=& \epsilon \mid \phi \mid \Phi \cup \Phi \\
   \end{array} \]
   \caption{First-order logic syntax}
+  \note[nc]{The $\Phi$ are unnecessary and don't make things simpler, because a set of formulas is equivalent to the conjunction of its contents.  XXX, TODO: drop $\Phi$ and replace all $\bigcup$ with $\bigwedge$.}
   \label{fol-stx}
 \end{figure}
 
@@ -515,7 +586,7 @@ pattern-matched on $\bad$ then the result should be $\unr$.
        \left(\bigvee_i \exists \vec{x_i}.~e = K_i(\vec{x_i})\right) \lor a = \texttt{UNR})} \\
      &\land& \forall \vec{x_1}.~\etrans{e} = K_1(\vec{x_1}) &\to& a = \etrans{e_1} \\
      &\land& & \cdots & \\
-     &\land& \forall \vec{x_n}.~\etrans{e} = K_n(\vec{x_n}) &\to& a = \etrans{e_n}} \\
+     &\land& \forall \vec{x_n}.~\etrans{e} = K_n(\vec{x_n}) &\to& a = \etrans{e_n} \\%removed } here ...
    \end{array} 
 \end{array}
 \]
@@ -625,6 +696,11 @@ There are some formulae that should always be included in our FO theory.
 
 We need to state that $\bad$ is not crash-free with the formula:
 $\lnot \cf{\bad}$.
+
+\add[nc]{We also state that $\unr$ is crash-free: $\cf{\unr}$.}\note[nc]{
+
+This is already present in the implementation, and assumed in the
+consistency proof.}
 
 Plus we need to give formulae for the boolean datatype and for
  unreachability. Strictly speaking, we can omit them and just add the
