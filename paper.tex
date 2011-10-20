@@ -557,26 +557,27 @@ $$
 We give in figure~\ref{dtrans} the two translations of function
 definitions.
 
-figure~\ref{dtrans-reg} gives the translation of function not defined by
+figure~\ref{dtrans} gives the translation of function not defined by
 pattern matching, which is really easy: we just have to state the
 equality between le left-hand side and the right-hand side.
 
 Translating definitions that use pattern-matching is more challenging
-and is described in figure~\ref{dtrans}.  
-
-The first line says that when applied to an argument that matches a
-pattern of the case expression, we should equate the function call to
-the corresponding expression. 
-
-The second line states that if the pattern-matching failed or if we
-pattern-matched on $\bad$ then the result should be $\unr$.
+and is described in figure~\ref{dtrans}.  The first line says that
+when applied to an argument that matches a pattern of the case
+expression, we should equate the function call to the corresponding
+expression. The second line states that if the pattern-matching failed
+or if we pattern-matched on $\bad$ then the result should be
+$\unr$.\note[nc]{This text does not agree with the figure.  In
+  particular, the axiom says nothing about the result of scrutinizing
+  $\bad$.  I think the correct behavior is that scrutinizing $\bad$
+  results in $\bad$, \emph{not} $\unr$.}
 
 
 \begin{figure*}
 \[
 \begin{array}{rcl}
   \multicolumn{3}{c}{\ruleform{\dtrans{def} = \Phi}} \\[2.5mm]
-  \dtrans{\mbox{data } T = K_1, \dots, K_n} &=& \ktrans{\mbox{data } T = K_1, \dots, K_n} \\
+  \dtrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} &=& \ktrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} \\
   \dtrans{f \in c} &=& \ctrans{f \in c}\\
   \dtrans{f(\vec{x}) = e} &=& \forall \vec{x},a.~ (\min{a} \land a =
   f(\vec{x})) \to a = \etrans{e} \\
@@ -602,23 +603,25 @@ pattern-matched on $\bad$ then the result should be $\unr$.
 
 \subsection{$\ktrans{}$ -- Datatypes}
 We break down the translation for datatypes in four parts, described in figure~\ref{ktrans}
-$$\ktrans{\mbox{data } T = K_1, \dots, K_n} = \Phi_1 \cup \Phi_2 \cup \Phi_3 \cup \Phi_4$$
+$$\ktrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} = \Phi_1 \cup \Phi_2 \cup \Phi_3 \cup \Phi_4$$
 
 \begin{itemize}
 \item $(\Phi_1)$ For each $K_i$ of arity $a_i$ we introduce selectors
   $sel_{k,K_i}$, which are the projection of $K_i(x_1,\dots,x_{n_i})$
-  on its $k$-th component.
-\item $(\Phi_2)$ For each pair of constructors $K_i,K_j$, we state that they can
+  on its $k$-th component, $k = 1\text{ to }a_i$.
+\item $(\Phi_2)$ For each pair of constructors $K_i,K_j$, $i \not = j$, we state that they can
   never map to the same value.
 \item $(\Phi_3)$ Then, we have to give crash-freeness conditions for each $K_i$:
   Notice that we have a equivalence.
   \begin{itemize}
   \item $\leftarrow$: if we pack crash-free values in a data
     constructor, the resulting value is crash-free.
-  \item $\rightarrow$: a value $t$ of type $T$ is crash-free implies
+  \item $\rightarrow$: a value $t$ of type $T$\note[nc]{
+    ``type'' is used intuitively here: it means the constructor head is of type $T$.
+    } is crash-free implies
     that every value packed in it is crash-free. Recall that one can
     define projection on any argument of a value of type $t$. So if
-    the k-th argument of $t$ is not crash-free, then the k-th
+    the $k$-th argument of $t$ is not crash-free, then the $k$-th
     projection is a crash-free context that throws an expression that
     is not crash-free.
 
@@ -628,10 +631,10 @@ $$\ktrans{\mbox{data } T = K_1, \dots, K_n} = \Phi_1 \cup \Phi_2 \cup \Phi_3 \cu
   being crash-free or not doesn't matter.
   \end{itemize}
 
-\item $(\Phi_4)$ None of the $K_i$ is unreachable.
-\item One may want to also state that if $\vec{x} \neq \bad$ then
+\item $(\Phi_4)$ Now full application of a constructor $K_i$ is unreachable or crashing.
+\item One may want to also state that if for all $j$, $x_j \neq \bad$ then
   $K_i(\vec{x}) \neq \bad$. It is already implied by the fact that
-  $\cf{\vec{x}} \to \cf{K_i(\vec{x})}$.
+  $\left(\forall j. \cf{x_j}\right) \to \cf{K_i(\vec{x})}$.
 \end{itemize}
 
 \begin{figure*}
