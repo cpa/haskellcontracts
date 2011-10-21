@@ -59,7 +59,7 @@ to a first-order logic theory and
  then use an automated theorem prover
 to check the consistency of the theory.
 
-Consider:\note[nc]{Unlike the POPL '09 paper, $CF(e)$ is not implied by $e \in \{x|p\}$.}
+Consider:\note[nc]{Unlike the POPL '09 paper, $\cf{e}$ is not implied by $e \in \{x|p\}$.}
 \begin{verbatim}
 data List a = Nil | Cons a (List a)
 
@@ -607,7 +607,7 @@ $$\ktrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} = \Phi_1 \cup \Phi_2 \cup \P
 
 \begin{itemize}
 \item $(\Phi_1)$ For each $K_i$ of arity $a_i$ we introduce selectors
-  $sel_{k,K_i}$, which are the projection of $K_i(x_1,\dots,x_{n_i})$
+  $sel_{k,K_i}$, which are the projection of $K_i(x_1,\dots,x_{a_i})$
   on its $k$-th component, $k = 1\text{ to }a_i$.
 \item $(\Phi_2)$ For each pair of constructors $K_i,K_j$, $i \not = j$, we state that they can
   never map to the same value.
@@ -631,7 +631,7 @@ $$\ktrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} = \Phi_1 \cup \Phi_2 \cup \P
   being crash-free or not doesn't matter.
   \end{itemize}
 
-\item $(\Phi_4)$ Now full application of a constructor $K_i$ is unreachable or crashing.
+\item $(\Phi_4)$ No full application of a constructor $K_i$ is unreachable or crashing.
 \item One may want to also state that if for all $j$, $x_j \neq \bad$ then
   $K_i(\vec{x}) \neq \bad$. It is already implied by the fact that
   $\left(\forall j. \cf{x_j}\right) \to \cf{K_i(\vec{x})}$.
@@ -656,12 +656,161 @@ $$\ktrans{\mbox{data } T = K_1, \dots, K_n} = \Phi_1 \cup \Phi_2 \cup \Phi_3 \cu
 
 \subsection{$\ctrans{}$ -- Contracts}
 We give in figure~\ref{ctrans} the translation of contract satisfaction.
-$true$ refers to the translation to a term of the data constructor
-\texttt{True} in $\hprime$, not to the actual true value.
-
-Note that we define the translation of $f \in c$ and of $f \not \in
+\annote[nc]{$true$ refers to the translation to a term of the data constructor
+\texttt{True} in $\hprime$, not to the actual true value.}{
+Again, we should use $True$ (or \texttt{True}) in the translation; the
+lowercase is an artifact of the concrete TPTP syntax.
+}
+\remove[nc]{Note that we define the translation of $f \in c$ and of $f \not \in
 c$. We have to do that because one is not the negation of the other,
-even though $\lnot (f \not \in c)$ implies $f \in c$.
+even though $\lnot (f \not \in c)$ implies $f \in c$.}\note[nc]{
+
+The contract translation, $\ctrans{}$, introduces a new predicate,
+$\min{}$, and contract non-satisfaction, $f \notin c$.  The formula
+$\min{e}$, short for ``(a)m in(terested) in $e$'' (?), is used to
+guide the proof search, by restricting proofs to follow the evaluation
+order when instantiating hypotheses (Is this meaningful? Is it even
+correct?).  To understand the translation intuitively, simply ignore
+all $\min{}$'s (I.e., assume $\forall x. \min{x}$).  The
+non-satisfaction form, $f \notin c$, is introduced to make the
+$\min{}$'s appear positively in translations in negative/contravariant
+positions; Ignoring $\min{}$'s, we have $\ctrans{f \notin c} \equiv
+\lnot \ctrans{f \in c}.$ (Well, after I change the definitions of
+$\ctrans{}$ for $e \in \{x | p\}$ and $e \notin \{x|p\}$ \ldots)
+
+Dimitrios gave an example where defining $\ctrans{f \notin c}$ as
+$\lnot \ctrans{f \in c}$ is problematic: prove $\ctrans{g ~Z \in
+  \cfc}$, assuming $\min{g ~Z}$, for an abstract function $g \in \cfc
+\to \cfc$.  If we define 
+\protect \[ 
+\ctrans{g \in x:c1 \to c2} :=
+\forall x. \min{g x} \to \ctrans{x \in c1} \to \ctrans{g x \in c2},
+\]
+then we get stuck, because we must prove $\min{Z}$ to satisfy
+$\ctrans{x \in c1}$ (i.e. $\min{Z} \land \cf{Z}$; we have $\cf{Z}$ by
+definition).  On the other hand, if we define
+\protect \[
+\ctrans{g \in x:c1 \to c2} 
+:= \forall x. \min{g x} \to \lnot \ctrans{x \notin c1} \to \ctrans{g x \in c2},
+\]
+then we succeed, because $\min{Z}$ is irrelevant to us in satisfying
+$\ctrans{x \in c1}$ (i.e. $\lnot \min{Z} \lor \cf{Z}$).
+
+The irrelevance of $\lnot \min{Z}$ above leads to the question, can we
+do away with the $\min{}$'s altogether in such positions?  It turns
+out the answer is ``No'', when we consider proving $g ~(g ~Z) \in
+\cfc$, but I have some ideas for an alternative translation where the
+answer is ``Yes''.  But first $g ~(g ~Z)$: to use $g$'s contract
+assumption we need to prove $\lnot \min{g ~Z} \lor \cf{g ~Z}$, and to
+prove $\cf{g ~Z}$ we in turn need to use $g$'s contract again.  To use
+$g$'s contract again we need $\min{g ~Z}$, and so $\min{}$ is relevant
+again.  The solution is to invoke excluded middle on $\min{g ~Z}$:
+either $\min{g ~Z}$, and we're done, or $\lnot \min{g ~Z}$, in which
+case we satisfy $g$'s preconditions \emph{without} showing $g$'s
+argument to be crash free.  This seems a little surprising to me,
+making a translation with no $\min{}$ here even more appealing.
+
+Here's a start at such a translation.  I
+think it's more natural to think about variance, so write
+$\ctrans{}^+$ for conclusions and $\ctrans{}^-$ for assumptions.  Then
+a system that works for these $\cfc$ examples is
+\protect \begin{eqnarray*}
+\ctrans{x \in \cfc}^+ &:=& \min{x} \to \cf{x} \\
+\ctrans{x \in \cfc}^- &:=& \cf{x}\\
+\ctrans{f \in x:c1 \to c2}^+ &:=& \forall x.               
+  \ctrans{x \in c1}^- \to \ctrans{f x \in c2}^+\\
+\ctrans{f \in x:c1 \to c2}^- &:=& \forall x. \min{f x} \to 
+  \ctrans{x \in c1}^+ \to \ctrans{f x \in c2}^-
+\end{eqnarray*}
+Because $\Gamma,\phi \vdash \psi \equiv \Gamma \vdash \phi \to \psi$,
+it's natural to think of contract assumptions in the theory as
+negative, and contract goals as positive.  An example is helpful:
+\protect \begin{eqnarray*}
+\ctrans{g \in \cfc \to \cfc}^+ &=& \forall x. \cf{x} \to (\min{g ~x} \to \cf{g ~x}),\\
+&&\text{whereas}\\
+\ctrans{g \in \cfc \to \cfc}^- &=& \forall x. \min{g ~x} \to (\min{x} \to \cf{x}) \to \cf{g ~x}.
+\end{eqnarray*}
+Now, given $\ctrans{g \in \cfc \to \cfc}$, we may 
+want to prove $\ctrans{g ~(g ~Z) \in \cfc}$ 
+from $\ctrans{g \in \cfc \to \cfc}^-$ (note the negative).
+So, our goal is $\min{g ~(g ~Z)} \to \cf{g ~(g ~Z)}$.
+This time the proof proceeds more naturally (no EM).  
+From $g$'s contract, we get $\cf{g ~(g ~Z)}$ if we can prove 
+$\min{g ~Z} \to \cf{g ~Z}$.
+But that follows by instantiating $g$'s contract again, and 
+then using $\cf{Z}$ to get $\min{Z} \to \cf{Z}$.
+
+Notice the assymetry between the positive and negative arrow
+translations: the positive case has no $\min{f ~x}$ assumption.  I
+left this $\min{}$ out because it's already in the 
+conclusion of the $\cf$ example, but I certainly haven't
+worked enough examples to justify it.  Moreover, this fragment
+(no $e \in \{x|p\}$ yet) already fails to have a standard
+property of bidirectional systems: that you can check/verify what you assume/use.
+In other words, we can't prove that, forall $e$ and $c$,
+\protect \[
+  \ctrans{e \in c}^- \text{ implies } \ctrans{e \in c}^+.
+\]
+The trouble seems to come down to needing to prove $\min{e ~x} \implies
+\min{x}$, which is not true a priori.  But, it's easy to add the $\min{g ~x}$ 
+assumption to the positive arrow translation to recover the
+ ``negative implies positive'' property.
+
+Going back to the current translation, we consider some of it's
+metatheoretic properties.
+\protect \begin{enumerate}
+\item $\lnot \ctrans{e \notin c}$ should behave like a double-negation
+  translation, in the sense that $\ctrans{e \in c}$ should imply
+  $\lnot \ctrans{e \notin c}$.  This becomes true if we modify the
+  predicate case so that the implication holds (e.g. by more accurately
+  modeling the operation semantics of contracts), and add a symmetric 
+  $\min{f ~x}$ assumption to $\ctrans{f \notin x:c_1 \to c_2}$.  Note that
+  reverse implication does not hold, e.g. $\lnot \ctrans{x \in \cfc}$ does
+  not imply $\ctrans{x \in \cfc}$.
+\item The ``fancy'' $\min{}$-ified translation should 
+  degenerate to the ``naive'' translation when we assume $\forall x. \min{x}$.
+  This is trivially true if we define the ``naive'' translatino as the ``min'' tranlation
+  plus that axiom.  In symbols, we have
+  \protect \[
+  \Gamma^\text{min} \vdash \phi \implies \Gamma^\text{naive} \vdash \phi.
+  \]  I.e., ``\min{} is sound for `naive'''.
+\item We'd like to have a result  like
+  \protect \[
+  \text{Given some validity or consistency assumptions on $\Gamma$ and $e \in c$}, 
+    \Gamma^\text{naive} \vdash \ctrans{e \in c}^\text{naive} \implies \Gamma^\text{min} \vdash \ctrans{e \in c}^\text{min}.
+  \]  I.e., ``\min{} is complete for `naive', under some assumptions about 
+  what we're proving''.  However, Dimitrios points out that we shouldn't expect this
+  completeness theorem without some work, since we're purposefully 
+  restricting the proof search to follow
+  evaulation strategy, and it's far from obvious that all proofs can proceed this way.
+
+\end{enumerate}
+
+Concerns about the current translation
+\protect \begin{enumerate}
+\item The changes needed to make the first property above hold (a $\min{}$ in the negative
+  arrow case and symmetric predicate contract cases).
+  I had trouble proving
+  \protect \[
+  (\lambda x. \text{case $x$ of $True \to True$; $False \to \bad$}) 
+  \in \{x|x==True\} \to \cfc
+  \]
+  , after adding $p = \unr$ to $\ctrans{x \in \{x|p\}}$, but I need to think about it more.
+
+\item There may need to be some $\min{}$ assumptions in the prelude.  E.g. right now 
+  it's impossble to prove $\ctrans{True \in \cfc}$, because you can't prove 
+  $\min{True}$ a priori.  On the other hand, we don't need any extra 
+  $\min{}$ assumption in the arrow case, since it's already assumed, at least in
+  very simple examples (checked on the simple
+  example that $id \in \cfc \to \cfc$).
+
+\item A related question, is what do we feed to Equinox?  Equinox is a 
+  refutation prover, so to prove $\Gamma \vdash \phi$ we ask if 
+  $\Gamma,\lnot \phi \vdash \bot$.  So, for us, when $\phi$ is $\ctrans{e \in c}$, do
+  give Equinox $\Gamma,\lnot \ctrans{e \in c}$ or $\Gamma, \ctrans{e \notin c}$.  I think
+  we want the former, since ignoring Equinox our goal is $\Gamma \vdash \ctrans{e \in c}$.
+\end{enumerate}
+}
 
 \begin{figure*}
   $$ \ruleform{\ctrans{contract} = \Phi} $$
