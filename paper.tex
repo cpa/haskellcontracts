@@ -688,13 +688,20 @@ $\lnot \ctrans{f \in c}$ is problematic: prove $\ctrans{g ~Z \in
 \]
 then we get stuck, because we must prove $\min{Z}$ to satisfy
 $\ctrans{x \in c1}$ (i.e. $\min{Z} \land \cf{Z}$; we have $\cf{Z}$ by
-definition).  On the other hand, if we define
+definition).  (UPDATE: Actually, this is probably just more evidence
+that $\ctrans{e \in \cfc}$ is defined incorrectly: we were already
+worried about that $\min{}$, because it stops us from proving
+$\cf{Z}$, even when no arrows are involved).  On the other hand, if we
+define the arrow case as in Figure~\ref{ctrans}, namely
 \protect \[
 \ctrans{g \in x:c1 \to c2} 
 := \forall x. \min{g x} \to \lnot \ctrans{x \notin c1} \to \ctrans{g x \in c2},
 \]
 then we succeed, because $\min{Z}$ is irrelevant to us in satisfying
-$\ctrans{x \in c1}$ (i.e. $\lnot \min{Z} \lor \cf{Z}$).
+$\ctrans{x \in c1}$ (i.e. $\lnot \min{Z} \lor \cf{Z}$. UPDATE: when you
+notice that that implies $\min{Z} \to \cf{Z}$, (and the reverse follows from EM), the next 
+paragraph might become a little dubious.  I still think the second form 
+is more intuitive.).
 
 The irrelevance of $\lnot \min{Z}$ above leads to the question, can we
 do away with the $\min{}$'s altogether in such positions?  It turns
@@ -730,13 +737,13 @@ negative, and contract goals as positive.  An example is helpful:
 &&\text{whereas}\\
 \ctrans{g \in \cfc \to \cfc}^- &=& \forall x. \min{g ~x} \to (\min{x} \to \cf{x}) \to \cf{g ~x}.
 \end{eqnarray*}
-Now, given $\ctrans{g \in \cfc \to \cfc}$, we may 
-want to prove $\ctrans{g ~(g ~Z) \in \cfc}$ 
-from $\ctrans{g \in \cfc \to \cfc}^-$ (note the negative).
+Now, given $\ctrans{g \in \cfc \to \cfc}^-$, we may 
+want to prove $\ctrans{g ~(g ~Z) \in \cfc}^+$.
 So, our goal is $\min{g ~(g ~Z)} \to \cf{g ~(g ~Z)}$.
 This time the proof proceeds more naturally (no EM).  
 From $g$'s contract, we get $\cf{g ~(g ~Z)}$ if we can prove 
-$\min{g ~Z} \to \cf{g ~Z}$.
+$\min{g ~Z} \to \cf{g ~Z}$ (UPDATE: this is actually the same as 
+before, up to using EM to rewrite the implication).
 But that follows by instantiating $g$'s contract again, and 
 then using $\cf{Z}$ to get $\min{Z} \to \cf{Z}$.
 
@@ -751,12 +758,14 @@ In other words, we can't prove that, forall $e$ and $c$,
 \protect \[
   \ctrans{e \in c}^- \text{ implies } \ctrans{e \in c}^+.
 \]
-The trouble seems to come down to needing to prove $\min{e ~x} \implies
-\min{x}$, which is not true a priori.  But, it's easy to add the $\min{g ~x}$ 
+The trouble seems to come down to needing to prove $\min{e ~x}$ implies 
+$\min{e}$, which is not true a priori.  But, it's easy to add the $\min{g ~x}$ 
 assumption to the positive arrow translation to recover the
- ``negative implies positive'' property.
+ ``negative implies positive'' property. (UPDATE: the symmetric $\min{}$
+may also be necessary when reasoning about functions that return functions: if
+$f ~x = g$ then $f ~x ~y = g ~y$, but we'd need a $\min{f ~x}$ to unfold $f$'s def).
 
-Going back to the current translation, we consider some of it's
+Going back to the current translation, we consider some of its
 metatheoretic properties.
 \protect \begin{enumerate}
 \item $\lnot \ctrans{e \notin c}$ should behave like a double-negation
@@ -774,9 +783,9 @@ metatheoretic properties.
   \protect \[
   \Gamma^\text{min} \vdash \phi \implies \Gamma^\text{naive} \vdash \phi.
   \]  I.e., ``\min{} is sound for `naive'''.
-\item We'd like to have a result  like
+\item We'd like to have a result  like: given some validity or consistency 
+  assumptions on $\Gamma$ and $e \in c$,
   \protect \[
-  \text{Given some validity or consistency assumptions on $\Gamma$ and $e \in c$}, 
     \Gamma^\text{naive} \vdash \ctrans{e \in c}^\text{naive} \implies \Gamma^\text{min} \vdash \ctrans{e \in c}^\text{min}.
   \]  I.e., ``\min{} is complete for `naive', under some assumptions about 
   what we're proving''.  However, Dimitrios points out that we shouldn't expect this
@@ -802,7 +811,8 @@ Concerns about the current translation
   $\min{True}$ a priori.  On the other hand, we don't need any extra 
   $\min{}$ assumption in the arrow case, since it's already assumed, at least in
   very simple examples (checked on the simple
-  example that $id \in \cfc \to \cfc$).
+  example that $id \in \cfc \to \cfc$). (UPDATE: removing the $\min{x} \land$ in $cfc$, 
+  or changing it to $\min{x} \to$, is probably the solution).
 
 \item A related question, is what do we feed to Equinox?  Equinox is a 
   refutation prover, so to prove $\Gamma \vdash \phi$ we ask if 
@@ -811,6 +821,168 @@ Concerns about the current translation
   we want the former, since ignoring Equinox our goal is $\Gamma \vdash \ctrans{e \in c}$.
 \end{enumerate}
 }
+
+\note[nc]{Here's a more fleshed out alternate translation, and a
+  comparison with the current translation.}
+\small
+\begin{verbatim}
+new translation
+===============
+
+ -- you can assume both min()s when proving e in {x|p} 
+[[e in {x|p}]]+ := min(e) /\ min(p[e/x]) -> [[e in {x|p}]]
+ -- you need to prove min(e) but then get min(p[e/x])
+[[e in {x|p}]]- := min(e) -> min(p[e/x]) /\ [[e in {x|p}]]
+ -- could also write this as 'e /= unr -> p[e/x] in {true,unr}'
+[[e in {x|p}]]  := e = unr \/ p[e/x] in {true, unr}
+
+[[e in cf]]+ := min(e) -> cf(e)
+-- i think we can add a 'min(e) ->' here without losing anything.
+[[e in cf]]- :=           cf(e)
+
+-- should add a 'min(e x) ->' here as discussed above.
+[[e in x:c1 -> c2]]+
+  := forall x.             [[x in c1]]- -> [[e x in c2]]+   
+[[e in x:c1 -> c2]]-
+  := forall x. min(e x) -> [[x in c1]]+ -> [[e x in c2]]-
+
+old translation (written in implication style)
+==============================================
+
+[[e in {x|p}]]       := min(p[e/x]) /\ (e = unr \/ p[e/x] = true)
+not[[e notin {x|p}]] := min(p[e/x]) -> (e /= bad /\ p[e/x] /= false)
+
+[[e in cf]]       := min(e) /\ cf(e)
+not[[e notin cf]] := min(e) -> cf(e)
+
+[[e in x:c1 -> c2]] 
+  := forall x. min(e x) -> not[[x notin c1]] -> [[e x in c2]]
+not[[e notin x:c1 -> c2]]
+  := forall x.             [[x in c1]] -> not[[e x notin c2]]
+
+updated cf and {x|p} rules for old translation
+==============================================
+
+[[e in {x|p}]]       := min(p[e/x]) /\ (e = unr \/ p[e/x] in {true,unr})
+not[[e notin {x|p}]] := min(p[e/x]) -> (e = unr \/ p[e/x] in {true,unr})
+
+-- what we actually discussed was adding a top level min(e) assumption, but
+-- removing the min(e) goal has a similar effect.
+[[e in cf]]       :=           cf(e)
+not[[e notin cf]] := min(e) -> cf(e)
+\end{verbatim}
+\note[nc]{And what do we see?
+If we identify $\in^+$ with $\lnot\notin$ and $\in^-$ with $\in$, 
+then the ``new'' translation looks almost the same,
+except it has more $\min{}$'s in the predicate rules.  So, have we learned
+anything? Probably:
+\protect \begin{enumerate}
+  \item We're more confident about our suggested changes to the old translation,
+        including adding a symmetric $\min{}$ assumption to the $\notin$ arrow case. 
+  \item The new translation is more intuitive / we might understand how Koen came up
+        with the old translation.
+  \item We can answer the question about what we give as input to Equinox: for the
+        new translation, it's obvious that the theory $T$ should consist of $\in^-$ axioms.
+        That is consistent with giving Equinox $\in$ axioms.  
+        What to give as the goal is maybe
+        less obvious, since Equinox is a refutation prover, but consider: ignoring the
+        strategy (refutation), we want to prove $\Gamma^{\in^-} \vdash \ctrans{e \in c}^+$.  
+        But
+        that's equivalent to $\Gamma^{\in^-},\lnot\ctrans{e \in c}^+ \vdash \bot$.  
+        And going back
+        to the old translation, the analogy is 
+        $\Gamma^{\in}, \ctrans{e \notin c} \vdash \bot$.
+\end{enumerate}
+
+The predicate case for the new translation came from an example:
+}
+\begin{verbatim}
+try:
+
+[[e in {x|p} ]]+ = min(e) -> min(p[e/x]) -> [[e in {x|p}]]-
+[[e in {x|p} ]]- = e = unr \/ p[e/x] in {true, unr}
+
+example: 
+
+e := (\x.case x of True -> True) -- so e false = bad
+c := {x|x==True} -> CF
+[[e in c]]+ = forall x. min(e x) -> [[x in {x|x==True}]]- -> [[e x in CF]]+
+            = forall x. min(e x) -> (x = unr \/ p in {true,unr})
+                                 -> (min(e x) -> CF(e x))
+
+min(e x) -> min(x) /\ (
+         \/ (x = bad /\ (e x) = bad) 
+         \/ (x = True /\ (e x) = true) 
+         \/ (x = False /\ (e x) = bad)
+ -- better to add the redundant x /= bad, true, false here?
+         \/ (e x) = unr
+         )
+
+if x = unr then (e x) = unr and so CF(unr) and done
+
+if x /= unr /\ p = true then we're stuck, since we can't 
+unroll the definition of ==true in p
+
+so, change the defs:
+
+[[e in {x|p}]]+ := min(e) /\ min(p[e/x]) -> [[e in {x|p}]]
+[[e in {x|p}]]- := min(e) -> min(p[e/x]) /\ [[e in {x|p}]]
+[[e in {x|p}]]  := e = unr \/ p[e/x] in {true, unr}
+
+starting again, we have min(x) from D[[]] so we get 
+
+min(p) /\ (x = unr \/ p in {true,unr})
+
+now
+
+ - x = unr gives (e x) = unr as before
+
+ - for x/=unr and p in {true,unr} we unroll def (==true) 
+   using min(p), for p = ((==True) x):
+
+   min((==True) x) -> min(x) /\ ( -- e' is (==True) here
+         \/ (x = bad /\ (e' x) = bad) 
+         \/ (x = True /\ (e' x) = true) 
+         \/ (x = False /\ (e' x) = bad)
+         \/ (e' x) = unr
+         )
+
+for p = unr, we get x notin {bad,true,false}, 
+and hence (e x) = unr, and we're done.
+
+for p = true, we get x = true, 
+and hence (e x) = true, and we're done.
+\end{verbatim}
+\note[nc]{That example also has an alternate version of the
+ definition translation for functions defined by case
+matching.  It's a little more concise than the old translation.
+}
+\begin{verbatim}
+In any case, another question: 
+does equinox distinguish between D[[]] like
+
+  (x = Nil /\ f x = eNil)
+  \/
+  (exists y,ys. x = Cons(y,ys) /\ f x = eCons)
+
+and D[[]] like
+
+  (x = Nil /\ f x = eNil)
+  \/
+  (x = Cons(cons_1 x,cons_2 x) /\ f x = eCons[cons_1 x/y, cons_2 x/ys])
+
+the latter is nice because we don't need to invent names (consider
+
+  f x = case x of
+          K x -> x
+
+we can't write
+
+  (exists x. x = K x /\ f x = x)
+
+since the two x's equated are not the same!). 
+the former is nice because it's more concise?
+\end{verbatim}
 
 \begin{figure*}
   $$ \ruleform{\ctrans{contract} = \Phi} $$
