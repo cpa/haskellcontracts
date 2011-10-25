@@ -645,7 +645,7 @@ $$\ktrans{\mbox{data } T = K_1, \dots, K_n} = \Phi_1 \cup \Phi_2 \cup \Phi_3 \cu
     \[  \begin{array}{rcl}
       \Phi_1 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to \bigwedge_{1 \leq j \leq k} x_j = sel_{j,K_i}(a) \\
       \Phi_2 &=& \bigcup_{1 \leq i < j \leq n}~\forall \vec{x},\vec{y},a.~ \lnot (\min{a} \land a = K_i(\vec{x}) \land a = K_j(\vec{x})) \\
-      \Phi_3 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to ((\bigwedge_{1 \leq j \leq k} \cf{x_j}) \tot \cf{a\text{\note[nc]{This was $K_i(\vec{x})$.  Typo, right?}}}) \\
+      \Phi_3 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to ((\bigwedge_{1 \leq j \leq k} \cf{x_j}) \tot \cf{a}) \\
       \Phi_4 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to a \neq \unr \land a \neq \bad 
     \end{array} \]
   \end{center}
@@ -849,8 +849,10 @@ new translation
 old translation (written in implication style)
 ==============================================
 
-[[e in {x|p}]]       := min(p[e/x]) /\ (e = unr \/ p[e/x] = true)
-not[[e notin {x|p}]] := min(p[e/x]) -> (e /= bad /\ p[e/x] /= false)
+[[e in {x|p}]]       
+  := min(p[e/x]) /\ (e = unr \/ p[e/x] = true)
+not[[e notin {x|p}]] 
+  := min(p[e/x]) -> (e /= bad /\ p[e/x] /= false)
 
 [[e in cf]]       := min(e) /\ cf(e)
 not[[e notin cf]] := min(e) -> cf(e)
@@ -863,10 +865,13 @@ not[[e notin x:c1 -> c2]]
 updated cf and {x|p} rules for old translation
 ==============================================
 
-[[e in {x|p}]]       := min(p[e/x]) /\ (e = unr \/ p[e/x] in {true,unr})
-not[[e notin {x|p}]] := min(p[e/x]) -> (e = unr \/ p[e/x] in {true,unr})
+[[e in {x|p}]]       
+  := min(p[e/x]) /\ (e = unr \/ p[e/x] in {true,unr})
+not[[e notin {x|p}]] 
+  := min(p[e/x]) -> (e = unr \/ p[e/x] in {true,unr})
 
--- what we actually discussed was adding a top level min(e) assumption, but
+-- what we actually discussed was 
+-- adding a top level min(e) assumption, but
 -- removing the min(e) goal has a similar effect.
 [[e in cf]]       :=           cf(e)
 not[[e notin cf]] := min(e) -> cf(e)
@@ -906,9 +911,11 @@ example:
 
 e := (\x.case x of True -> True) -- so e false = bad
 c := {x|x==True} -> CF
-[[e in c]]+ = forall x. min(e x) -> [[x in {x|x==True}]]- -> [[e x in CF]]+
-            = forall x. min(e x) -> (x = unr \/ p in {true,unr})
-                                 -> (min(e x) -> CF(e x))
+[[e in c]]+ = forall x. min(e x) 
+              -> [[x in {x|x==True}]]- -> [[e x in CF]]+
+            = forall x. min(e x) 
+              -> (x = unr \/ p in {true,unr})
+              -> (min(e x) -> CF(e x))
 
 min(e x) -> min(x) /\ (
          \/ (x = bad /\ (e x) = bad) 
@@ -969,9 +976,11 @@ and D[[]] like
 
   (x = Nil /\ f x = eNil)
   \/
-  (x = Cons(cons_1 x,cons_2 x) /\ f x = eCons[cons_1 x/y, cons_2 x/ys])
+  (x = Cons(cons_1 x,cons_2 x)
+   /\ f x = eCons[cons_1 x/y, cons_2 x/ys])
 
-the latter is nice because we don't need to invent names (consider
+the latter is nice because we don't need 
+to invent names (consider
 
   f x = case x of
           K x -> x
