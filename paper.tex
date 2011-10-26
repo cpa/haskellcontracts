@@ -47,6 +47,7 @@
 \newcommand{\weak}[1]{\mbox{$\$$weak}(#1)}
 \renewcommand{\min}[1]{\mbox{min}(#1)}
 
+\newcommand{\designChoice}{(DESIGN CHOICE/OPTIONAL)}
 
 \title{Static contract checking for Haskell}
 \authorinfo{Simon, Koen, Dimitrios, Charles-Pierre}
@@ -138,15 +139,15 @@ logic.\note[nc]{XXX, TODO: use $True$ and $False$ in the
 \end{equation*}\note[nc]{Here we might ask the same question as above: why not use the simpler definition
 \[
 notnull(Nil) = false
-\]? The answer is that this is an expansion of the $etrans{e} = K_i(\vec{x_i}) \to a = \etrans{e_i}$ part of the $\dtrans{}$ rule for functions defined by cases.  I.e., the scrutinee $Nil$ is, in general, an expression involving, but not necessarily equal to, the arguments to the function.  In this special case we could remove the implication, but not in general.  The $a = \etrans{e_i}$ part is missing above, but I guess that's because this text was not updated for the $\min$-translation.}
+\]? The answer is that this is an expansion of the $\etrans{e} = K_i(\vec{x_i}) \to a = \etrans{e_i}$ part of the $\dtrans{}$ rule for functions defined by cases.  I.e., the scrutinee $Nil$ is, in general, an expression involving, but not necessarily equal to, the arguments to the function.  In this special case we could remove the implication, but not in general.  The $a = \etrans{e_i}$ part is missing above, but I guess that's because this text was not updated for the $\min$-translation.}
 
 \begin{equation}
   \label{defnotnull}
-\forall xs,y,ys.~ x=Cons(y,ys) \implies notnull(xs) = true
+\forall xs,y,ys.~ xs=Cons(y,ys) \implies notnull(xs) = true
 \end{equation}
 
 We also need to specify the translation of calls to $notnull$ with
-$\bad$ values (to encode the fact that $notnull(\bad) = \bad$.
+$\bad$ values, to encode the fact that $notnull(\bad) = \bad$.
 \begin{equation*}
 \forall xs.~xs=\bad \to notnull(xs) = \bad
 \end{equation*}
@@ -499,7 +500,8 @@ value! \change[nc]{In order to prevent this, we will need to encode some basic
 type-checking mecanism directly in our first-order theory.}{This is OK, because the axioms are designed so that scrutinizing an ill-typed constructor-head results in $\unr$.  On the other hand, some ill-typed expressions are not $\unr$, e.g. we can prove that $tail(Cons(Nil,Z)) = Z$.}
 
 \subsection{First-order logic with equality}
-We use first-order logic with equality, defined in figure \ref{fol-stx}.\note[nc]{I guess ``with equality'' means that the proof theory has an axiom schema for substition, i.e. forall $phi$, $\forall x,y.x=y \to phi \iff phi[y/x]$, axioms making $=$ an equality relation, and the requirement that all models interpret $=$ as true equality on the carrier.}
+We use first-order logic with equality, defined in figure \ref{fol-stx}.\note[nc]{I guess ``with equality'' means that the proof theory has an axiom schema for substition, i.e. forall $\phi$, $\forall x,y.x=y \to (\phi \tot \phi[y/x])$, axioms making $=$ an equality relation, and the requirement that all models interpret $=$ as true equality on the carrier.}
+\note[nc]{See Section~\ref{sec:contracts} for a discussion of the $\min{}$ predicate.}
 
 \begin{figure}
  \centering
@@ -617,7 +619,7 @@ $$\ktrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} = \Phi_1 \cup \Phi_2 \cup \P
   \item $\leftarrow$: if we pack crash-free values in a data
     constructor, the resulting value is crash-free.
   \item $\rightarrow$: a value $t$ of type $T$\note[nc]{
-    ``type'' is used intuitively here: it means the constructor head is of type $T$.
+    ``type'' is used loosely here: it means the constructor head is of type $T$.
     } is crash-free implies
     that every value packed in it is crash-free. Recall that one can
     define projection on any argument of a value of type $t$. So if
@@ -654,7 +656,91 @@ $$\ktrans{\mbox{data } T = K_1, \dots, K_n} = \Phi_1 \cup \Phi_2 \cup \Phi_3 \cu
 \end{figure*}
 
 
-\subsection{$\ctrans{}$ -- Contracts}
+\subsection{$\ctrans{}$ -- Contracts}\label{sec:contracts}
+\note[nc]{%
+Figure~\ref{fig:newCTrans} contains the new min contract translation, and
+Figure~\ref{fig:naiveCTrans} contains the naive contract translation
+with no $\min$'s.  The min translation reduces to the naive translation when
+all $\min$'s are assumed true, i.e. when an axiom $\forall x.\min{x}$ is added.
+
+The min translation has two forms, $\ctrans{}^-$ for 
+assumptions/axioms and $\ctrans{}^+$
+for conclusions/theorems.  The choice of minus and 
+plus comes from the negative and positive
+positions in an implication: $- \to +$.  The goal of the $\min$'s is to limit the
+applicability of the axioms ($\ctrans{}^-$ and $\dtrans{}$ and $\ktrans{}$), 
+in order to prune 
+the search space.  So, $\min$'s
+appear as obligations (the premises in implications) 
+in contract and definition axioms. The mnemonic is ``(a)m in(terested)'',
+and the translation is designed so that $\min{e}$ is introduced whenever
+$e$ is evaluated or inspected.  The axiom translations contain $\min{}$
+obligations that prevent using the axioms on ``uninteresting'' terms.
+
+For example, consider $\ctrans{e \in \cfc}^+$ and $\ctrans{e \in \cfc}^-$
+in Figure~\ref{fig:newCTrans}.  In the plus-translation, $\min{e}$ is a
+premise that can be used to prove $\cf{e}$, whereas in the minus-translation, either
+there is no $\min{e}$, or $\min{e}$ is an obligation that must be
+satisfied before $\cf{e}$ may be concluded.  In the plus-translation, we
+get interest ($\min{e}$) in $e$ because we are trying to prove something about $e$,
+whereas in the minus-translation, we might have to prove we're interested in $e$ before
+we can conclude that $e$ is crash free (this latter $\min{e}$ obligation is
+a design choice because it's not clear why we'd want to constrain the use
+of $\cf{e}$: we'd need to prove $\min{e}$ anyway before instantiating 
+another axiom at $e$).
+
+As another example, consider the $\dtrans{}$ for functions defined by pattern matching,
+in Figure~\ref{dtrans}.  Definition translations are axioms, 
+so the the initial $\min{f(\vec{x})}$
+is an obligation: we aren't allowed to 
+``unfold the definition'' of the function unless we prove
+that we're interested in a particular application.  
+Once that obligation is satisfied, interest ($\min{e}$) in the
+scrutinee of the case match may be concluded, because the function
+must inspect the scrutinee to compute the result.
+
+Finally, consider $\ctrans{e \in \{x|p\}}^+$ and $\ctrans{e \in \{x|p\}}^-$, in
+Figure~\ref{fig:newCTrans}.  To prove that $e \in \{x|p\}$, we get to
+assume interest in $e$ and $p[e/x]$, whereas, to use $e \in \{x|p\}$,
+we need to prove we're interested in $e$.  The $\min{e}$ constraint
+here is not optional, because in addition to concluding 
+$e \neq \unr \to p[e/x] \in \{True,\unr\}$, we also conclude $\min{p[e/x]}$.
+The $\min{p[e/x]}$ is necessary to unfold definitions in $p[e/x]$ and prove
+$p[e/x] \in \{True,\unr\}$, and because it can be used to unfold definitions,
+we guard it with $\min{e}$.
+}
+\begin{figure*}
+\begin{verbatim}
+[[e in {x|p}]]+ := min(e) /\ min(p[e/x]) -> [[e in {x|p}]]
+[[e in {x|p}]]- := min(e) -> min(p[e/x]) /\ [[e in {x|p}]]
+[[e in {x|p}]]  := e /= unr -> p[e/x] in {true, unr}
+
+[[e in cf]]+ :=  min(e) ->  cf(e)
+[[e in cf]]- := [min(e) ->] cf(e)
+
+-- 'min's optional if a
+-- 'forall f,x. min(f x) -> min(f)' axiom
+-- is added to prelude.
+[[e in x:c1 -> c2]]+
+  := forall x. [min(e x) ->] [[x in c1]]- -> [[e x in c2]]+   
+[[e in x:c1 -> c2]]-
+  := forall x. [min(e x) ->] [[x in c1]]+ -> [[e x in c2]]-
+\end{verbatim}
+\caption{$\ctrans{}$ -- New contract translation. Design choices, in the form
+of optional parts, are enclosed in single square brackets.}
+\label{fig:newCTrans}
+\end{figure*}
+
+\begin{figure*}
+\begin{verbatim}
+[[e in {x|p}]]      := e /= unr -> p[e/x] in {true, unr}
+[[e in cf]]         := cf(e)
+[[e in x:c1 -> c2]] := forall x. [[x in c1]] -> [[e x in c2]]
+\end{verbatim}
+\caption{$\ctrans{}$ -- Naive (no $\min$) contract translation.}
+\label{fig:naiveCTrans}
+\end{figure*}
+
 We give in figure~\ref{ctrans} the translation of contract satisfaction.
 \annote[nc]{$true$ refers to the translation to a term of the data constructor
 \texttt{True} in $\hprime$, not to the actual true value.}{
@@ -829,11 +915,11 @@ Concerns about the current translation
 new translation
 ===============
 
- -- you can assume both min()s when proving e in {x|p} 
+-- you can assume both min()s when proving e in {x|p} 
 [[e in {x|p}]]+ := min(e) /\ min(p[e/x]) -> [[e in {x|p}]]
- -- you need to prove min(e) but then get min(p[e/x])
+-- you need to prove min(e) but then get min(p[e/x])
 [[e in {x|p}]]- := min(e) -> min(p[e/x]) /\ [[e in {x|p}]]
- -- could also write this as 'e /= unr -> p[e/x] in {true,unr}'
+-- could also write this as 'e /= unr -> p[e/x] in {true,unr}'
 [[e in {x|p}]]  := e = unr \/ p[e/x] in {true, unr}
 
 [[e in cf]]+ := min(e) -> cf(e)
@@ -1025,26 +1111,50 @@ the former is nice because it's more concise?
 \section{$\trans{}$ -- Checking a module}
 
 \subsection{Prelude}
-There are some formulae that should always be included in our FO theory.
-
-We need to state that $\bad$ is not crash-free with the formula:
+Figure~\ref{fig:prelude} summarizes the common axioms we add to all
+translations.  We 
+\begin{itemize}
+  \item state that $\bad$ is not crash-free with the formula:
 $\lnot \cf{\bad}$.
 
-\add[nc]{We also state that $\unr$ is crash-free: $\cf{\unr}$.}\note[nc]{
-
+  \item \add[nc]{state that $\unr$ is crash-free: $\cf{\unr}$.}\note[nc]{
 This is already present in the implementation, and assumed in the
 consistency proof.}
 
-Plus we need to give formulae for the boolean datatype and for
- unreachability. Strictly speaking, we can omit them and just add the
-following lines to source files:
+  \item give formulae for the boolean datatype, equivalent to
+translating
 \begin{verbatim}
-data UNR = UNR
-data Bool = True | False
+data Bool = True 0 | False 0
 \end{verbatim}
-But given that those datatypes are used by our translation, we can
-just directly include their translation every time we translate a
-module.
+
+  \item \designChoice state that interest in an application implies
+  interest in the function: $\forall f,x. \min{f ~x} \to \min{f}$.  This axiom can
+  be used to eliminate some $\min{}$'s in the translations for arrow contracts.
+
+  \item \designChoice state that applying $\bad$ and $\unr$ as functions
+  results in $\bad$ and $\unr$, respecitively: \[
+  \forall x. \min{\bad ~x} \to \bad ~x = \bad \land \min{\unr ~x} \to \unr ~x = \unr.
+  \]
+
+  \item \designChoice state that applying a $\cfc$ expression can be used like a
+  $\cfc \to \cfc$ function: $\forall f. \cfc(f) \to \ctrans{f \in \cfc \to \cfc}^-$.
+  Simon suggested this to allow one to write, e.g., $f ::: \cfc$ instead of 
+  $f ::: \cfc \to \cfc$.
+\end{itemize}
+
+\begin{figure}\label{fig:prelude}
+  \begin{itemize}
+    \item $\lnot \cf{\bad}$
+    \item $\cf{\unr}$
+    \item $\dtrans{data~Bool = True~0 | False~0}$
+    \item \designChoice\\ $\forall f,x. \min{f ~x} \to \min{f}$
+    \item \designChoice\\ $\forall x. \min{\bad ~x} \to \bad ~x = \bad$ 
+    \item \designChoice\\ $\forall x. \min{\unr ~x} \to \unr ~x = \unr$
+    \item \designChoice\\ $\forall f. \cfc(f) \to \ctrans{f \in \cfc \to \cfc}^-$
+    \item 
+  \end{itemize}
+  \caption{Prelude -- Axioms common to all translations.}
+\end{figure}
 
 \subsection{Contract checking -- Non-recursive case}
 Input: a module $M$ that consists of a list of definitions, datatypes,
