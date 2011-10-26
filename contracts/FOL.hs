@@ -5,7 +5,7 @@ module FOL where
 import qualified Haskell as H
 import Debug.Trace
 import Data.Char (toUpper)
-import Data.List (intersperse)
+import Data.List (intercalate)
 
 type Term = MetaTerm Variable
 type Formula = MetaFormula Term
@@ -32,7 +32,7 @@ instance Show a => Show (MetaTerm a) where
   show (App [t]) = show t
   show (App ts) = "app(" ++ show (App (init ts)) ++ "," ++ show (last ts) ++ ")"
   show (FullApp f []) = show f
-  show (FullApp f as) = show f ++ "(" ++ (concat $ intersperse "," $ map show as) ++ ")"
+  show (FullApp f as) = show f ++ "(" ++ (intercalate "," $ map show as) ++ ")"
 
 
 infix 7 :<=>:
@@ -79,34 +79,8 @@ removeConstants f = f
 
 simplify f = filter (/= Top) $ splitOnAnd $ removeConstants f
 
-extractVR (Var (Regular x)) = x
-
-
--- The TPTP spec says that only quantified variables should be
--- uppercase So we make everything lowercase (it's supposed to be
--- already done) And upperIfy makes the good variables uppercase.
-upperIfy :: [String] -> Formula -> Formula
-upperIfy c (Forall xs f) = Forall (map (Var . Regular . map toUpper . extractVR) xs) (upperIfy c' f)
-  where c' = (map extractVR xs)++c
-upperIfy c (f1 :<=>: f2) = (upperIfy c f1) :<=>: (upperIfy c f2)
-upperIfy c (f1 :=>: f2) = (upperIfy c f1) :=>: (upperIfy c f2)
-upperIfy c (Not f) = Not (upperIfy c f)
-upperIfy c Top = Top
-upperIfy c Bottom = Bottom
-upperIfy c (t1 :=: t2) = (auxUpper c t1) :=: (auxUpper c t2)
-upperIfy c (t1 :/=: t2) = (auxUpper c t1) :/=: (auxUpper c t2)
-upperIfy c (CF t) = CF (auxUpper c t)
-upperIfy c (And fs) = And (map (upperIfy c) fs)
-upperIfy c (Or fs) = Or (map (upperIfy c) fs)
-  
-auxUpper :: [String] -> Term -> Term
-auxUpper c (Var (Regular v)) = if v `elem` c then (Var . Regular) (map toUpper v) else Var $ Regular v
-auxUpper c (Var v) = Var v
-auxUpper c (App ts) = App $ map (auxUpper c) ts
-auxUpper c (FullApp x ts) = FullApp x (map (auxUpper c) ts) -- TODO think about it
-
 toTPTP :: Formula -> String
-toTPTP f = header ++ "\n" ++ (go $ upperIfy [] f) ++ "\n" ++ footer
+toTPTP f = header ++ "\n" ++ go f ++ "\n" ++ footer
   where header = "fof(axiom,axiom,"
         footer = ").\n"
         go (Forall xs f) = "! " ++ show xs ++ "  : (" ++ go f ++ ")"
@@ -114,8 +88,8 @@ toTPTP f = header ++ "\n" ++ (go $ upperIfy [] f) ++ "\n" ++ footer
         go (f1 :<=>: f2) = "(" ++ go f1 ++ ") <=> (" ++ go f2 ++ ")"
         go (Not (t1 :=: t2)) =  goTerm t1 ++ " != " ++ goTerm t2
         go (Not f) = "~(" ++ go f ++ ")"
-        go (Or fs) = "(" ++ (concat $ intersperse " | " (map go fs)) ++ ")"
-        go (And fs) = "(" ++ (concat $ intersperse " & " (map go fs)) ++ ")"
+        go (Or fs) = "(" ++ (intercalate " | " (map go fs)) ++ ")"
+        go (And fs) = "(" ++ (intercalate " & " (map go fs)) ++ ")"
         go Top = "$true"
         go Bottom = "$false"
         go (t1 :=: t2) = goTerm t1 ++ " = " ++ goTerm t2
@@ -126,7 +100,7 @@ toTPTP f = header ++ "\n" ++ (go $ upperIfy [] f) ++ "\n" ++ footer
         goTerm (App [t]) = goTerm t
         goTerm (App ts) = "app(" ++ goTerm (App (init ts)) ++ "," ++ goTerm (last ts) ++ ")"
         goTerm (FullApp f []) = show f
-        goTerm (FullApp f as) = show f ++ "(" ++ (concat $ intersperse "," $ map show as) ++ ")"
+        goTerm (FullApp f as) = show f ++ "(" ++ (intercalate "," $ map show as) ++ ")"
 
 -- takes a program and a list of arities for each definition
 appifyF :: [H.Type H.Variable] -> [Formula] -> [Formula]

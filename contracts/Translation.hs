@@ -86,6 +86,7 @@ dTrans (H.Let f vs e) = do
         fptr3 = F.Forall vs' $ (F.FullApp (F.Regular (f ++ "p")) vs') :=: (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vs')
 -}
 
+-- Recall that the patterns 'pes' has the form [([Variable],Expression)].
 dTrans (H.LetCase f vs e pes) = do
   let vs'  = map makeVar vs
       -- Uppercasified variables wrapped in Haskell constructors.
@@ -94,11 +95,25 @@ dTrans (H.LetCase f vs e pes) = do
   -- Uppercasify any quantified vars in e before translation.
   et <- eTrans $ sub e
   ft <- eTrans $ H.Var f
-  let zedify ei pi = foldl (\e (v,z) -> H.subst (fVar2HVar z) v e) ei (take (length (tail pi)) $ zip (tail pi) zs)
-      arities = map (\p -> (head p, length $ tail p)) $ map fst pes :: [(String,Int)]
-      zs = [F.Var $ F.Regular $ "Zdef" ++ show x | x <- [1..(foldl1 max [snd y | y <- arities])]]
-  tpieis <- sequence [eTrans (zedify ei pi) | (pi,ei) <- pes]
-  let eq1 = [(et :=: (F.FullApp (F.Regular $ head pi) (take (length pi - 1) [ z | (v,z) <- zip (tail pi) zs ]))) :=>: (F.FullApp (F.Regular f) vs' :=: tpiei) | ((pi,ei),tpiei) <- zip pes tpieis]
+  --pes' <- map
+  -- A Pattern is a [Var], e.g. 'Cons x xs' ==> ['Cons','x','xs'], so
+  -- the 'tail' of a pattern is the variables.  The 'arities' below would
+  -- be simpler if Pattern were (Var,[Var]), e.g. 'Cons x xs' ==> ('Cons',['x','xs']).
+  let -- e.g. [('Cons',2),('Nil',0)]
+      arities = [(c, length xs) | ((c:xs),_) <- pes] :: [(String,Int)]
+      -- A list of "fresh" variables. Length chosen to be large enough
+      -- to substitute for any constructors pattern variables.
+      zs = makeVars (maximum $ map snd arities) "Zdef"
+      -- Variables wrapped in Haskell constructors.
+      zsH = map fVar2HVar zs
+      -- NB: must substitute pattern variables before definition variables,
+      -- because definition variables bind in an enclosing scope.
+      patternSub (_:xs,ei) = sub $ H.substs (zip zsH xs) ei
+  pesT <- sequence $ map (eTrans . patternSub) pes
+      -- e = Ki x1 ... xni -> f(xs) = ei
+  let eq1 = [(et :=: F.FullApp (F.Regular c) (take (length xs) zs))
+             :=>: (F.FullApp (F.Regular f) vs' :=: peT)
+            | ((c:xs,_),peT) <- zip pes pesT]
       -- XXX: this equation is not in the paper, altho it looks reasonable.
       eq2 = (et :=: bad) :=>: (F.FullApp (F.Regular f) vs' :=: bad)
       eq3 = (F.And $ (et :/=: bad):bigAndSel ) :=>: eq4
