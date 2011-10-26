@@ -101,12 +101,14 @@ substs :: [(Expression, Variable)] -> Expression -> Expression
 substs [] e = e
 substs ((x,y):xys) e = substs xys $ subst x y e
 
-subst :: Expression -> Variable -> Expression -> Expression -- e[x/y]
-subst x y (Var v) | v         == y = x
+-- 'subst e1 y e2' = e2[e1/y]
+subst :: Expression -> Variable -> Expression -> Expression
+subst e y (Var v) | v == y    = e
                   | otherwise = Var v
-subst x y (App e1 e2)         = App (subst x y e1) (subst x y e2)
-subst x y (FullApp f es)      = let Var x' = (subst x y (Var f)) in FullApp x' $ map (\e -> subst x y e) es
-subst x y BAD                 = BAD
+subst e y (App e1 e2)         = App (subst e y e1) (subst e y e2)
+subst e y (FullApp f es)      = let Var f' = (subst e y (Var f))
+                                in FullApp f' $ map (subst e y) es
+subst _ _ BAD                 = BAD
 
 
 substsC :: [(Expression,Variable)] -> Contract -> Contract
