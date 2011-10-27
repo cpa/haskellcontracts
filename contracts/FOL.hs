@@ -20,7 +20,9 @@ instance Show Variable where
   show BAD = "bad"
   show UNR = "unr"
 
-
+-- XXX, ???: Is there any reason we don't just use
+-- Haskell.MetaExpression ? That would simplify things (e.g. appifyF
+-- could use appifyExpr instead of duplicating it).
 data MetaTerm a = Var a
                 | App [MetaTerm a]
                 | FullApp a [MetaTerm a]
@@ -79,8 +81,13 @@ removeConstants f = f
 
 simplify f = filter (/= Top) $ splitOnAnd $ removeConstants f
 
+
 toTPTP :: Formula -> String
 toTPTP f = header ++ "\n" ++ go f ++ "\n" ++ footer
+  -- XXX, MAYBE TODO: add better header or comments. Right now the first "axiom"
+  -- below is the name of the axiom.  The TPTP format also allows optional 4th and
+  -- 5th fields for comments.  Would be nice to see each formula labeled with its
+  -- type or source, to make debugging the generated .tptp file easier.
   where header = "fof(axiom,axiom,"
         footer = ").\n"
         go (Forall xs f) = "! " ++ show xs ++ "  : (" ++ go f ++ ")"
@@ -102,13 +109,25 @@ toTPTP f = header ++ "\n" ++ go f ++ "\n" ++ footer
         goTerm (FullApp f []) = show f
         goTerm (FullApp f as) = show f ++ "(" ++ (intercalate "," $ map show as) ++ ")"
 
--- takes a program and a list of arities for each definition
+-- takes formulas and a list of arities for each definition
+-- and returns those formulas using "full application" whereever possible
 appifyF :: [H.Type H.Variable] -> [Formula] -> [Formula]
 appifyF a fs = map (fmap go) fs
-  where go (Var (Regular v)) = case H.lookupT v (trim a) of
-          Just n -> Var (Regular $ H.makePtr v)
-          Nothing -> Var $ Regular v
-        go (App ts) = App (map go ts)
-        go (FullApp f ts) = FullApp f (map go ts) 
-        go t = t
-        trim = filter (\s -> case s of H.Fun _ _ -> True; _ -> False)
+  -- XXX, REFACTOR: copied from Haskell.hs appifyExpr.  This is a
+  -- separate function because the Haskell and FOL use different
+  -- expression types, but this seems completely unnecessary.
+  where go :: Term -> Term
+        go (App (App es1 : es2)) = go (App (es1++es2))
+        go (App (Var (Regular v) : es)) = case H.lookupT v a of
+          Just n -> if length es' == n
+                    then FullApp (Regular v) es'
+                    else App ((Var $ Regular $ H.makePtr v) : es')
+          Nothing -> App ((Var $ Regular v) : es')
+          where es' = map go es
+        go (App es) = App $ map go es
+        go (FullApp v es) = FullApp v $ map go es
+        go e@(Var (Regular v)) = case H.lookupT v a of
+          Just 0 -> e
+          Just n -> Var $ Regular $ H.makePtr v -- XXX, ??? BUG: Won't this make 'f_ptr_ptr' ???
+          Nothing -> e
+        go e@(Var v) = e

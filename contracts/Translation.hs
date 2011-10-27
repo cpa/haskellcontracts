@@ -223,6 +223,10 @@ isToCheck fs (H.Def (H.LetCase f _ _ _))   = f `elem` fs
 isToCheck fs (H.ContSat (H.Satisfies f _)) = f `elem` fs
 isToCheck _ _                              = False
 
+-- XXX, ???: "appification" is an optimization.  Do we need it? It
+-- also makes the generated formulas simpler, but at the cost of
+-- complicating the generation code.  Would like to see how much if
+-- any it speeds up Equinox in practice.
 trans :: H.Program -> [H.Variable] -> [F.Formula]
 trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
   where go fs ds = do
@@ -230,22 +234,32 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
               recSubst  = H.substs  recVars
               recSubstC = H.substsC recVars
               recVars = zip (map recVar fs) fs
-              recVar x = H.Var $ H.makeRec x
+              recVar = H.Var . H.makeRec
           a <- arities <$> get
           regFormulae <- forM regDefs $ \d -> case d of
             H.DataType t                -> tTrans t
             H.Def d                     -> dTrans d
             H.ContSat (H.Satisfies x y) -> F.appifyF a <$> cTrans (H.Var x) y
-          speFormulae <- forM toCheck $ \d -> case d of
+          checkFormulae <- forM toCheck $ \d -> case d of
             H.DataType t                 -> error "No contracts for datatypes yet!"
             H.Def (H.Let f xs e)         -> dTrans $ H.Let     f xs (recSubst e)
             H.Def (H.LetCase f xs e pes) -> dTrans $ H.LetCase f xs (recSubst e)
                                                        [(p,(recSubst e)) | (p,e) <- pes]
+            -- For contract satisfaction 'f ::: c', generate
+            -- 1) an assumption that the recursive occurances 'f_rec' satisfy the contract
+            -- 2) the negation of 'f ::: c'
+            -- XXX, ???: should 'f' be allowed to occur in 'c' at all? The 'recSubstC' below
+            -- indicates this is expected.
             H.ContSat (H.Satisfies x y)  -> do
-              contP   <- F.appifyF a <$> cTrans (recVar x) (recSubstC y)
+              contRec <- F.appifyF a <$> cTrans (recVar x) (recSubstC y)
+              -- XXX, ???: why not 'recSubstC y' instead of plain 'y'?
+              -- XXX, ???: should the goal receive a different label? The TPTP
+              -- format supports e.g. 'conjecture' for goals, vs 'axiom' for
+              -- assumptions. Doe Equinox distinguish (nc vaguely remembers getting
+              -- different output in an experiment)?
               notCont <- map F.Not <$> F.appifyF a <$> cTrans (H.Var x) y
-              return $ notCont ++ contP
-          return $ concat $ prelude : regFormulae ++ speFormulae
+              return $ notCont ++ contRec
+          return $ concat $ prelude : regFormulae ++ checkFormulae
             where prelude = [F.Forall [f,x]
                              $ F.And [F.CF f, F.CF x]
                                :=>: (F.CF $ F.App [f, x])

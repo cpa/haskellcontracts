@@ -85,20 +85,28 @@ lookupT v (Cons f n:as) =  if f == v  then Just n else lookupT v as
 
 -- takes a program and a list of arities for each definition
 -- returns the same program but using full application wherever possible
-appifyExpr a e = go a 1 e []
-  where go a count g@(App (Var v) e) acc = case lookupT v a of
-          Just n -> if count == n 
-                    then FullApp v (e':acc)
-                    else apps (App (Var $ makePtr v) e':acc)
-          Nothing -> apps (App (Var v) e':acc)
-          where e' = go a 1 e []
-        go a count g@(App e1 e2) acc = go a (count+1) e1 (acc++[go a 1 e2 []])
-        go a count (FullApp v es) acc = FullApp v $ map (\e -> go a 1 e []) es
-        go a count BAD acc = BAD
-        go a count (Var v) acc = case lookupT v a of
+appifyExpr :: [Type Variable] -> Expression -> Expression
+appifyExpr a e = go e []
+  -- 'a' is the arities, 'args' is the arguments to the enclosing applications.
+  where go (App (Var v) e) args = case lookupT v a of
+          Just n -> if length args' == n
+                    then FullApp v args'
+                    else apps (App (Var $ makePtr v) e' : args)
+          Nothing -> apps (App (Var v) e' : args)
+          where e' = go e []
+                args' = e':args
+
+        go (App e1 e2) args = go e1 (args++[go e2 []])
+
+        -- There should be no enclosing applications in these case, so no args.
+        go (FullApp v es) [] = FullApp v $ map (\e -> go e []) es
+        go (Var v) [] = case lookupT v a of
           Just 0 -> Var v
-          Just n -> Var $ makePtr v
+          Just n -> Var $ makePtr v -- XXX, ??? BUG: Won't this make 'f_ptr_ptr' ???
           Nothing -> Var v
+        -- XXX, ??? REMOVE: this is a weird place to simplify using
+        -- the reduction semantics for 'BAD'.
+        go BAD _ = BAD
 
 
 -- Bunch of substitution utility
