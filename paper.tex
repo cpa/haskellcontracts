@@ -62,16 +62,16 @@ to check the consistency of the theory.
 
 Consider:\note[nc]{Unlike the POPL '09 paper, $\cf{e}$ is not implied by $e \in \{x|p\}$.}
 \begin{verbatim}
-data List a = Nil | Cons a (List a)
+data List = Nil 0 | Cons 2
 
 notnull x = case x of
   Nil -> False
-  Cons(x,y) -> True
+  Cons x y -> True
 
 head ::: (CF && {x | notnull x }) -> CF
 head xs = case xs of
   Nil -> BAD
-  Cons(x,y) -> x
+  Cons x y -> x
 \end{verbatim}
 
 First, we need to encode the List structure. 
@@ -641,11 +641,11 @@ $$\ktrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} = \Phi_1 \cup \Phi_2 \cup \P
 
 \begin{figure*}
   $$ \ruleform{\ktrans{data~def} = \Phi} $$
-$$\ktrans{\mbox{data } T = K_1, \dots, K_n} = \Phi_1 \cup \Phi_2 \cup \Phi_3 \cup \Phi_4$$
+$$\ktrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} = \Phi_1 \cup \Phi_2 \cup \Phi_3 \cup \Phi_4$$
  \hspace{5.6cm}where
   \begin{center}
     \[  \begin{array}{rcl}
-      \Phi_1 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to \bigwedge_{1 \leq j \leq k} x_j = sel_{j,K_i}(a) \\
+      \Phi_1 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to \bigwedge_{1 \leq j \leq k} x_j = sel_{j,K_i}(a) \text{\note[nc]{??? $\min{a}$ or $\min{sel_{j,K_i}{a}}$?}}\\
       \Phi_2 &=& \bigcup_{1 \leq i < j \leq n}~\forall \vec{x},\vec{y},a.~ \lnot (\min{a} \land a = K_i(\vec{x}) \land a = K_j(\vec{x})) \\
       \Phi_3 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to ((\bigwedge_{1 \leq j \leq k} \cf{x_j}) \tot \cf{a}) \\
       \Phi_4 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to a \neq \unr \land a \neq \bad 
@@ -663,7 +663,7 @@ Figure~\ref{fig:naiveCTrans} contains the naive contract translation
 with no $\min$'s.  The min translation reduces to the naive translation when
 all $\min$'s are assumed true, i.e. when an axiom $\forall x.\min{x}$ is added.
 
-The min translation has two forms, $\ctrans{}^-$ for 
+The min translation has two forms, $\ctrans{}^-$ for
 assumptions/axioms and $\ctrans{}^+$
 for conclusions/theorems.  The choice of minus and 
 plus comes from the negative and positive
@@ -1171,8 +1171,8 @@ following:
 $$\trans{M - f}, \dtrans{f=e[f/f_p]}, \ctrans{f_p \in c} \vdash \ctrans{f \in c}$$
 
 Where $M - f $ means the content of the module $M$ without $f$'s
-definition and $f$'s contract. TODO Stress that it's not always enough
-and that we may have to unroll several times!
+definition and $f$'s contract. XXX, TODO Stress that it's not always enough
+and that we may have to unroll several times!\note[nc]{??? Why? Need an example here.}
 
 \subsection{Module checking}
 A module is a collection of function definitions, data definitions and
