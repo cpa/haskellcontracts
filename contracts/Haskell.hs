@@ -52,12 +52,18 @@ data Type a = Fun a Int
             | Cons a Int
             deriving (Eq,Show)
 
+-- Make a name for abstract recursive occurences of a function
+makeRec f = f ++ "_rec"
+
+-- Make a name for the curried ("pointer") version of a function
+makePtr f = f ++ "_ptr"
+
 apps xs = foldl1 App xs
 
 -- returns the arities of data constructors and functions
 arities :: Program -> [Type Variable]
 arities x = go x >>= \s -> case s of
-  Fun f n -> [Fun f n, Fun (f++"p") n]
+  Fun f n -> [Fun f n, Fun (makeRec f) n]
   d -> [d]
   where go [] = []
         go (Def d:ds) = go2 d:go ds
@@ -83,7 +89,7 @@ appifyExpr a e = go a 1 e []
   where go a count g@(App (Var v) e) acc = case lookupT v a of
           Just n -> if count == n 
                     then FullApp v (e':acc)
-                    else apps (App (Var $ v ++ "_ptr") e':acc)
+                    else apps (App (Var $ makePtr v) e':acc)
           Nothing -> apps (App (Var v) e':acc)
           where e' = go a 1 e []
         go a count g@(App e1 e2) acc = go a (count+1) e1 (acc++[go a 1 e2 []])
@@ -91,7 +97,7 @@ appifyExpr a e = go a 1 e []
         go a count BAD acc = BAD
         go a count (Var v) acc = case lookupT v a of
           Just 0 -> Var v
-          Just n -> Var $ v ++ "_ptr"
+          Just n -> Var $ makePtr v
           Nothing -> Var v
 
 

@@ -106,7 +106,7 @@ toTPTP f = header ++ "\n" ++ go f ++ "\n" ++ footer
 appifyF :: [H.Type H.Variable] -> [Formula] -> [Formula]
 appifyF a fs = map (fmap go) fs
   where go (Var (Regular v)) = case H.lookupT v (trim a) of
-          Just n -> Var (Regular $ v ++ "_ptr")
+          Just n -> Var (Regular $ H.makePtr v)
           Nothing -> Var $ Regular v
         go (App ts) = App (map go ts)
         go (FullApp f ts) = FullApp f (map go ts) 

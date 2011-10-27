@@ -47,6 +47,12 @@ makeSel k d = "sel_"++show k++"_"++unquote d where
   -- in the parser.  I.e., *not* have single quotes yet at this point.
   unquote ('\'':cs) = init cs
 
+{- Moved to Haskell.hs to avoid module import cyle -}
+-- Make a name for abstract recursive occurences of a function
+-- makeRec f = f ++ "_rec"
+-- Make a name for the curried ("pointer") version of a function
+-- makePtr f = f ++ "_ptr"
+
 -- Expression translation
 -------------------------
 
@@ -81,9 +87,9 @@ dTrans (H.Let f vs e) = do
 {-
         -- fptri are equations defining functions relatively to their app counterparts.
         -- eg that app(app(f_ptr,x),y) = f(x,y)
-        fptr1 = (F.Forall vs' $ (F.And [F.CF v | v <- vs']) :=>: F.CF (F.FullApp (F.Regular f) vs')) :<=>: (F.CF $ F.Var $ F.Regular (f++"_ptr"))
-        fptr2 = F.Forall vs' $ (F.FullApp (F.Regular f) vs') :=: (F.App $ (F.Var . F.Regular) (f++"_ptr") : vs')
-        fptr3 = F.Forall vs' $ (F.FullApp (F.Regular (f ++ "p")) vs') :=: (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vs')
+        fptr1 = (F.Forall vs' $ (F.And [F.CF v | v <- vs']) :=>: F.CF (F.FullApp (F.Regular f) vs')) :<=>: (F.CF $ F.Var $ F.Regular $ makePtr f)
+        fptr2 = F.Forall vs' $ (F.FullApp (F.Regular f) vs') :=: (F.App $ (F.Var . F.Regular) (makePtr f) : vs')
+        fptr3 = F.Forall vs' $ (F.FullApp (F.Regular (H.makeRec f)) vs') :=: (F.App $ (F.Var . F.Regular) (makePtr $ makeRec f) : vs')
 -}
 
 -- Recall that the patterns 'pes' has the form [([Variable],Expression)].
@@ -121,9 +127,9 @@ dTrans (H.LetCase f vs e pes) = do
       bigAndSel = [et :/=: (F.FullApp (F.Regular di) [F.FullApp (F.Regular $ makeSel i di) [et] | i <- [1..ai]]) | (di,ai) <- arities]
 -- XXX, TODO: add back f_ptr support.
 {-
-      fptr1 = (F.Forall vs' $ (F.And [F.CF v | v <- vs']) :=>: F.CF (F.FullApp (F.Regular f) vs')) :<=>: (F.CF $ F.Var $ F.Regular (f++"_ptr"))
-      fptr2 = F.Forall vs' $ (F.FullApp (F.Regular f) vs') :=: (F.App $ (F.Var . F.Regular) (f++"_ptr") : vs')
-      fptr3 = F.Forall vs' $ (F.FullApp (F.Regular (f ++ "p")) vs') :=: (F.App $ (F.Var . F.Regular) (f++"p_ptr") : vs')
+      fptr1 = (F.Forall vs' $ (F.And [F.CF v | v <- vs']) :=>: F.CF (F.FullApp (F.Regular f) vs')) :<=>: (F.CF $ F.Var $ F.Regular $ makePtr f)
+      fptr2 = F.Forall vs' $ (F.FullApp (F.Regular f) vs') :=: (F.App $ (F.Var . F.Regular) (makePtr f) : vs')
+      fptr3 = F.Forall vs' $ (F.FullApp (F.Regular (H.makeRec f)) vs') :=: (F.App $ (F.Var . F.Regular) (makePtr $ makeRec f) : vs')
 -}
   return $ [F.Forall (vs' ++ zs) $ F.And (eq1++[eq2,eq3])] -- ,fptr1,fptr2,fptr3]
 
@@ -224,7 +230,7 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
               recSubst  = H.substs  recVars
               recSubstC = H.substsC recVars
               recVars = zip (map recVar fs) fs
-              recVar x = H.Var $ x ++ "p"
+              recVar x = H.Var $ H.makeRec x
           a <- arities <$> get
           regFormulae <- forM regDefs $ \d -> case d of
             H.DataType t                -> tTrans t
