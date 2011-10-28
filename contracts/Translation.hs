@@ -1,6 +1,7 @@
 module Translation where
 
 import qualified Haskell as H
+import Haskell (Name,Named(..),Expression,MetaExpression(..),Arity)
 import qualified FOL as F
 import FOL (MetaFormula(..))
 import Control.Monad.State
@@ -11,41 +12,28 @@ import Control.Applicative
 type Fresh = State TransState
 data TransState = S { prefix  :: String -- the prefix of our fresh variables
                     , count   :: Int    -- a counter for the suffix of our fresh variables
-                    , arities :: [H.Arity]} -- The arities of functions/data constructors in the program, which should be read-only
+                    , arities :: [Arity]} -- The arities of functions/data constructors in the program, which should be read-only
 
 -- Utilities
 ------------
 
 -- Define constants in one place: more concise code and easier to
 -- change their definitions.
-[false,true] = map (F.Var . F.Regular) ["'False'","'True'"]
-unr = F.Var $ F.UNR
-bad = F.Var $ F.BAD
+[false,true,unr,bad] = map (F.Named . F.Con) ["False","True","UNR","BAD"]
 
 -- Generate a fresh name.  Only used in one place :P
-fresh :: Fresh F.Term
+fresh :: Fresh F.Name
 fresh = do
   s <- get
   let k = count s
   put $ s {count = k + 1}
-  return $ makeVar (prefix s ++ show k)
-
--- Convert an FOL Var to a Haskell Var.
-fVar2HVar (F.Var (F.Regular x)) = H.Named $ H.Var x
-
--- Make a TPTP variable from a string.
-makeVar (c:cs) = F.Var $ F.Regular $ toUpper c : cs
+  return (prefix s ++ show k)
 
 -- Make k distinction variables s_1 ... s_k
-makeVars k s = map (makeVar . (s++) . show) [1..k]
+makeVars k s = map ((s++) . show) [1..k]
 
 -- Make a selector function name.
 makeSel k d = "sel_"++show k++"_"++d where
-  -- Strip single quotes.
-  --
-  -- XXX: maybe better to postpone any special handling of constructors
-  -- in the parser.  I.e., *not* have single quotes yet at this point.
-  unquote ('\'':cs) = init cs
 
 {- Moved to Haskell.hs to avoid module import cyle -}
 -- Make a name for abstract recursive occurences of a function
@@ -56,36 +44,20 @@ makeSel k d = "sel_"++show k++"_"++d where
 -- Expression translation
 -------------------------
 
-quoteGetName (H.Var v) = v
-quoteGetName (H.Rec v) = v
-quoteGetName (H.Con v) = "'" ++ v ++ "'"
-
 eTrans :: H.Expression -> Fresh F.Term
-eTrans (H.Named v) = return $ (F.Var $ F.Regular $ quoteGetName v) where
-eTrans (e1 H.:@: e2) = do
-  t1 <- eTrans e1
-  t2 <- eTrans e2
-  return $ F.App [t1,t2]
-eTrans (H.FullApp f es) = do
-  ts <- sequence $ map eTrans es
-  return $ F.FullApp (F.Regular (quoteGetName f)) ts
+eTrans = return
 
 -- Definition translation
 -------------------------
 
 dTrans :: H.Definition -> Fresh [F.Formula]
 dTrans (H.Let f vs e) = do
-  et <- eTrans $ sub e
-  if null vs
-  -- XXX: again, could be simpler to handle emtpy quantification
-  -- later, in the TPTP file generation phase.  This is at least the
-  -- second place with special treatment.
-  then return $ [(F.Var $ F.Regular f) :=: et]
-  else return $ [F.Forall vs' $ (F.FullApp (F.Regular f) vs') :=: et]
+  -- Mark quantified variables as such.
+  let vsN = map (Named . QVar) vs
+      sub = H.substs (zip vsN vs)
+  eT <- eTrans $ sub e
+  return [F.Forall vs $ (F.FullApp (Var f) vsN) :=: eT]
 --                ,fptr1,fptr2,fptr3]
-  where vs'  = map makeVar vs
-        vs'H = map fVar2HVar vs'
-        sub  = H.substs (zip vs'H vs)
 -- XXX, TODO: add back f_ptr support.
 {-
         -- fptri are equations defining functions relatively to their app counterparts.
@@ -97,13 +69,12 @@ dTrans (H.Let f vs e) = do
 
 -- Recall that the patterns 'pes' has the form [([Variable],Expression)].
 dTrans (H.LetCase f vs e pes) = do
-  let vs'  = map makeVar vs
-      -- Uppercasified variables wrapped in Haskell constructors.
-      vs'H = map fVar2HVar vs'
-      sub  = H.substs (zip vs'H vs)
+  -- Mark quantified variables as such.
+  let vsQ = map QVar vs
+      vsN = map Named vsQ
+      sub = H.substs (zip vsN vs)
   -- Uppercasify any quantified vars in e before translation.
-  et <- eTrans $ sub e
-  ft <- eTrans $ H.Named $ H.Var f
+  eT <- eTrans $ sub e
   --pes' <- map
   -- A Pattern is a [Var], e.g. 'Cons x xs' ==> ['Cons','x','xs'], so
   -- the 'tail' of a pattern is the variables.  The 'arities' below would
@@ -111,30 +82,43 @@ dTrans (H.LetCase f vs e pes) = do
   let -- e.g. [('Cons',2),('Nil',0)]
       arities = [(c, length xs) | ((c,xs),_) <- pes] :: [(String,Int)]
       -- A list of "fresh" variables. Length chosen to be large enough
-      -- to substitute for any constructors pattern variables.
+      -- to substitute for any constructors pattern variables.  We use
+      -- fresh variables here since pattern variables could shadow
+      -- arguments: e.g. 'f x = case x of K x -> x'. We translate this
+      -- to 'f x = case x of K z -> z'.  The problem is that we
+      -- generate an equation 'x = K z' for when the scrutinee 'x' is
+      -- equal to 'K _'.
+      --
+      -- XXX: the free vars could be avoided by using the projections
+      -- here: e.g. instead we make an equation 'x = K(pi^K_1 x)'. I
+      -- have no idea if Equinox would be better or worse for it.
+      --
+      -- XXX, TODO: try the above alternate translation in terms of
+      -- projections.
       zs = makeVars (maximum $ map snd arities) "Zdef"
       -- Variables wrapped in Haskell constructors.
-      zsH = map fVar2HVar zs
+      zsQ = map QVar zs
+      zsN = map Named zsQ
       -- NB: must substitute pattern variables before definition variables,
       -- because definition variables bind in an enclosing scope.
-      patternSub ((_,xs),ei) = sub $ H.substs (zip zsH xs) ei
+      patternSub ((_,xs),ei) = sub $ H.substs (zip zsN xs) ei
   pesT <- sequence $ map (eTrans . patternSub) pes
       -- e = Ki x1 ... xni -> f(xs) = ei
-  let eq1 = [(et :=: F.FullApp (F.Regular c) (take (length xs) zs))
-             :=>: (F.FullApp (F.Regular f) vs' :=: peT)
+  let eq1 = [(eT :=: F.FullApp (Con c) (take (length xs) zsN))
+             :=>: (F.FullApp (Var f) vsN :=: peT)
             | (((c,xs),_),peT) <- zip pes pesT]
       -- XXX: this equation is not in the paper, altho it looks reasonable.
-      eq2 = (et :=: bad) :=>: (F.FullApp (F.Regular f) vs' :=: bad)
-      eq3 = (F.And $ (et :/=: bad):bigAndSel ) :=>: eq4
-      eq4 = (F.FullApp (F.Regular f) vs' :=: unr)
-      bigAndSel = [et :/=: (F.FullApp (F.Regular di) [F.FullApp (F.Regular $ makeSel i di) [et] | i <- [1..ai]]) | (di,ai) <- arities]
+      eq2 = (eT :=: bad) :=>: (F.FullApp (Var f) vsN :=: bad)
+      eq3 = (F.And $ (eT :/=: bad):bigAndSel ) :=>: eq4
+      eq4 = (F.FullApp (Var f) vsN :=: unr)
+      bigAndSel = [eT :/=: (F.FullApp (Con c) [F.FullApp (Proj i c) [eT] | i <- [1..a]]) | (c,a) <- arities]
 -- XXX, TODO: add back f_ptr support.
 {-
       fptr1 = (F.Forall vs' $ (F.And [F.CF v | v <- vs']) :=>: F.CF (F.FullApp (F.Regular f) vs')) :<=>: (F.CF $ F.Var $ F.Regular $ makePtr f)
       fptr2 = F.Forall vs' $ (F.FullApp (F.Regular f) vs') :=: (F.App $ (F.Var . F.Regular) (makePtr f) : vs')
       fptr3 = F.Forall vs' $ (F.FullApp (F.Regular (H.makeRec f)) vs') :=: (F.App $ (F.Var . F.Regular) (makePtr $ makeRec f) : vs')
 -}
-  return $ [F.Forall (vs' ++ zs) $ F.And (eq1++[eq2,eq3])] -- ,fptr1,fptr2,fptr3]
+  return $ [F.Forall (vs ++ zs) $ F.And (eq1++[eq2,eq3])] -- ,fptr1,fptr2,fptr3]
 
 -- Contract translation
 -----------------------
@@ -149,16 +133,16 @@ cTrans e (H.Pred x u) =  do
   et <- eTrans e
   return $ [F.And $ [F.Or [(et :=: unr) ,F.And [bad :/=: ut' , ut' :/=: false]]]] -- The data constructor False.
 
-cTrans e (H.Arr x c1 c2) = do
+cTrans e (H.Arr mx c1 c2) = do
   -- XXX, HACK: the parser inserts "" for arrows with unlabeled
   -- arguments.  I think this the only place in the whole translation
   -- where we actually need fresh names :P
-  x' <- if x == "" then fresh else return $ makeVar x
-  let x'H = fVar2HVar x'
-      c2' = H.substC x'H x c2
-  [f1] <- cTrans x'H c1
-  [f2] <- cTrans (e H.:@: x'H) c2'
-  return $ [F.Forall [x'] (f1 :=>: f2)]
+  x <- maybe fresh return mx 
+  let xN = F.Named $ F.QVar x
+      c2' = H.substC xN x c2
+  [f1] <- cTrans xN c1
+  [f2] <- cTrans (e H.:@: xN) c2'
+  return $ [F.Forall [x] (f1 :=>: f2)]
 
 cTrans e (H.And c1 c2) = do
   [f1] <- cTrans e c1
@@ -183,39 +167,40 @@ tTrans d = return $ concat [phi_project d,phi_disjoint d,phi_cf d,phi_total d]
 
 -- Axiom: Term constructors are invertable (Phi_1 in paper).
 phi_project (H.Data _ dns) = map f dns where
-  f (d,a,_) =
+  f (c,a,_) =
     let xs = makeVars a "X"
-    in F.Forall xs $ F.And [x :=: F.FullApp (F.Regular $ makeSel k d)
-                                    [F.FullApp (F.Regular d) $ xs]
-                           | (x,k) <- zip xs [1..a]]
+        xsN = map (Named . QVar) xs
+    in F.Forall xs $ F.And [x :=: F.FullApp (Proj k c)
+                                    [F.FullApp (Con c) $ xsN]
+                           | (x,k) <- zip xsN [1..a]]
 
 -- Axiom: Term constructors have disjoint ranges (Phi_2 in paper).
 phi_disjoint (H.Data _ dns) = map f $ zip dns (tail dns) where
-  f ((d1,a1,_),(d2,a2,_)) =
+  f ((c1,a1,_),(c2,a2,_)) =
     let xs = makeVars a1 "X"
+        xsN = map (Named . QVar) xs
         ys = makeVars a2 "Y"
+        ysN = map (Named . QVar) ys
     in F.Forall (xs++ys) $
-      (F.FullApp (F.Regular d1) xs) :/=: (F.FullApp (F.Regular d2) ys)
+      (F.FullApp (Con c1) xsN) :/=: (F.FullApp (Con c2) ysN)
 
 -- Axiom: Term constructors are CF (Phi_3 in paper).
 phi_cf (H.Data _ dns) = map f dns where
-  f (d,a,_) =
-    let xs = makeVars a "X" in
-    if xs /= []
-    -- XXX: maybe better to handle the special cas of empty
-    -- quantifications in the translation to a tptp file?
-    then F.Forall xs $ (F.CF $ F.FullApp (F.Regular d) xs)
-                       :<=>: (F.And [F.CF x | x <- xs])
-    else F.CF $ F.Var $ F.Regular d
+  f (c,a,_) =
+    let xs = makeVars a "X"
+        xsN = map (Named . QVar) xs
+    in
+    F.Forall xs $ (F.CF $ F.FullApp (Con c) xsN)
+                  :<=>: (F.And [F.CF x | x <- xsN])
 
 -- Axiom: Term constructors are total/lazy (Phi_4 in paper).
 phi_total (H.Data _ dns) = map f dns where
-  f (d,a,_) =
-    let xs = makeVars a "X" in
-    if xs /= []
-    then F.Forall xs $
-           F.FullApp (F.Regular d) xs :/=: unr
-    else (F.Var $ F.Regular d) :/=: unr
+  f (c,a,_) =
+    let xs = makeVars a "X"
+        xsN = map (Named . QVar) xs
+    in
+    F.Forall xs $
+      F.FullApp (Con c) xsN :/=: unr
 
 -- Final translation
 --------------------
@@ -264,8 +249,8 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
               return $ notCont ++ contRec
           return $ concat $ prelude : regFormulae ++ checkFormulae
             where prelude = [F.Forall [f,x]
-                             $ F.And [F.CF f, F.CF x]
-                               :=>: (F.CF $ F.App [f, x])
+                             $ F.And [F.CF fN, F.CF xN]
+                               :=>: (F.CF $ fN :@: xN)
                             ,F.Not $ F.CF bad
                             ,F.CF unr
                             ,false :/=: true
@@ -273,4 +258,5 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
                             ,F.CF false
                             ,true  :/=: unr
                             ,false :/=: unr]
-                  [f,x] = map makeVar ["F","X"]
+                  [f,x] = ["F","X"]
+                  [fN,xN] = map (Named  . QVar) [f,x]

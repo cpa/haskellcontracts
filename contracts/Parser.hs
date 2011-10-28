@@ -532,7 +532,7 @@ happyReduction_23 ((HappyAbsSyn16  happy_var_5) `HappyStk`
 	(HappyTerminal (TokenVar happy_var_1)) `HappyStk`
 	happyRest)
 	 = HappyAbsSyn16
-		 (Arr happy_var_1 happy_var_3 happy_var_5
+		 (Arr (Just happy_var_1) happy_var_3 happy_var_5
 	) `HappyStk` happyRest
 
 happyReduce_24 = happySpecReduce_3  16 happyReduction_24
@@ -540,7 +540,7 @@ happyReduction_24 (HappyAbsSyn16  happy_var_3)
 	_
 	(HappyAbsSyn15  happy_var_1)
 	 =  HappyAbsSyn16
-		 (Arr "" happy_var_1 happy_var_3
+		 (Arr Nothing happy_var_1 happy_var_3
 	)
 happyReduction_24 _ _ _  = notHappyAtAll 
 

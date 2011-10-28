@@ -12,7 +12,7 @@ type DataType = MetaDataType Expression
 type Expression = MetaExpression Named
 type DefGeneral = MetaDefGeneral Expression
 type Program = [DefGeneral]
-type Pattern = (Variable, [Variable])
+type Pattern = (Name, [Name])
 type Contract = MetaContract Expression
 type Definition = MetaDefinition Expression
 
@@ -26,7 +26,13 @@ type Name = String
 -- application, is the special case.
 data Named = Var Name -- ^ Regular variable, including functions.
            | Con Name -- ^ Constructor
+           -- The rest are only relevant to FOL? Could use GADT tricks
+           -- to enforce this.
            | Rec Name -- ^ Recursive version of a function
+           | QVar Name -- ^ Quantified variable.
+           | Proj Int Name -- ^ Projector for a term constructor.
+           -- There is no 'Full' because full application is
+           -- determined by context.
            deriving (Eq,Ord,Show)
 
 -- | Projector for Named
@@ -34,6 +40,7 @@ getName :: Named -> Name
 getName (Var v) = v
 getName (Con v) = v
 getName (Rec v) = v
+getName (QVar v) = v
 
 data MetaExpression v = Named v
                       -- Regular application: f x y => f @ x @ y
@@ -58,13 +65,14 @@ data MetaDefinition a = Let Name [Name] a
                   
 data MetaDataType a = Data Variable [(Variable,Int,MetaContract a)] -- Data constructors + arity + contract
                     deriving (Eq,Show,Functor,Ord)
-                       
-data MetaContract a = Arr Variable (MetaContract a) (MetaContract a) -- x : c -> c'
+
+data MetaContract a = Arr (Maybe Name) (MetaContract a) (MetaContract a)
+                    -- ^ 'x : c1 -> c2', with 'x' optional.
                     | Pred Variable a  -- {x:e}
                     | And (MetaContract a) (MetaContract a)
                     | Or  (MetaContract a) (MetaContract a)
                     | CF
-                    | Any
+                    | Any -- XXX: 'Any' is just '{x:True}', yeah?
                     deriving (Show,Eq,Functor,Ord)
 
 type Arity = (Name,Int)
