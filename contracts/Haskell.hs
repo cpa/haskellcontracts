@@ -9,18 +9,37 @@ type Constructor = String
 
 -- All this meta stuff is just here to allow me to derive functors for free.
 type DataType = MetaDataType Expression
-type Expression = MetaExpression Variable
+type Expression = MetaExpression Named
 type DefGeneral = MetaDefGeneral Expression
 type Program = [DefGeneral]
-type Pattern = [Variable]
+type Pattern = (Variable, [Variable])
 type Contract = MetaContract Expression
 type Definition = MetaDefinition Expression
 
+type Name = String
+-- | Things with names.  We don't include function "pointers" here
+-- because pointerness is determined by use: regular application ':@:'
+-- uses pointers, whereas full application 'FullApp' uses
+-- non-pointers.
+--
+-- Key difference from old design: fullapplication, not regular
+-- application, is the special case.
+data Named = Var Name -- ^ Regular variable, including functions.
+           | Con Name -- ^ Constructor
+           | Rec Name -- ^ Recursive version of a function
+           deriving (Eq,Ord,Show)
 
-data MetaExpression v = Var v
-                      | App (MetaExpression v) (MetaExpression v)
-                      | FullApp Variable [MetaExpression v]
-                      | BAD
+-- | Projector for Named
+getName :: Named -> Name
+getName (Var v) = v
+getName (Con v) = v
+getName (Rec v) = v
+
+data MetaExpression v = Named v
+                      -- Regular application: f x y => f @ x @ y
+                      | (MetaExpression v) :@: (MetaExpression v)
+                      -- Full application: f x y => f(x,y).
+                      | FullApp v [MetaExpression v]
                       deriving (Show,Eq,Functor,Ord)
 
 data MetaDefGeneral a = ContSat (MetaContSat a)
@@ -28,13 +47,13 @@ data MetaDefGeneral a = ContSat (MetaContSat a)
                       | DataType (MetaDataType a)
                       deriving (Eq,Show,Functor,Ord)
 
-
-data MetaContSat a = Satisfies Variable (MetaContract a)
+-- No contracts for constructors! So, Name, not Named here.
+data MetaContSat a = Satisfies Name (MetaContract a)
                    deriving (Show,Eq,Functor,Ord)
                
-data MetaDefinition a = Let Variable [Variable] a
+data MetaDefinition a = Let Name [Name] a
                       -- LetCase f xs e [(p_i,e_i)]_i ~ f xs = case e of [p_i -> e_i]_i
-                      | LetCase Variable [Variable] a [(Pattern,a)]
+                      | LetCase Name [Name] a [(Pattern,a)]
                       deriving (Show,Eq,Functor,Ord)
                   
 data MetaDataType a = Data Variable [(Variable,Int,MetaContract a)] -- Data constructors + arity + contract
@@ -48,9 +67,7 @@ data MetaContract a = Arr Variable (MetaContract a) (MetaContract a) -- x : c ->
                     | Any
                     deriving (Show,Eq,Functor,Ord)
 
-data Type a = Fun a Int
-            | Cons a Int
-            deriving (Eq,Show)
+type Arity = (Name,Int)
 
 -- Make a name for abstract recursive occurences of a function
 makeRec f = f ++ "_rec"
@@ -58,76 +75,66 @@ makeRec f = f ++ "_rec"
 -- Make a name for the curried ("pointer") version of a function
 makePtr f = f ++ "_ptr"
 
-apps xs = foldl1 App xs
+apps xs = foldl1 (:@:) xs
 
 -- returns the arities of data constructors and functions
-arities :: Program -> [Type Variable]
-arities x = go x >>= \s -> case s of
-  Fun f n -> [Fun f n, Fun (makeRec f) n]
-  d -> [d]
-  where go [] = []
-        go (Def d:ds) = go2 d:go ds
-          where go2 (Let f vs _) = Fun f $ length vs
-                go2 (LetCase f vs _ _) = Fun f $ length vs
-        go (DataType d:gs) = go2 d ++ go gs
-          where go2 (Data d vac) = [Cons v a | (v,a,c) <- vac]
-        go (d:ds) = go ds
+arities :: Program -> [Arity]
+arities ds = concatMap go ds
+  where go (Def (Let f vs _))       = [(f,length vs)]
+        go (Def (LetCase f vs _ _)) = [(f,length vs)]
+        go (DataType (Data _ vacs)) = [(v,a) | (v,a,_) <- vacs]
+        go _ = []
 
 
 appify :: Program -> Program
 appify p = map (fmap $ appifyExpr a) p 
   where a = arities p
-        
-lookupT :: String -> [Type Variable] -> Maybe Int
-lookupT v [] = Nothing
-lookupT v (Fun f n:as)  = if f == v  then Just n else lookupT v as
-lookupT v (Cons f n:as) =  if f == v  then Just n else lookupT v as
+
+-- XXX, TODO: rename
+-- | Return the arity of a name
+lookupT :: Named -> [Arity] -> Maybe Int
+lookupT v as = (lookup . getName) v as where
 
 -- takes a program and a list of arities for each definition
 -- returns the same program but using full application wherever possible
-appifyExpr :: [Type Variable] -> Expression -> Expression
+appifyExpr :: [Arity] -> Expression -> Expression
 appifyExpr a e = go e []
   -- 'a' is the arities, 'args' is the arguments to the enclosing applications.
-  where go (App (Var v) e) args = case lookupT v a of
-          Just n -> if length args' == n
+  where go (n@(Named v) :@: e) args = case lookupT v a of
+          Just k -> if length args' == k
                     then FullApp v args'
-                    else apps (App (Var $ makePtr v) e' : args)
-          Nothing -> apps (App (Var v) e' : args)
+                    else apps (n : e' : args)
+          Nothing -> apps (n : e' : args)
           where e' = go e []
                 args' = e':args
 
-        go (App e1 e2) args = go e1 (args++[go e2 []])
+        go (e1 :@: e2) args = go e1 (args++[go e2 []])
 
         -- There should be no enclosing applications in these case, so no args.
         go (FullApp v es) [] = FullApp v $ map (\e -> go e []) es
-        go (Var v) [] = case lookupT v a of
-          Just 0 -> Var v
-          Just n -> Var $ makePtr v -- XXX, ??? BUG: Won't this make 'f_ptr_ptr' ???
-          Nothing -> Var v
-        -- XXX, ??? REMOVE: this is a weird place to simplify using
-        -- the reduction semantics for 'BAD'.
-        go BAD _ = BAD
-
+        go (n@(Named _)) [] = n
 
 -- Bunch of substitution utility
 
-substs :: [(Expression, Variable)] -> Expression -> Expression
-substs [] e = e
-substs ((x,y):xys) e = substs xys $ subst x y e
+-- | Perform many substitutions, rightmost first.
+substs :: [(Expression, Name)] -> Expression -> Expression
+substs subs e = foldr (uncurry subst) e subs
 
--- 'subst e1 y e2' = e2[e1/y]
-subst :: Expression -> Variable -> Expression -> Expression
-subst e y (Var v) | v == y    = e
-                  | otherwise = Var v
-subst e y (App e1 e2)         = App (subst e y e1) (subst e y e2)
-subst e y (FullApp f es)      = let Var f' = (subst e y (Var f))
-                                in FullApp f' $ map (subst e y) es
-subst _ _ BAD                 = BAD
-
+-- | 'subst e1 y e2' = e2[e1/y]
+--
+-- NB: only Var, and not Con or Rec, can be substituted for.  The idea
+-- is that Con and Rec aren't variables in the usual sense: they refer
+-- to particular defined names.
+subst :: Expression -> Name -> Expression -> Expression
+subst e y e'@(Named (Var v)) | v == y    = e
+                             | otherwise = e'
+subst _ _ e'@(Named _)       = e' -- Don't substitute for non-var names.
+subst e y (e1 :@: e2)        = (subst e y e1) :@: (subst e y e2)
+subst e y (FullApp f es)     = let Named f' = (subst e y (Named f))
+                               in FullApp f' $ map (subst e y) es
 
 substsC :: [(Expression,Variable)] -> Contract -> Contract
-substsC [] c = c
-substsC ((x,y):xys) c = substsC xys $ substC x y c
+substsC subs c = foldr (uncurry substC) c subs
 
 substC :: Expression -> Variable -> Contract -> Contract
 substC x y (Arr u c1 c2) = Arr u (substC x y c1) (substC x y c2) -- TODO and if u==y the semantics aren't very clear.
@@ -136,15 +143,3 @@ substC x y (And c1 c2)    = And (substC x y c1) (substC x y c2)
 substC x y (Or c1 c2)     = Or (substC x y c1) (substC x y c2)
 substC x y CF             = CF 
 substC _ _ Any            = Any
-
-
--- FIXME: it's needed to compile but utterly useless it's needed
--- because data constructors can theoretically have contract, even
--- though we don't use this feature.
-ok :: Contract
-ok = Pred "dummy" (Var "true")
-
-okContract 0 = ok
-okContract n = Arr "okDummy" (okContract $ n-1) ok
-
-

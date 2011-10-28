@@ -14,14 +14,13 @@ import Haskell
 --        any   {TokenAny}
         data  {TokenData}
         '='   {TokenEquals}
-        bad   {TokenBad}
         ':::' {TokenSatisfies}
         ':'   {TokenColon}
         '{'   {TokenCurlyO}
         '}'   {TokenCurlyC}
         '->'  {TokenArrow}
-        uvar  {TokenUVar $$}
-        lvar  {TokenLVar $$}
+        con   {TokenCon $$}
+        var   {TokenVar $$}
         int   {TokenInt $$}
         '|'   {TokenPipe}
         ';;'  {TokenSep}
@@ -49,42 +48,39 @@ sep1(p,s) : p list(snd(s,p)) {$1:$2}
 -- XXX: that was probably a bug, ask Simon M.
 ListGeneral : list(fst(General,';;')) {$1}
 
-Vars : list(lvar) {$1}
--- Sanitized constructor (TPTP doesn't allow upper case constant).  It
--- also doesn't allow lower case variables to be quantified over, but
--- we will fix that when we introduce quantifications.
-Con : uvar {"'" ++ $1 ++ "'"}
-Name : Con {$1} | lvar {$1} -- constructor | constant.
+Vars : list(var) {$1}
+Named : con {Con $1} | var {Var $1} -- constructor | constant.
 
-General : lvar Vars '=' Expr                  { Def $ Let $1 $2 $4 } 
-        | lvar Vars '=' case Expr of PatExprs { Def $ LetCase $1 $2 $5 $7 }
-        | Name ':::' Contr                    { ContSat $ Satisfies $1 $3 }
+General : var Vars '=' Expr                  { Def $ Let $1 $2 $4 } 
+        | var Vars '=' case Expr of PatExprs { Def $ LetCase $1 $2 $5 $7 }
+        | var ':::' Contr                    { ContSat $ Satisfies $1 $3 }
 -- XXX: do we actually support parameterized types?
-        | data Con Vars '=' ConDecls          { DataType $ Data $2 $5 }
+        | data con Vars '=' ConDecls         { DataType $ Data $2 $5 }
 
-Pattern  : Con Vars              { $1:$2 }
+Pattern  : con Vars              { ($1,$2) }
 PatExpr  : '|' Pattern '->' Expr { ($2,$4) }
 PatExprs : list(PatExpr)         { $1 }
 
-ConDecl  : Con int          { ($1,$2,okContract $2) }
+-- 'undefined' here is the constructor contract.  Not currently used.
+ConDecl  : con int          { ($1,$2,error "Parser.y: ConDecl: constructor contracts aren't supported.") }
 ConDecls : sep(ConDecl,'|') { $1 }
 
-Atom : Name         { Var $1 }
+Atom : Named        { Named $1 }
      | '(' Expr ')' { $2 }
-Expr : Expr Atom    { App $1 $2 }
-     | bad          { BAD }
+Expr : Expr Atom    { $1 :@: $2 }
      | Atom         { $1 }
--- XXX: there was a commented out FullApp rule.  Might be better to
+-- Q: there was a commented out FullApp rule.  Might be better to
 -- only allow FullApp, until we add support for the "function pointer"
 -- translation?
-ContrAtom : '{' lvar ':' Expr '}'     { Pred $2 $4 }
+-- A: NO! FullApp is the special case, not regular app!
+ContrAtom : '{' var ':' Expr '}'      { Pred $2 $4 }
           | cf                        { CF }
           | '(' Contr ')'             { $2 }
 Contr : ContrAtom '&&' ContrAtom      { And $1 $3 }
       | ContrAtom '||' ContrAtom      { Or  $1 $3 }
-      | lvar ':' ContrAtom '->' Contr { Arr $1 $3 $5 }
+      | var ':' ContrAtom '->' Contr  { Arr $1 $3 $5 }
        -- XXX, HACK: "" becomes a fresh name in cTrans.
-      |          ContrAtom '->' Contr { Arr "" $1 $3 }
+      |         ContrAtom '->' Contr  { Arr "" $1 $3 }
       | ContrAtom                     { $1 }
 {
 happyError :: [Token] -> a
@@ -101,15 +97,14 @@ data Token = TokenCase
            | TokenSep
            | TokenEquals
            | TokenSatisfies
-           | TokenUVar String -- Upper case var
-           | TokenLVar String -- Lower case var
+           | TokenCon String -- Upper case var
+           | TokenVar String -- Lower case var
            | TokenArrow
            | TokenColon
            | TokenParenO
            | TokenParenC
            | TokenCurlyO
            | TokenCurlyC
-           | TokenBad
            | TokenComma
            | TokenOr
            | TokenAnd
@@ -147,8 +142,7 @@ lexVar (c:cs) = token : lexer rest where
     "of"   -> TokenOf
 --    "Any"  -> TokenAny
     "CF"   -> TokenCF
-    "BAD"  -> TokenBad
-    _      -> (if isUpper c then TokenUVar else TokenLVar) var
+    _      -> (if isUpper c then TokenCon else TokenVar) var
 
 main = getContents >>= print . haskell . lexer
 }

@@ -110,15 +110,15 @@ toTPTP f = header ++ "\n" ++ go f ++ "\n" ++ footer
         goTerm (FullApp f as) = show f ++ "(" ++ (intercalate "," $ map show as) ++ ")"
 
 -- takes formulas and a list of arities for each definition
--- and returns those formulas using "full application" whereever possible
-appifyF :: [H.Type H.Variable] -> [Formula] -> [Formula]
+-- and returns those formulas using "full application" wherever possible
+appifyF :: [H.Arity] -> [Formula] -> [Formula]
 appifyF a fs = map (fmap go) fs
   -- XXX, REFACTOR: copied from Haskell.hs appifyExpr.  This is a
   -- separate function because the Haskell and FOL use different
   -- expression types, but this seems completely unnecessary.
   where go :: Term -> Term
         go (App (App es1 : es2)) = go (App (es1++es2))
-        go (App (Var (Regular v) : es)) = case H.lookupT v a of
+        go (App (Var (Regular v) : es)) = case H.lookupT (H.Var v) a of
           Just n -> if length es' == n
                     then FullApp (Regular v) es'
                     else App ((Var $ Regular $ H.makePtr v) : es')
@@ -126,7 +126,7 @@ appifyF a fs = map (fmap go) fs
           where es' = map go es
         go (App es) = App $ map go es
         go (FullApp v es) = FullApp v $ map go es
-        go e@(Var (Regular v)) = case H.lookupT v a of
+        go e@(Var (Regular v)) = case H.lookupT (H.Var v) a of
           Just 0 -> e
           Just n -> Var $ Regular $ H.makePtr v -- XXX, ??? BUG: Won't this make 'f_ptr_ptr' ???
           Nothing -> e

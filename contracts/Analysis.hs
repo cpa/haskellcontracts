@@ -13,7 +13,7 @@ import Parser
 graphFromProgram :: Program -> (Graph,Vertex -> (Variable, Variable, [Variable]),Variable -> Maybe Vertex)
 graphFromProgram p = graphFromEdges [go d | d@(Def _) <- p]
   where go (Def (Let f xs e)) = (f,f,freeVars (xs++dataV) e ++ varsInCont p f)
-        go (Def (LetCase f xs e pes)) = (f,f,varsInCont p f ++ (concatMap (\(p,e) -> freeVars (xs++dataV++p) e) $ ([],e):pes))
+        go (Def (LetCase f xs e pes)) = (f,f,varsInCont p f ++ (concatMap (\((_,ys),e) -> freeVars (xs++dataV++ys) e) $ ((undefined,[]),e):pes))
 --        go (ContSat (Satisfies f c))  = (f,f,contVars f dataV c)
         dataV = dataVars =<< [d | d@(DataType _) <- p]
 
@@ -37,13 +37,18 @@ dataVars :: DefGeneral -> [Variable]
 dataVars (DataType (Data _ vacs)) = map fst3 vacs
   where fst3 (a,_,_) = a
 
--- returns the list of free variables in an expression defining a function
--- xs is the list of arguments of the function
-freeVars :: [Variable] -> Expression -> [Variable]
-freeVars xs BAD = []
-freeVars xs (Var v) = if  v `elem` xs then [] else [v]
-freeVars xs (App e1 e2) = freeVars xs e1 ++ freeVars xs e2
-freeVars xs (FullApp g es) = g : ((freeVars xs) =<< es)
+-- | Return the list of free variables in an expression.
+--
+-- 'xs' is a list of bound variables.
+
+-- XXX, BUG???: this function returns constructor names as well,
+-- although these should never be considered free.  The old code did
+-- this, so I preserved this behavior when I updated it, but I did not
+-- check that it was necessary --- NC.
+freeVars :: [Name] -> Expression -> [Name]
+freeVars xs (Named v) = if (getName v) `elem` xs then [] else [getName v]
+freeVars xs (e1 :@: e2) = freeVars xs e1 ++ freeVars xs e2
+freeVars xs (FullApp g es) = (getName g) : ((freeVars xs) =<< es)
 
 -- black magic.  returns a list of list of function names.  When
 -- traversed, the list gives in order the set of definitions to check.

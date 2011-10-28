@@ -11,7 +11,7 @@ import Control.Applicative
 type Fresh = State TransState
 data TransState = S { prefix  :: String -- the prefix of our fresh variables
                     , count   :: Int    -- a counter for the suffix of our fresh variables
-                    , arities :: [H.Type H.Variable]} -- The arities of functions/data constructors in the program, which should be read-only
+                    , arities :: [H.Arity]} -- The arities of functions/data constructors in the program, which should be read-only
 
 -- Utilities
 ------------
@@ -31,7 +31,7 @@ fresh = do
   return $ makeVar (prefix s ++ show k)
 
 -- Convert an FOL Var to a Haskell Var.
-fVar2HVar (F.Var (F.Regular x)) = H.Var x
+fVar2HVar (F.Var (F.Regular x)) = H.Named $ H.Var x
 
 -- Make a TPTP variable from a string.
 makeVar (c:cs) = F.Var $ F.Regular $ toUpper c : cs
@@ -40,7 +40,7 @@ makeVar (c:cs) = F.Var $ F.Regular $ toUpper c : cs
 makeVars k s = map (makeVar . (s++) . show) [1..k]
 
 -- Make a selector function name.
-makeSel k d = "sel_"++show k++"_"++unquote d where
+makeSel k d = "sel_"++show k++"_"++d where
   -- Strip single quotes.
   --
   -- XXX: maybe better to postpone any special handling of constructors
@@ -56,16 +56,19 @@ makeSel k d = "sel_"++show k++"_"++unquote d where
 -- Expression translation
 -------------------------
 
+quoteGetName (H.Var v) = v
+quoteGetName (H.Rec v) = v
+quoteGetName (H.Con v) = "'" ++ v ++ "'"
+
 eTrans :: H.Expression -> Fresh F.Term
-eTrans (H.Var v) = return $ (F.Var $ F.Regular v)
-eTrans (H.App e1 e2) = do
+eTrans (H.Named v) = return $ (F.Var $ F.Regular $ quoteGetName v) where
+eTrans (e1 H.:@: e2) = do
   t1 <- eTrans e1
   t2 <- eTrans e2
   return $ F.App [t1,t2]
 eTrans (H.FullApp f es) = do
   ts <- sequence $ map eTrans es
-  return $ F.FullApp (F.Regular f) ts
-eTrans H.BAD = return bad
+  return $ F.FullApp (F.Regular (quoteGetName f)) ts
 
 -- Definition translation
 -------------------------
@@ -100,13 +103,13 @@ dTrans (H.LetCase f vs e pes) = do
       sub  = H.substs (zip vs'H vs)
   -- Uppercasify any quantified vars in e before translation.
   et <- eTrans $ sub e
-  ft <- eTrans $ H.Var f
+  ft <- eTrans $ H.Named $ H.Var f
   --pes' <- map
   -- A Pattern is a [Var], e.g. 'Cons x xs' ==> ['Cons','x','xs'], so
   -- the 'tail' of a pattern is the variables.  The 'arities' below would
   -- be simpler if Pattern were (Var,[Var]), e.g. 'Cons x xs' ==> ('Cons',['x','xs']).
   let -- e.g. [('Cons',2),('Nil',0)]
-      arities = [(c, length xs) | ((c:xs),_) <- pes] :: [(String,Int)]
+      arities = [(c, length xs) | ((c,xs),_) <- pes] :: [(String,Int)]
       -- A list of "fresh" variables. Length chosen to be large enough
       -- to substitute for any constructors pattern variables.
       zs = makeVars (maximum $ map snd arities) "Zdef"
@@ -114,12 +117,12 @@ dTrans (H.LetCase f vs e pes) = do
       zsH = map fVar2HVar zs
       -- NB: must substitute pattern variables before definition variables,
       -- because definition variables bind in an enclosing scope.
-      patternSub (_:xs,ei) = sub $ H.substs (zip zsH xs) ei
+      patternSub ((_,xs),ei) = sub $ H.substs (zip zsH xs) ei
   pesT <- sequence $ map (eTrans . patternSub) pes
       -- e = Ki x1 ... xni -> f(xs) = ei
   let eq1 = [(et :=: F.FullApp (F.Regular c) (take (length xs) zs))
              :=>: (F.FullApp (F.Regular f) vs' :=: peT)
-            | ((c:xs,_),peT) <- zip pes pesT]
+            | (((c,xs),_),peT) <- zip pes pesT]
       -- XXX: this equation is not in the paper, altho it looks reasonable.
       eq2 = (et :=: bad) :=>: (F.FullApp (F.Regular f) vs' :=: bad)
       eq3 = (F.And $ (et :/=: bad):bigAndSel ) :=>: eq4
@@ -154,7 +157,7 @@ cTrans e (H.Arr x c1 c2) = do
   let x'H = fVar2HVar x'
       c2' = H.substC x'H x c2
   [f1] <- cTrans x'H c1
-  [f2] <- cTrans (H.App e x'H) c2'
+  [f2] <- cTrans (e H.:@: x'H) c2'
   return $ [F.Forall [x'] (f1 :=>: f2)]
 
 cTrans e (H.And c1 c2) = do
@@ -187,7 +190,7 @@ phi_project (H.Data _ dns) = map f dns where
                            | (x,k) <- zip xs [1..a]]
 
 -- Axiom: Term constructors have disjoint ranges (Phi_2 in paper).
-phi_disjoint (H.Data _ dns) = map f [(a,b) | a <- dns, b <- dns, a < b] where
+phi_disjoint (H.Data _ dns) = map f $ zip dns (tail dns) where
   f ((d1,a1,_),(d2,a2,_)) =
     let xs = makeVars a1 "X"
         ys = makeVars a2 "Y"
@@ -234,12 +237,12 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
               recSubst  = H.substs  recVars
               recSubstC = H.substsC recVars
               recVars = zip (map recVar fs) fs
-              recVar = H.Var . H.makeRec
+              recVar = H.Named . H.Rec
           a <- arities <$> get
           regFormulae <- forM regDefs $ \d -> case d of
             H.DataType t                -> tTrans t
             H.Def d                     -> dTrans d
-            H.ContSat (H.Satisfies x y) -> F.appifyF a <$> cTrans (H.Var x) y
+            H.ContSat (H.Satisfies x y) -> F.appifyF a <$> cTrans (H.Named $ H.Var x) y
           checkFormulae <- forM toCheck $ \d -> case d of
             H.DataType t                 -> error "No contracts for datatypes yet!"
             H.Def (H.Let f xs e)         -> dTrans $ H.Let     f xs (recSubst e)
@@ -257,7 +260,7 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
               -- format supports e.g. 'conjecture' for goals, vs 'axiom' for
               -- assumptions. Doe Equinox distinguish (nc vaguely remembers getting
               -- different output in an experiment)?
-              notCont <- map F.Not <$> F.appifyF a <$> cTrans (H.Var x) y
+              notCont <- map F.Not <$> F.appifyF a <$> cTrans (H.Named $ H.Var x) y
               return $ notCont ++ contRec
           return $ concat $ prelude : regFormulae ++ checkFormulae
             where prelude = [F.Forall [f,x]
