@@ -14,6 +14,7 @@ import System.IO (hFlush,stdout)
 import System.Exit (exitWith,ExitCode (ExitFailure))
 import System.Process (system,readProcess)
 import System.Directory (removeFile)
+import System.FilePath (takeFileName)
 import Control.Applicative
 
 data Conf = Conf { printTPTP :: Bool
@@ -74,7 +75,7 @@ checkFile f cfg = do
   return $ and res
     where go prog checkedDefs cfg [] = []
           go prog checkedDefs cfg (fs:fss) = if (any (`elem` (toCheck cfg)) fs) 
-                                             then check prog fs cfg checkedDefs : go prog (fs++checkedDefs) cfg fss
+                                             then check f prog fs cfg checkedDefs : go prog (fs++checkedDefs) cfg fss
                                              else go prog (fs++checkedDefs) cfg fss
 
 
@@ -87,14 +88,14 @@ hasBeenChecked _ _  = True
 hasNoContract :: Variable -> [DefGeneral] -> Bool
 hasNoContract f prog = not $ f `elem` [g | ContSat (Satisfies g _) <- prog]
 
-check :: Program -> [Variable] -> Conf -> [Variable] -> IO Bool
-check prog [] cfg _ = error "There should be at least one definition!"
-check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
-                              | otherwise = do
+check :: FilePath -> Program -> [Variable] -> Conf -> [Variable] -> IO Bool
+check f prog [] cfg _ = error "There should be at least one definition!"
+check f prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
+                                | otherwise = do
   let safeSubset prog checkedDefs = filter (hasBeenChecked (fs++checkedDefs)) prog
       tptpTheory = (trans (safeSubset prog checkedDefs) fs)
                    >>= simplify >>= toTPTP
-      tmpFile = head fs ++ ".tptp"
+      tmpFile = (takeFileName f) ++ "." ++ head fs ++ ".tptp"
   unless (quiet cfg) $ do
     putStrLn $ "Writing " ++ tmpFile
     putStrLn $ show fs ++ " are mutually recursive. Checking them altogether..."
