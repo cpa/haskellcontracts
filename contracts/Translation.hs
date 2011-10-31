@@ -1,7 +1,7 @@
 module Translation where
 
 import qualified Haskell as H
-import Haskell (Name,Named(..),Expression,MetaExpression(..),Arity)
+import Haskell (Name,Named,MetaNamed(..),Expression,MetaExpression(..),Arity)
 import qualified FOL as F
 import FOL (MetaFormula(..))
 import Control.Monad.State
@@ -134,9 +134,7 @@ cTrans e (H.Pred x u) =  do
   return $ [F.And $ [F.Or [(et :=: unr) ,F.And [bad :/=: ut' , ut' :/=: false]]]] -- The data constructor False.
 
 cTrans e (H.Arr mx c1 c2) = do
-  -- XXX, HACK: the parser inserts "" for arrows with unlabeled
-  -- arguments.  I think this the only place in the whole translation
-  -- where we actually need fresh names :P
+  -- Parser inserts 'Nothing' for unnamed arrow arguments.
   x <- maybe fresh return mx 
   let xN = F.Named $ F.QVar x
       c2' = H.substC xN x c2

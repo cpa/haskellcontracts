@@ -24,16 +24,19 @@ type Name = String
 --
 -- Key difference from old design: fullapplication, not regular
 -- application, is the special case.
-data Named = Var Name -- ^ Regular variable, including functions.
-           | Con Name -- ^ Constructor
+data MetaNamed a =
+             Var a -- ^ Regular variable, including functions.
+           | Con a -- ^ Constructor
            -- The rest are only relevant to FOL? Could use GADT tricks
            -- to enforce this.
-           | Rec Name -- ^ Recursive version of a function
-           | QVar Name -- ^ Quantified variable.
-           | Proj Int Name -- ^ Projector for a term constructor.
+           | Rec a -- ^ Recursive version of a function
+           | QVar a -- ^ Quantified variable.
+           | Proj Int a -- ^ Projector for a term constructor.
            -- There is no 'Full' because full application is
            -- determined by context.
-           deriving (Eq,Ord,Show)
+           deriving (Eq,Ord,Show,Functor)
+
+type Named = MetaNamed Name
 
 -- | Projector for Named
 getName :: Named -> Name
@@ -41,6 +44,7 @@ getName (Var v) = v
 getName (Con v) = v
 getName (Rec v) = v
 getName (QVar v) = v
+getName (Proj _ v) = v
 
 data MetaExpression v = Named v
                       -- Regular application: f x y => f @ x @ y

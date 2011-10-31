@@ -3,7 +3,7 @@
 module FOL (module FOL, module Haskell) where
 
 --import qualified Haskell as H
-import Haskell (Name,Named(..),Expression,MetaExpression(..),Arity,appifyExpr,getName)
+import Haskell (Name,Named,MetaNamed(..),Expression,MetaExpression(..),Arity,appifyExpr,getName)
 import Debug.Trace
 import Data.Char (toUpper)
 import Data.List (intercalate)
@@ -68,11 +68,15 @@ toTPTP f = header ++ "\n" ++ go f ++ "\n" ++ footer
   -- below is the name of the axiom.  The TPTP format also allows optional 4th and
   -- 5th fields for comments.  Would be nice to see each formula labeled with its
   -- type or source, to make debugging the generated .tptp file easier.
+  --
+  -- There is a TPTP package on hackage
+  -- http://hackage.haskell.org/package/logic-TPTP-0.3.0.0.  It's very
+  -- light on documentation, but the source might be worth a look.  It
+  -- handles comments/annotations.  Curious to see if it handles
+  -- quoting and case conversion automatically.
   where header = "fof(axiom,axiom,"
         footer = ").\n"
-        -- XXX, ???: do upper casing here instead?  Maybe by adding a
-        -- QVar to Named?
-        go (Forall xs f) = "! " ++ show (map quantified xs) ++ "  : (" ++ go f ++ ")"
+        go (Forall xs f) = "! " ++ goList (map goQuantified xs) ++ "  : (" ++ go f ++ ")"
         go (f1 :=>: f2) = "(" ++ go f1 ++ ") => (" ++ go f2 ++ ")"
         go (f1 :<=>: f2) = "(" ++ go f1 ++ ") <=> (" ++ go f2 ++ ")"
         go (Not (t1 :=: t2)) =  goTerm t1 ++ " != " ++ goTerm t2
@@ -90,15 +94,17 @@ toTPTP f = header ++ "\n" ++ go f ++ "\n" ++ footer
         goTerm (Named n) = goNamed n
         goTerm (e1 :@: e2) = "app(" ++ goTerm e1 ++ "," ++ goTerm e2 ++ ")"
         goTerm (FullApp f []) = goNamed f
-        goTerm (FullApp f as) = full f ++ "(" ++ (intercalate "," $ map show as) ++ ")"
+        goTerm (FullApp f as) = goFull f ++ "(" ++ (intercalate "," $ map goTerm as) ++ ")"
 
         goNamed (Var v) = v
-        goNamed (Rec v) = v ++ "_rec"
+        goNamed (Rec v) = v ++ "__R"
         goNamed (Con v) = "'" ++ v ++ "'"
-        goNamed (QVar v) = quantified v
+        goNamed (QVar v) = goQuantified v
+        goNamed (Proj i v) = goNamed (Con $ v++"__"++show i)
 
-        full = ("full_"++) . getName
-        quantified = map toUpper
+        goList xs = "["++intercalate "," xs++"]"
+        goFull = goNamed . fmap (++"__F")
+        goQuantified = map toUpper
 
 -- takes formulas and a list of arities for each definition
 -- and returns those formulas using "full application" wherever possible
