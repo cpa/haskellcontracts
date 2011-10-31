@@ -1,57 +1,41 @@
 {-# LANGUAGE DeriveFunctor #-}
 
-module FOL where
+module FOL (module FOL, module Haskell) where
 
-import qualified Haskell as H
+--import qualified Haskell as H
+import Haskell (Name,Named,MetaNamed(..),Expression,MetaExpression(..),Arity,appifyExpr,getName)
 import Debug.Trace
 import Data.Char (toUpper)
-import Data.List (intersperse)
+import Data.List (intercalate)
 
-type Term = MetaTerm Variable
+type Term = Expression
 type Formula = MetaFormula Term
 
-data Variable = Regular String
-              | BAD
-              | UNR
-              deriving (Eq)
-
-instance Show Variable where
-  show (Regular v) = v
-  show BAD = "bad"
-  show UNR = "unr"
-
-
-data MetaTerm a = Var a
-                | App [MetaTerm a]
-                | FullApp a [MetaTerm a]
-                | Weak (MetaTerm a)
-                | Min (MetaTerm a)
-                deriving (Eq,Functor)
-
-instance Show a => Show (MetaTerm a) where
-  show (Var v) = show v
-  show (App []) = error "Cannot apply nothing"
-  show (App [t]) = show t
-  show (App ts) = "app(" ++ show (App (init ts)) ++ "," ++ show (last ts) ++ ")"
-  show (Weak v) = show v
-  show (Min v) = show v
-  show (FullApp f []) = show f
-  show (FullApp f as) = show f ++ "(" ++ (concat $ intersperse "," $ map show as) ++ ")"
-
+-- instance Show a => Show (MetaTerm a) where
+--   show (Var v) = show v
+--   show (App []) = error "Cannot apply nothing"
+--   show (App [t]) = show t
+--   show (App ts) = "app(" ++ show (App (init ts)) ++ "," ++ show (last ts) ++ ")"
+--   show (FullApp f []) = show f
+--   show (FullApp f as) = show f ++ "(" ++ (intercalate "," $ map show as) ++ ")"
 
 infix 7 :<=>:
 infix 7 :=>:
-data MetaFormula a = Forall [a] (MetaFormula a)
+data MetaFormula a = Forall [Name] (MetaFormula a)
                    | (MetaFormula a) :=>: (MetaFormula a)
                    | (MetaFormula a) :<=>: (MetaFormula a)
                    | Not (MetaFormula a)
+                   -- XXX: binary ':\/:' and ':/\:' would be more like
+                   -- TPTP
                    | Or [MetaFormula a]
                    | And [MetaFormula a]
+                   -- XXX: do we have any need for Top and Bottom?
                    | Top
                    | Bottom
                    | a :=: a
                    | a :/=: a
                    | CF a
+                   -- | Min a
                    deriving (Show,Eq,Functor)
 
 
@@ -61,12 +45,6 @@ splitOnAnd (Forall xs (And fs)) = map (Forall xs) fs
 splitOnAnd (Forall xs f) = map (Forall xs) $ splitOnAnd f
 splitOnAnd (And fs) = concatMap splitOnAnd fs
 splitOnAnd f = [f]
-
-appifyFOF a f = fmap (\x -> case x of App ((Var x):xs) -> case lookup x a of
-                                        Just n -> if n == length xs then FullApp x xs else App (Var x : xs)
-                                        Nothing -> App (Var x : xs)
-                                      x -> x) f
-
 
 removeConstants :: Formula -> Formula
 removeConstants (Forall [] f) = removeConstants f
@@ -83,79 +61,61 @@ removeConstants f = f
 
 simplify f = filter (/= Top) $ splitOnAnd $ removeConstants f
 
-extractVR (Var (Regular x)) = x
-
-
--- The TPTP spec says that only quantified variables should be
--- uppercase So we make everything lowercase (it's supposed to be
--- already done) And upperIfy makes the good variables uppercase.
-upperIfy :: [String] -> Formula -> Formula
-upperIfy c (Forall xs f) = Forall (map (Var . Regular . map toUpper . extractVR) xs) (upperIfy c' f)
-  where c' = (map extractVR xs)++c
-upperIfy c (f1 :<=>: f2) = (upperIfy c f1) :<=>: (upperIfy c f2)
-upperIfy c (f1 :=>: f2) = (upperIfy c f1) :=>: (upperIfy c f2)
-upperIfy c (Not f) = Not (upperIfy c f)
-upperIfy c Top = Top
-upperIfy c Bottom = Bottom
-upperIfy c (t1 :=: t2) = (auxUpper c t1) :=: (auxUpper c t2)
-upperIfy c (t1 :/=: t2) = (auxUpper c t1) :/=: (auxUpper c t2)
-upperIfy c (CF t) = CF (auxUpper c t)
-upperIfy c (And fs) = And (map (upperIfy c) fs)
-upperIfy c (Or fs) = Or (map (upperIfy c) fs)
-  
-auxUpper :: [String] -> Term -> Term
-auxUpper c (Var (Regular v)) = if v `elem` c then (Var . Regular) (map toUpper v) else Var $ Regular v
-auxUpper c (Var v) = Var v
-auxUpper c (App ts) = App $ map (auxUpper c) ts
-auxUpper c (FullApp x ts) = FullApp x (map (auxUpper c) ts) -- TODO think about it
-auxUpper c (Weak t) = Weak $ auxUpper c t
-auxUpper c (Min t) = Min $ auxUpper c t
 
 toTPTP :: Formula -> String
-toTPTP f = header ++ "\n" ++ (go $ upperIfy [] f) ++ "\n" ++ footer
+toTPTP f = header ++ "\n" ++ go [] f ++ "\n" ++ footer
+  -- XXX, MAYBE TODO: add better header or comments. Right now the first "axiom"
+  -- below is the name of the axiom.  The TPTP format also allows optional 4th and
+  -- 5th fields for comments.  Would be nice to see each formula labeled with its
+  -- type or source, to make debugging the generated .tptp file easier.
+  --
+  -- There is a TPTP package on hackage
+  -- http://hackage.haskell.org/package/logic-TPTP-0.3.0.0.  It's very
+  -- light on documentation, but the source might be worth a look.  It
+  -- handles comments/annotations.  Curious to see if it handles
+  -- quoting and case conversion automatically.
   where header = "fof(axiom,axiom,"
         footer = ").\n"
-        go (Forall xs f) = "! " ++ show xs ++ "  : (" ++ go f ++ ")"
-        go (f1 :=>: f2) = "(" ++ go f1 ++ ") => (" ++ go f2 ++ ")"
-        go (f1 :<=>: f2) = "(" ++ go f1 ++ ") <=> (" ++ go f2 ++ ")"
-        go (Not (t1 :=: t2)) =  goTerm t1 ++ " != " ++ goTerm t2
-        go (Not f) = "~(" ++ go f ++ ")"
-        go (Or fs) = "(" ++ (concat $ intersperse " | " (map go fs)) ++ ")"
-        go (And fs) = "(" ++ (concat $ intersperse " & " (map go fs)) ++ ")"
-        go Top = "$true"
-        go Bottom = "$false"
-        go (t1 :=: t2) = goTerm t1 ++ " = " ++ goTerm t2
-        go (t1 :/=: t2) = goTerm t1 ++ " != " ++ goTerm t2
-        go (CF t) = "cf(" ++ goTerm t ++ ")"
-        goTerm (Var v) = show v
-        goTerm (App []) = error "Cannot apply nothing"
-        goTerm (App [t]) = goTerm t
-        goTerm (App ts) = "app(" ++ goTerm (App (init ts)) ++ "," ++ goTerm (last ts) ++ ")"
-        goTerm (FullApp f []) = show f
-        goTerm (FullApp f as) = show f ++ "(" ++ (concat $ intersperse "," $ map show as) ++ ")"
-        goTerm (Weak t) = "$weak(" ++ goTerm t ++")"
-        goTerm (Min t) = "$min(" ++ goTerm t ++")"
+        -- 'go qs f' converts formula 'f' to TPTP syntax, assuming
+        -- 'qs' are the names of the quantified variables in 'f'.
+        go qs (Forall xs f) = "! " ++ goQList xs
+                              ++ "  : (" ++ go (xs++qs) f ++ ")"
+        go qs (f1 :=>: f2) = "(" ++ go qs f1 ++ ") => (" ++ go qs f2 ++ ")"
+        go qs (f1 :<=>: f2) = "(" ++ go qs f1 ++ ") <=> (" ++ go qs f2 ++ ")"
+        go qs (Not (t1 :=: t2)) =  goTerm qs t1 ++ " != " ++ goTerm qs t2
+        go qs (Not f) = "~(" ++ go qs f ++ ")"
+        go qs (Or []) = error "add suport for empty OR becomes false"
+        go qs (Or fs) = "(" ++ (intercalate " | " (map (go qs) fs)) ++ ")"
+        go qs (And []) = "$true"
+        go qs (And fs) = "(" ++ (intercalate " & " (map (go qs) fs)) ++ ")"
+        go qs Top = "$true"
+        go qs Bottom = "$false"
+        go qs (t1 :=: t2) = goTerm qs t1 ++ " = " ++ goTerm qs t2
+        go qs (t1 :/=: t2) = goTerm qs t1 ++ " != " ++ goTerm qs t2
+        go qs (CF t) = "cf(" ++ goTerm qs t ++ ")"
 
+        goTerm qs (Named n) = goNamed qs n
+        goTerm qs (e1 :@: e2) = "app(" ++ goTerm qs e1 ++ "," ++ goTerm qs e2 ++ ")"
+        goTerm qs (FullApp f []) = goNamed qs f
+        goTerm qs (FullApp f as) = goFull f ++ "("
+                                   ++ (intercalate "," $ map (goTerm qs) as) ++ ")"
 
+        goNamed qs (Var v) = goVar qs v
+        goNamed qs (Con v) = "'" ++ v ++ "'"
+        goNamed qs (Rec v) = v ++ "__R"
+        goNamed qs (Proj i v) = "'"++v++"__"++show i++"'"
 
+        -- Uppercase a list of quantified variables.
+        goQList xs = "["++intercalate "," (map uppercase xs)++"]"
+        -- Annotate a full application.  We only fully applied defined
+        -- functions, and defined functions are never quantified over,
+        -- so no 'qs' here.
+        goFull = goNamed [] . fmap ("f__"++)
+        -- Uppercase a variable if quantified.
+        goVar qs v = if v `elem` qs then uppercase v else v
+        uppercase = map toUpper
 
--- takes a program and a list of arities for each definition
-appifyF :: [H.Type H.Variable] -> [Formula] -> [Formula]
-appifyF a fs = map (fmap go) fs
-  where go (Var (Regular v)) = case H.lookupT v (trim a) of
-          Just n -> Var (Regular $ v ++ "_ptr")
-          Nothing -> Var $ Regular v
-        go (App ts) = App (map go ts)
-        go (FullApp f ts) = FullApp f (map go ts) 
-        go (Weak t) = Weak $ go t
-        go (Min t) = Min $ go t
-        go t = t
-        trim = filter (\s -> case s of H.Fun _ _ -> True; _ -> False)
-        
-removeWeakAnnotations :: Formula -> Formula
-removeWeakAnnotations = fmap go
-  where go (Weak t) = go t
-        go (Min t)  = Min $ go t
-        go (Var x) = Var x
-        go (App ts) = App $ map go ts
-        go (FullApp v ts) = FullApp v $ map go ts
+-- takes formulas and a list of arities for each definition
+-- and returns those formulas using "full application" wherever possible
+appifyF :: [Arity] -> [Formula] -> [Formula]
+appifyF a fs = map (fmap $ appifyExpr a) fs

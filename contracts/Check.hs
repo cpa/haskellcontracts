@@ -4,7 +4,7 @@ import Analysis (checkOrder)
 import Parser hiding (main)
 import Translation (trans)
 import Haskell
-import FOL (toTPTP,simplify,removeWeakAnnotations)
+import FOL (toTPTP,simplify)
 import ThmProver
 
 import Control.Monad (when,unless)
@@ -14,14 +14,15 @@ import System.IO (hFlush,stdout)
 import System.Exit (exitWith,ExitCode (ExitFailure))
 import System.Process (system,readProcess)
 import System.Directory (removeFile)
+import System.FilePath (takeFileName)
 import Control.Applicative
 
 data Conf = Conf { printTPTP :: Bool
                  , toCheck   :: [String] 
                  , dryRun    :: Bool 
                  , engine    :: String
-                 , noWeak    :: Bool
                  , quiet     :: Bool
+                 , verbose   :: Bool
                  }
 
 conf flags = go flags defaults
@@ -29,15 +30,15 @@ conf flags = go flags defaults
         go ("-c":f:flags)       cfg = go flags (cfg {toCheck=f:(toCheck cfg)})
         go ("--dry-run":flags)  cfg = go flags (cfg {dryRun=True})
         go ("--engine":e:flags) cfg = go flags (cfg {engine=e})
-        go ("--weak":flags)     cfg = go flags (cfg {noWeak=False})
         go ("-q":flags)         cfg = go flags (cfg {quiet=True})
+        go ("-v":flags)         cfg = go flags (cfg {verbose=True})
         go (f:flags)            cfg = error $ f ++": unrecognized option"
         go []                   cfg = cfg
 
         defaults = Conf {printTPTP=False, toCheck=[], dryRun=False,
-                         engine="equinox",  noWeak=True, quiet=False}
+                         engine="equinox", quiet=False, verbose=False}
 usage = unlines
-  [ "usage: ./Check file [-p] [-q] [-c f] [--dry-run] [--engine equinox|vampire|SPASS|E] [--weak]"
+  [ "usage: ./Check file [-p] [-q] [-c f] [--dry-run] [--engine equinox|vampire|SPASS|E]"
   , ""
   , "Default behaviour is: ./Check file --engine equinox"
   , ""
@@ -45,15 +46,12 @@ usage = unlines
   , " * -q outputs nothing, not even the result (I use it to make time measurements less painful)"
   , " * -c f means that only the contract for f (and the contracts of functions that are mutually recursive with f, if any) will be checked, assuming every other contract. If there is no -c option, all the contracts in the file will be checked."
   , " * --dry-run just prints the order in which contracts would be checked but doesn't check anything. If used in conjunction with -p it'll still write then tptp files."
-  , " * --weak adds $weak annotations to the TPTP formulae. It's equinox specific, default is OFF."
   , " * --engine equinox|vampire|SPASS|E let you choose the automated theorem prover to use as backend. More provers can be easily added in ThmProver.hs"
   ]
 
 main = do
-  n <- length <$> getArgs
-  unless (n > 0) usageAndExit
-  f:flags <- getArgs
-  when (f == "-h" || f == "--help") usageAndExit
+  ffs@(f:flags) <- getArgs
+  when ("-h" `elem` ffs || "--help" `elem` ffs) usageAndExit
   let cfg = conf flags
   res <- checkFile f cfg
   if res
@@ -77,7 +75,7 @@ checkFile f cfg = do
   return $ and res
     where go prog checkedDefs cfg [] = []
           go prog checkedDefs cfg (fs:fss) = if (any (`elem` (toCheck cfg)) fs) 
-                                             then check prog fs cfg checkedDefs : go prog (fs++checkedDefs) cfg fss
+                                             then check f prog fs cfg checkedDefs : go prog (fs++checkedDefs) cfg fss
                                              else go prog (fs++checkedDefs) cfg fss
 
 
@@ -88,77 +86,33 @@ hasBeenChecked checkedDefs (ContSat (Satisfies f _)) = f `elem` checkedDefs
 hasBeenChecked _ _  = True
 
 hasNoContract :: Variable -> [DefGeneral] -> Bool
-hasNoContract f prog = and $ (flip map) prog $ \d -> case d of
-  ContSat (Satisfies g _) -> f /= g
-  _ -> True
+hasNoContract f prog = not $ f `elem` [g | ContSat (Satisfies g _) <- prog]
 
-
--- the distinction between one or several functions to check at the
--- same time is not stricly necessary but it gives a nicer output to
--- the user
-check :: Program -> [Variable] -> Conf -> [Variable] -> IO Bool
-check prog [] cfg _ = error "There should be at least one definition!"
-check prog [f] cfg checkedDefs | f `hasNoContract` prog = return True
-                               | otherwise = do
-  let safeSubset prog checkedDefs = filter (hasBeenChecked (f:checkedDefs)) prog
-      tptpTheory = (if (noWeak cfg) 
-                    then map removeWeakAnnotations $ trans (safeSubset prog checkedDefs) [f] 
-                    else trans (safeSubset prog checkedDefs) [f])
-                   >>= simplify >>= toTPTP
-      tmpFile = "tmp.tptp"
-  when (printTPTP cfg) $ do
-    writeFile (f++".tptp") tptpTheory
-    unless (quiet cfg) $
-      putStrLn $ "Writing " ++ f ++ ".tptp"
-  unless (quiet cfg) $
-    putStr $ "Checking " ++ f ++ "..."
-  hFlush stdout
-  if not $ dryRun cfg  
-    then do 
-    writeFile tmpFile tptpTheory
-    let (enginePath,engineOpts,engineUnsat) = case lookup (engine cfg) provers of
-          Nothing -> error "Engine not recognized. Supported engines are: equinox, SPASS, vampire and E"
-          Just x  -> (path x,opts x,unsat x)
-    res <- engineUnsat <$> readProcess  enginePath (engineOpts ++ [tmpFile]) ""
-    removeFile tmpFile
-    when res $ 
-      unless (quiet cfg) $ 
-        putStrLn "\tOK!"
-    return res
-    else do
-    unless (quiet cfg) $ 
-      putStrLn "" -- just print a newline
-    return True
-  
-check prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
-                              | otherwise = do
+check :: FilePath -> Program -> [Variable] -> Conf -> [Variable] -> IO Bool
+check f prog [] cfg _ = error "There should be at least one definition!"
+check f prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
+                                | otherwise = do
   let safeSubset prog checkedDefs = filter (hasBeenChecked (fs++checkedDefs)) prog
-      tptpTheory = (if (noWeak cfg) 
-                    then map removeWeakAnnotations $ trans (safeSubset prog checkedDefs) fs
-                    else trans (safeSubset prog checkedDefs) fs)
+      tptpTheory = (trans (safeSubset prog checkedDefs) fs)
                    >>= simplify >>= toTPTP
-      tmpFile = "tmp.tptp"
-  when (printTPTP cfg) $ do
-    writeFile (head fs ++ ".tptp") tptpTheory
-    unless (quiet cfg) $
-      putStrLn $ "Writing " ++ (head fs) ++ ".tptp"
-  unless (quiet cfg) $
-    putStr $ showfs fs ++ "are mutually recursive. Checking them altogether..."
+      tmpFile = (takeFileName f) ++ "." ++ head fs ++ ".tptp"
+  unless (quiet cfg) $ do
+    putStrLn $ "Writing " ++ tmpFile
+    putStrLn $ show fs ++ " are mutually recursive. Checking them altogether..."
+  writeFile tmpFile tptpTheory
   hFlush stdout
-  if not $ dryRun cfg  
+  res <- if not $ dryRun cfg
     then do 
-    writeFile tmpFile tptpTheory
     let (enginePath,engineOpts,engineUnsat) = case lookup (engine cfg) provers of
           Nothing -> error "Engine not recognized. Supported engines are: equinox, SPASS, vampire, E"
           Just x  -> (path x,opts x,unsat x)
-    res <- engineUnsat <$> readProcess enginePath (engineOpts ++ [tmpFile]) ""
-    removeFile tmpFile
-    when res $
-      unless (quiet cfg) $
-        putStrLn "\tOK!"
+    out <- readProcess enginePath (engineOpts ++ [tmpFile]) ""
+    let res = engineUnsat out
+    unless (quiet cfg) $ do
+      when (verbose cfg) $ putStrLn out
+      putStrLn $ if res then "OK :)" else "Not OK :("
     return res
-    else do
-    unless (quiet cfg) $
-      putStrLn "" -- just print a newline
-    return True
-    where showfs fs = (concat $ intersperse " " fs) ++ " "
+    else return True
+  unless (printTPTP cfg) $
+    removeFile tmpFile
+  return res

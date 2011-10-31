@@ -1,134 +1,117 @@
+-- -*- haskell -*-
 {
 module Parser where
 import Data.Char
 import Haskell
 }
 
-%name haskell
+-- The second parameter, ListGeneral, is the start symbol.
+%name haskell ListGeneral
 %tokentype { Token }
 %error { happyError }
 
 %token
-	any	{TokenAny}
-        data	{TokenData}
-	'='	{TokenEquals}
-	bad     {TokenBad}
-	':::'	{TokenSatisfies}
-	':'	{TokenColon}
-	'{'	{TokenCurlyO}
-	'}'	{TokenCurlyC}
-	'->' 	{TokenArrow}
-	var 	{TokenVar $$}
-	int 	{TokenInt $$}
-	'|' 	{TokenPipe}
-	';;' 	{TokenSep}
-	case 	{TokenCase}
-	of 	{TokenOf}
-	'('	{TokenParenO}
-	')'	{TokenParenC}
- 	','	{TokenComma}
-        cf	{TokenCF}
-	'||'    {TokenOr}
-	'&&'	{TokenAnd}
+--        any   {TokenAny}
+        data  {TokenData}
+        '='   {TokenEquals}
+        ':::' {TokenSatisfies}
+        ':'   {TokenColon}
+        '{'   {TokenCurlyO}
+        '}'   {TokenCurlyC}
+        '->'  {TokenArrow}
+        con   {TokenCon $$}
+        var   {TokenVar $$}
+        int   {TokenInt $$}
+        '|'   {TokenPipe}
+        ';;'  {TokenSep}
+        case  {TokenCase}
+        of    {TokenOf}
+        '('   {TokenParenO}
+        ')'   {TokenParenC}
+--        ','   {TokenComma}
+        cf    {TokenCF}
+        '||'  {TokenOr}
+        '&&'  {TokenAnd}
 %%
 
-ListGeneral : General ';;' ListGeneral {$1:$3}
-	    | General {[$1]}
-	    | {- empty -} {[]}
+-- Parameterized parsers based on section 6.4.1 of the Happy manual (I
+-- can't copy paste from windows to emacs right now :P).
+fst(p,q)  : p q              {$1}
+snd(p,q)  : p q              {$2}
+list(p)   : p list(p)        {$1:$2} | {[]}
+sep(p,s)  : sep1(p,s)        {$1}    | {[]} -- p's separated by s's
+sep1(p,s) : p list(snd(s,p)) {$1:$2}
 
-Comm : var Comm {}
-     | var {}
-     | {- empty -} {}
+-- Careful: I got "Internal Happy error", not a parse error, when I
+-- erroneously used sep(General,';;') here.
+--
+-- XXX: that was probably a bug, ask Simon M.
+ListGeneral : list(fst(General,';;')) {$1}
 
-General : var Args '=' Expr {Def $ Let (map toLower $1) $2 $4} 
-	| var Args '=' case Expr of PatExpr {Def $ LetCase (map toLower $1) $2 $5 $7}
-        | var ':::' Contr { ContSat $ Satisfies (map toLower $1) $3 }
-        | data var Args '=' DataArgs { DataType $ Data (map toLower $2) $5 }
+Vars : list(var) {$1}
+Named : con {Con $1} | var {Var $1} -- constructor | constant.
 
-PatExpr : '|' Pattern '->' Expr PatExpr {($2,$4):$5}
-	| '|' Pattern '->' '('Expr')' PatExpr {($2,$5):$7}
-	| '|' Pattern '->' Expr {[($2,$4)]}
-	| '|' Pattern '->' '('Expr')' {[($2,$5)]}
-	| {- empty -} {[]}
+General : var Vars '=' Expr                  { Def $ Let $1 $2 $4 } 
+        | var Vars '=' case Expr of PatExprs { Def $ LetCase $1 $2 $5 $7 }
+        | var ':::' Contr                    { ContSat $ Satisfies $1 $3 }
+-- XXX: do we actually support parameterized types?
+        | data con Vars '=' ConDecls         { DataType $ Data $2 $5 }
 
-Pattern : var Pattern	{(map toLower $1):$2}
-	| var '(' Pattern ')'	{(map toLower $1):$3}
-	| var {[map toLower $1]}
-	| '('var')' {[map toLower $2]}
-	| {- empty -} {[]}
+Pattern  : con Vars              { ($1,$2) }
+PatExpr  : '|' Pattern '->' Expr { ($2,$4) }
+PatExprs : list(PatExpr)         { $1 }
 
-DataArgs : var int '|' DataArgs {(map toLower $1,$2,okContract $2):$4}
-	 | '('var int')' '|' DataArgs {(map toLower $2,$3, okContract $3):$6}
-	 | var int  {[(map toLower $1,$2,okContract $2)]}
-	 | '('var int')' {[(map toLower $2,$3,okContract $3)]}
-	 | var int ':::' Contr '|' DataArgs {(map toLower $1,$2,$4):$6}
-	 | '('var int')' ':::' Contr '|' DataArgs {(map toLower $2,$3,$6):$8}
-	 | var int ':::' Contr {[(map toLower $1,$2,$4)]}
-	 | '('var int')' ':::' Contr {[(map toLower $2,$3,$6)]}
-	 | {- empty -} {[]}
+-- 'undefined' here is the constructor contract.  Not currently used.
+ConDecl  : con int          { ($1,$2,error "Parser.y: ConDecl: constructor contracts aren't supported.") }
+ConDecls : sep(ConDecl,'|') { $1 }
 
-Args : var Args {(map toLower $1):$2}
-     | {- empty -} {[]}
-
-Atom : var { Var $ map toLower $1 }
+Atom : Named        { Named $1 }
      | '(' Expr ')' { $2 }
-
-Expr : '(' Expr Atom ')' { App $2 $ $3 }
-     | Expr Atom { App $1 $ $2 }
-     | bad { BAD }
-     | '(' bad Expr ')' { App BAD $3 }
-     | bad Expr { App BAD $2 }
-     | Atom { $1 }
---     | var '(' commaArgs ')' { FullApp (map toLower $1) $ $3 }
-
-commaArgs : Expr ',' commaArgs { $1:$3 }
-	  | Expr { [$1] }
-	  | {- empty -} { [] }
-
-Contr : '{' var ':' Expr '}' { Pred (map toLower $2) $4 }
-      | '(' Contr ')' { $2 }
-      | Contr '&&' Contr { And $1 $3 }
-      | Contr '||' Contr { Or  $1 $3 }
-      | var ':' Contr '->' Contr { AppC (map toLower $1) $3 $5 }
-      | '(' var ':' Contr '->' Contr ')' { AppC (map toLower $2) $4 $6 }
-      | Contr '->' Contr { AppC "dummy" $1 $3 }
-      | Contr '->' Contr { AppC "dummy" $1 $3 }
-      | cf { CF }
+Expr : Expr Atom    { $1 :@: $2 }
+     | Atom         { $1 }
+-- Q: there was a commented out FullApp rule.  Might be better to
+-- only allow FullApp, until we add support for the "function pointer"
+-- translation?
+-- A: NO! FullApp is the special case, not regular app!
+ContrAtom : '{' var ':' Expr '}'      { Pred $2 $4 }
+          | cf                        { CF }
+          | '(' Contr ')'             { $2 }
+Contr : ContrAtom '&&' ContrAtom      { And $1 $3 }
+      | ContrAtom '||' ContrAtom      { Or  $1 $3 }
+      | var ':' ContrAtom '->' Contr  { Arr (Just $1) $3 $5 }
+       -- XXX, HACK: "" becomes a fresh name in cTrans.
+      |         ContrAtom '->' Contr  { Arr Nothing $1 $3 }
+      | ContrAtom                     { $1 }
 {
-
 happyError :: [Token] -> a
 happyError x = error $ "Parse error: " ++ show x
 
 data Token = TokenCase
-     	   | TokenExpr
-	   | TokenOf
-     	   | TokenData
-	   | TokenInt Int
-	   | TokenPipe
-	   | TokenCF
-     	   | TokenAny
-	   | TokenSep
-     	   | TokenEquals
-	   | TokenSatisfies
-	   | TokenVar String
-	   | TokenArrow
-	   | TokenColon
-	   | TokenParenO
-	   | TokenParenC
-	   | TokenCurlyO
-	   | TokenCurlyC
-	   | TokenBad
-	   | TokenComma
-	   | TokenOr
-	   | TokenAnd
-	   deriving (Eq,Show)
+           | TokenExpr
+           | TokenOf
+           | TokenData
+           | TokenInt Int
+           | TokenPipe
+           | TokenCF
+           | TokenAny
+           | TokenSep
+           | TokenEquals
+           | TokenSatisfies
+           | TokenCon String -- Upper case var
+           | TokenVar String -- Lower case var
+           | TokenArrow
+           | TokenColon
+           | TokenParenO
+           | TokenParenC
+           | TokenCurlyO
+           | TokenCurlyC
+           | TokenComma
+           | TokenOr
+           | TokenAnd
+           deriving (Eq,Show)
 
 lexer :: String -> [Token]
 lexer [] = []
-lexer (c:cs) 
-      | isSpace c = lexer cs
-      | isAlpha c = lexVar (c:cs)
-      | isDigit c = lexInt (c:cs)
 lexer ('=':cs) = TokenEquals : lexer cs
 lexer (':':':':':':cs) = TokenSatisfies : lexer cs
 lexer (':':cs) = TokenColon : lexer cs
@@ -143,18 +126,23 @@ lexer (';':';':cs) = TokenSep : lexer cs
 lexer ('|':cs) = TokenPipe : lexer cs
 lexer (',':cs) = TokenComma : lexer cs
 lexer ('-':'-':cs) = lexer $ dropWhile (/= '\n') cs
+lexer (c:cs) 
+      | isSpace c = lexer cs
+      | isAlpha c = lexVar (c:cs)
+      | isDigit c = lexInt (c:cs)
+
 lexInt cs = TokenInt (read num) : lexer rest
       where (num,rest) = span isDigit cs
 
-lexVar cs = case span (\x -> isAlpha x || x == '_' || isDigit x) cs of
-       ("any",rest) -> TokenAny : lexer rest
-       ("bad",rest) -> TokenBad : lexer rest
-       ("BAD",rest) -> TokenBad : lexer rest
-       ("data",rest) -> TokenData : lexer rest
-       ("case",rest) -> TokenCase : lexer rest
-       ("of",rest) -> TokenOf : lexer rest       		     		    	  
-       ("cf",rest) -> TokenCF : lexer rest
-       ("CF",rest) -> TokenCF : lexer rest
-       (var,rest)   -> TokenVar var : lexer rest
+lexVar (c:cs) = token : lexer rest where
+  (var,rest) = span (\x -> isAlpha x || x == '_' || isDigit x) (c:cs)
+  token = case var of
+    "data" -> TokenData
+    "case" -> TokenCase
+    "of"   -> TokenOf
+--    "Any"  -> TokenAny
+    "CF"   -> TokenCF
+    _      -> (if isUpper c then TokenCon else TokenVar) var
+
 main = getContents >>= print . haskell . lexer
 }
