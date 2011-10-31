@@ -30,7 +30,6 @@ data MetaNamed a =
            -- The rest are only relevant to FOL? Could use GADT tricks
            -- to enforce this.
            | Rec a -- ^ Recursive version of a function
-           | QVar a -- ^ Quantified variable.
            | Proj Int a -- ^ Projector for a term constructor.
            -- There is no 'Full' because full application is
            -- determined by context.
@@ -43,7 +42,6 @@ getName :: Named -> Name
 getName (Var v) = v
 getName (Con v) = v
 getName (Rec v) = v
-getName (QVar v) = v
 getName (Proj _ v) = v
 
 data MetaExpression v = Named v
@@ -80,12 +78,6 @@ data MetaContract a = Arr (Maybe Name) (MetaContract a) (MetaContract a)
                     deriving (Show,Eq,Functor,Ord)
 
 type Arity = (Name,Int)
-
--- Make a name for abstract recursive occurences of a function
-makeRec f = f ++ "_rec"
-
--- Make a name for the curried ("pointer") version of a function
-makePtr f = f ++ "_ptr"
 
 apps xs = foldl1 (:@:) xs
 

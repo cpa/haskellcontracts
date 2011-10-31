@@ -1,5 +1,7 @@
 module Translation where
 
+-- XXX: nc did not do a very good job of imposing a fake distinction
+-- between FOL and Haskell by e.g. using F.Var vs H.Var.
 import qualified Haskell as H
 import Haskell (Name,Named,MetaNamed(..),Expression,MetaExpression(..),Arity)
 import qualified FOL as F
@@ -21,7 +23,7 @@ data TransState = S { prefix  :: String -- the prefix of our fresh variables
 -- change their definitions.
 [false,true,unr,bad] = map (F.Named . F.Con) ["False","True","UNR","BAD"]
 
--- Generate a fresh name.  Only used in one place :P
+-- Generate a fresh name.
 fresh :: Fresh F.Name
 fresh = do
   s <- get
@@ -31,15 +33,6 @@ fresh = do
 
 -- Make k distinction variables s_1 ... s_k
 makeVars k s = map ((s++) . show) [1..k]
-
--- Make a selector function name.
-makeSel k d = "sel_"++show k++"_"++d where
-
-{- Moved to Haskell.hs to avoid module import cyle -}
--- Make a name for abstract recursive occurences of a function
--- makeRec f = f ++ "_rec"
--- Make a name for the curried ("pointer") version of a function
--- makePtr f = f ++ "_ptr"
 
 -- Expression translation
 -------------------------
@@ -52,10 +45,8 @@ eTrans = return
 
 dTrans :: H.Definition -> Fresh [F.Formula]
 dTrans (H.Let f vs e) = do
-  -- Mark quantified variables as such.
-  let vsN = map (Named . QVar) vs
-      sub = H.substs (zip vsN vs)
-  eT <- eTrans $ sub e
+  eT <- eTrans e
+  let vsN = map (Named . Var) vs
   return [F.Forall vs $ (F.FullApp (Var f) vsN) :=: eT]
 --                ,fptr1,fptr2,fptr3]
 -- XXX, TODO: add back f_ptr support.
@@ -69,12 +60,7 @@ dTrans (H.Let f vs e) = do
 
 -- Recall that the patterns 'pes' has the form [([Variable],Expression)].
 dTrans (H.LetCase f vs e pes) = do
-  -- Mark quantified variables as such.
-  let vsQ = map QVar vs
-      vsN = map Named vsQ
-      sub = H.substs (zip vsN vs)
-  -- Uppercasify any quantified vars in e before translation.
-  eT <- eTrans $ sub e
+  eT <- eTrans e
   --pes' <- map
   -- A Pattern is a [Var], e.g. 'Cons x xs' ==> ['Cons','x','xs'], so
   -- the 'tail' of a pattern is the variables.  The 'arities' below would
@@ -95,13 +81,15 @@ dTrans (H.LetCase f vs e pes) = do
       --
       -- XXX, TODO: try the above alternate translation in terms of
       -- projections.
+      --
+      -- XXX, TODO: use better "fresh" variables.
       zs = makeVars (maximum $ map snd arities) "Zdef"
       -- Variables wrapped in Haskell constructors.
-      zsQ = map QVar zs
-      zsN = map Named zsQ
+      zsN = map (Named . Var) zs
       -- NB: must substitute pattern variables before definition variables,
       -- because definition variables bind in an enclosing scope.
-      patternSub ((_,xs),ei) = sub $ H.substs (zip zsN xs) ei
+      patternSub ((_,xs),ei) = H.substs (zip zsN xs) ei
+      vsN = map (Named . Var) vs
   pesT <- sequence $ map (eTrans . patternSub) pes
       -- e = Ki x1 ... xni -> f(xs) = ei
   let eq1 = [(eT :=: F.FullApp (Con c) (take (length xs) zsN))
@@ -118,7 +106,7 @@ dTrans (H.LetCase f vs e pes) = do
       fptr2 = F.Forall vs' $ (F.FullApp (F.Regular f) vs') :=: (F.App $ (F.Var . F.Regular) (makePtr f) : vs')
       fptr3 = F.Forall vs' $ (F.FullApp (F.Regular (H.makeRec f)) vs') :=: (F.App $ (F.Var . F.Regular) (makePtr $ makeRec f) : vs')
 -}
-  return $ [F.Forall (vs ++ zs) $ F.And (eq1++[eq2,eq3])] -- ,fptr1,fptr2,fptr3]
+  return $ map (F.Forall (vs++zs)) (eq1++[eq2,eq3]) -- ,fptr1,fptr2,fptr3]
 
 -- Contract translation
 -----------------------
@@ -135,11 +123,10 @@ cTrans e (H.Pred x u) =  do
 
 cTrans e (H.Arr mx c1 c2) = do
   -- Parser inserts 'Nothing' for unnamed arrow arguments.
-  x <- maybe fresh return mx 
-  let xN = F.Named $ F.QVar x
-      c2' = H.substC xN x c2
+  x <- maybe fresh return mx
+  let xN = Named $ Var x
   [f1] <- cTrans xN c1
-  [f2] <- cTrans (e H.:@: xN) c2'
+  [f2] <- cTrans (e H.:@: xN) c2
   return $ [F.Forall [x] (f1 :=>: f2)]
 
 cTrans e (H.And c1 c2) = do
@@ -167,7 +154,7 @@ tTrans d = return $ concat [phi_project d,phi_disjoint d,phi_cf d,phi_total d]
 phi_project (H.Data _ dns) = map f dns where
   f (c,a,_) =
     let xs = makeVars a "X"
-        xsN = map (Named . QVar) xs
+        xsN = map (Named . Var) xs
     in F.Forall xs $ F.And [x :=: F.FullApp (Proj k c)
                                     [F.FullApp (Con c) $ xsN]
                            | (x,k) <- zip xsN [1..a]]
@@ -176,9 +163,9 @@ phi_project (H.Data _ dns) = map f dns where
 phi_disjoint (H.Data _ dns) = map f $ zip dns (tail dns) where
   f ((c1,a1,_),(c2,a2,_)) =
     let xs = makeVars a1 "X"
-        xsN = map (Named . QVar) xs
+        xsN = map (Named . Var) xs
         ys = makeVars a2 "Y"
-        ysN = map (Named . QVar) ys
+        ysN = map (Named . Var) ys
     in F.Forall (xs++ys) $
       (F.FullApp (Con c1) xsN) :/=: (F.FullApp (Con c2) ysN)
 
@@ -186,7 +173,7 @@ phi_disjoint (H.Data _ dns) = map f $ zip dns (tail dns) where
 phi_cf (H.Data _ dns) = map f dns where
   f (c,a,_) =
     let xs = makeVars a "X"
-        xsN = map (Named . QVar) xs
+        xsN = map (Named . Var) xs
     in
     F.Forall xs $ (F.CF $ F.FullApp (Con c) xsN)
                   :<=>: (F.And [F.CF x | x <- xsN])
@@ -195,7 +182,7 @@ phi_cf (H.Data _ dns) = map f dns where
 phi_total (H.Data _ dns) = map f dns where
   f (c,a,_) =
     let xs = makeVars a "X"
-        xsN = map (Named . QVar) xs
+        xsN = map (Named . Var) xs
     in
     F.Forall xs $
       F.FullApp (Con c) xsN :/=: unr
@@ -257,4 +244,4 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
                             ,true  :/=: unr
                             ,false :/=: unr]
                   [f,x] = ["F","X"]
-                  [fN,xN] = map (Named  . QVar) [f,x]
+                  [fN,xN] = map (Named . Var) [f,x]

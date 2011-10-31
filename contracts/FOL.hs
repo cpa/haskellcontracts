@@ -63,7 +63,7 @@ simplify f = filter (/= Top) $ splitOnAnd $ removeConstants f
 
 
 toTPTP :: Formula -> String
-toTPTP f = header ++ "\n" ++ go f ++ "\n" ++ footer
+toTPTP f = header ++ "\n" ++ go [] f ++ "\n" ++ footer
   -- XXX, MAYBE TODO: add better header or comments. Right now the first "axiom"
   -- below is the name of the axiom.  The TPTP format also allows optional 4th and
   -- 5th fields for comments.  Would be nice to see each formula labeled with its
@@ -76,35 +76,44 @@ toTPTP f = header ++ "\n" ++ go f ++ "\n" ++ footer
   -- quoting and case conversion automatically.
   where header = "fof(axiom,axiom,"
         footer = ").\n"
-        go (Forall xs f) = "! " ++ goList (map goQuantified xs) ++ "  : (" ++ go f ++ ")"
-        go (f1 :=>: f2) = "(" ++ go f1 ++ ") => (" ++ go f2 ++ ")"
-        go (f1 :<=>: f2) = "(" ++ go f1 ++ ") <=> (" ++ go f2 ++ ")"
-        go (Not (t1 :=: t2)) =  goTerm t1 ++ " != " ++ goTerm t2
-        go (Not f) = "~(" ++ go f ++ ")"
-        go (Or []) = error "add suport for empty OR becomes false"
-        go (Or fs) = "(" ++ (intercalate " | " (map go fs)) ++ ")"
-        go (And []) = "$true"
-        go (And fs) = "(" ++ (intercalate " & " (map go fs)) ++ ")"
-        go Top = "$true"
-        go Bottom = "$false"
-        go (t1 :=: t2) = goTerm t1 ++ " = " ++ goTerm t2
-        go (t1 :/=: t2) = goTerm t1 ++ " != " ++ goTerm t2
-        go (CF t) = "cf(" ++ goTerm t ++ ")"
+        -- 'go qs f' converts formula 'f' to TPTP syntax, assuming
+        -- 'qs' are the names of the quantified variables in 'f'.
+        go qs (Forall xs f) = "! " ++ goQList xs
+                              ++ "  : (" ++ go (xs++qs) f ++ ")"
+        go qs (f1 :=>: f2) = "(" ++ go qs f1 ++ ") => (" ++ go qs f2 ++ ")"
+        go qs (f1 :<=>: f2) = "(" ++ go qs f1 ++ ") <=> (" ++ go qs f2 ++ ")"
+        go qs (Not (t1 :=: t2)) =  goTerm qs t1 ++ " != " ++ goTerm qs t2
+        go qs (Not f) = "~(" ++ go qs f ++ ")"
+        go qs (Or []) = error "add suport for empty OR becomes false"
+        go qs (Or fs) = "(" ++ (intercalate " | " (map (go qs) fs)) ++ ")"
+        go qs (And []) = "$true"
+        go qs (And fs) = "(" ++ (intercalate " & " (map (go qs) fs)) ++ ")"
+        go qs Top = "$true"
+        go qs Bottom = "$false"
+        go qs (t1 :=: t2) = goTerm qs t1 ++ " = " ++ goTerm qs t2
+        go qs (t1 :/=: t2) = goTerm qs t1 ++ " != " ++ goTerm qs t2
+        go qs (CF t) = "cf(" ++ goTerm qs t ++ ")"
 
-        goTerm (Named n) = goNamed n
-        goTerm (e1 :@: e2) = "app(" ++ goTerm e1 ++ "," ++ goTerm e2 ++ ")"
-        goTerm (FullApp f []) = goNamed f
-        goTerm (FullApp f as) = goFull f ++ "(" ++ (intercalate "," $ map goTerm as) ++ ")"
+        goTerm qs (Named n) = goNamed qs n
+        goTerm qs (e1 :@: e2) = "app(" ++ goTerm qs e1 ++ "," ++ goTerm qs e2 ++ ")"
+        goTerm qs (FullApp f []) = goNamed qs f
+        goTerm qs (FullApp f as) = goFull f ++ "("
+                                   ++ (intercalate "," $ map (goTerm qs) as) ++ ")"
 
-        goNamed (Var v) = v
-        goNamed (Rec v) = v ++ "__R"
-        goNamed (Con v) = "'" ++ v ++ "'"
-        goNamed (QVar v) = goQuantified v
-        goNamed (Proj i v) = goNamed (Con $ v++"__"++show i)
+        goNamed qs (Var v) = goVar qs v
+        goNamed qs (Con v) = "'" ++ v ++ "'"
+        goNamed qs (Rec v) = v ++ "__R"
+        goNamed qs (Proj i v) = "'"++v++"__"++show i++"'"
 
-        goList xs = "["++intercalate "," xs++"]"
-        goFull = goNamed . fmap (++"__F")
-        goQuantified = map toUpper
+        -- Uppercase a list of quantified variables.
+        goQList xs = "["++intercalate "," (map uppercase xs)++"]"
+        -- Annotate a full application.  We only fully applied defined
+        -- functions, and defined functions are never quantified over,
+        -- so no 'qs' here.
+        goFull = goNamed [] . fmap (++"__F")
+        -- Uppercase a variable if quantified.
+        goVar qs v = if v `elem` qs then uppercase v else v
+        uppercase = map toUpper
 
 -- takes formulas and a list of arities for each definition
 -- and returns those formulas using "full application" wherever possible
