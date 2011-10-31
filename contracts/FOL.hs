@@ -110,7 +110,7 @@ toTPTP f = header ++ "\n" ++ go [] f ++ "\n" ++ footer
         -- Annotate a full application.  We only fully applied defined
         -- functions, and defined functions are never quantified over,
         -- so no 'qs' here.
-        goFull = goNamed [] . fmap (++"__F")
+        goFull = goNamed [] . fmap ("f__"++)
         -- Uppercase a variable if quantified.
         goVar qs v = if v `elem` qs then uppercase v else v
         uppercase = map toUpper

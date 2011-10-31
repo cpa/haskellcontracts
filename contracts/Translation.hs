@@ -43,25 +43,44 @@ eTrans = return
 -- Definition translation
 -------------------------
 
+-- | Auxillary axioms relating 'f' to 'f_ptr'.
+--
+-- forall [x1, ..., xn]. f(x1, ..., xn) = f@x1@...@xn
+dPtr f vs = if null vs then Top else F.And [eq1,eq2]
+  -- 'null' check above to avoid pointless 'f = f'.
+  where vsN = map (Named . Var) vs
+        fN = Named f
+        apps = foldl (F.:@:)
+        eq1 = F.Forall vs $
+                F.FullApp f vsN :=: (fN `apps` vsN)
+-- XXX, ???: the old f_ptr support included eq2 below, asserting
+-- that the poitner is CF iff the full application is for CF
+-- arguments.  Is this sound? It's not sound in the model where
+-- 'f x = UNR' when 'f x' is ill-typed: e.g., consider 'f = (BAD,BAD)'.
+-- On the other hand, maybe the model can have
+-- 'f x = UNR' when 'f x' is ill-typed *and* 'f' is CF, and 'f x = BAD'
+-- otherwise?
+--
+-- XXX: this axiom causes three otherwise passing tests of timeout,
+-- and three otherwise timing out tests to pass :P
+        eq2 = (F.Forall vs $
+                 F.And [F.CF v | v <- vsN] :=>: F.CF (F.FullApp f vsN))
+              :<=>: F.CF fN
+-- | Same as dPtr, but for recursive occurances of f.
+dPtrRec f@(Var v) = dPtr $ Rec v
+
 dTrans :: H.Definition -> Fresh [F.Formula]
 dTrans (H.Let f vs e) = do
   eT <- eTrans e
   let vsN = map (Named . Var) vs
-  return [F.Forall vs $ (F.FullApp (Var f) vsN) :=: eT]
---                ,fptr1,fptr2,fptr3]
--- XXX, TODO: add back f_ptr support.
-{-
-        -- fptri are equations defining functions relatively to their app counterparts.
-        -- eg that app(app(f_ptr,x),y) = f(x,y)
-        fptr1 = (F.Forall vs' $ (F.And [F.CF v | v <- vs']) :=>: F.CF (F.FullApp (F.Regular f) vs')) :<=>: (F.CF $ F.Var $ F.Regular $ makePtr f)
-        fptr2 = F.Forall vs' $ (F.FullApp (F.Regular f) vs') :=: (F.App $ (F.Var . F.Regular) (makePtr f) : vs')
-        fptr3 = F.Forall vs' $ (F.FullApp (F.Regular (H.makeRec f)) vs') :=: (F.App $ (F.Var . F.Regular) (makePtr $ makeRec f) : vs')
--}
+      fV = Var f
+  return [F.Forall vs $ (F.FullApp fV vsN) :=: eT
+         ,dPtr fV vs, dPtrRec fV vs]
+
 
 -- Recall that the patterns 'pes' has the form [([Variable],Expression)].
 dTrans (H.LetCase f vs e pes) = do
   eT <- eTrans e
-  --pes' <- map
   -- A Pattern is a [Var], e.g. 'Cons x xs' ==> ['Cons','x','xs'], so
   -- the 'tail' of a pattern is the variables.  The 'arities' below would
   -- be simpler if Pattern were (Var,[Var]), e.g. 'Cons x xs' ==> ('Cons',['x','xs']).
@@ -89,7 +108,9 @@ dTrans (H.LetCase f vs e pes) = do
       -- NB: must substitute pattern variables before definition variables,
       -- because definition variables bind in an enclosing scope.
       patternSub ((_,xs),ei) = H.substs (zip zsN xs) ei
+
       vsN = map (Named . Var) vs
+      fV = Var f
   pesT <- sequence $ map (eTrans . patternSub) pes
       -- e = Ki x1 ... xni -> f(xs) = ei
   let eq1 = [(eT :=: F.FullApp (Con c) (take (length xs) zsN))
@@ -99,14 +120,11 @@ dTrans (H.LetCase f vs e pes) = do
       eq2 = (eT :=: bad) :=>: (F.FullApp (Var f) vsN :=: bad)
       eq3 = (F.And $ (eT :/=: bad):bigAndSel ) :=>: eq4
       eq4 = (F.FullApp (Var f) vsN :=: unr)
-      bigAndSel = [eT :/=: (F.FullApp (Con c) [F.FullApp (Proj i c) [eT] | i <- [1..a]]) | (c,a) <- arities]
--- XXX, TODO: add back f_ptr support.
-{-
-      fptr1 = (F.Forall vs' $ (F.And [F.CF v | v <- vs']) :=>: F.CF (F.FullApp (F.Regular f) vs')) :<=>: (F.CF $ F.Var $ F.Regular $ makePtr f)
-      fptr2 = F.Forall vs' $ (F.FullApp (F.Regular f) vs') :=: (F.App $ (F.Var . F.Regular) (makePtr f) : vs')
-      fptr3 = F.Forall vs' $ (F.FullApp (F.Regular (H.makeRec f)) vs') :=: (F.App $ (F.Var . F.Regular) (makePtr $ makeRec f) : vs')
--}
-  return $ map (F.Forall (vs++zs)) (eq1++[eq2,eq3]) -- ,fptr1,fptr2,fptr3]
+      bigAndSel = [eT :/=: (F.FullApp (Con c) [F.FullApp (Proj i c) [eT] | i <- [1..a]])
+                  | (c,a) <- arities]
+      -- The main equations.
+      eqs = map (F.Forall (vs++zs)) (eq1++[eq2,eq3])
+  return $ dPtr fV vs : dPtrRec fV vs : eqs
 
 -- Contract translation
 -----------------------
@@ -116,10 +134,9 @@ cTrans e H.Any = return [Top]
 
 cTrans e (H.Pred x u) =  do
   let  u' = H.subst e x u
-  et' <- eTrans e
-  ut' <- eTrans u'
-  et <- eTrans e
-  return $ [F.And $ [F.Or [(et :=: unr) ,F.And [bad :/=: ut' , ut' :/=: false]]]] -- The data constructor False.
+  eT <- eTrans e
+  u'T <- eTrans u'
+  return [F.And [F.Or [(eT :=: unr), F.And [bad :/=: u'T, u'T :/=: false]]]]
 
 cTrans e (H.Arr mx c1 c2) = do
   -- Parser inserts 'Nothing' for unnamed arrow arguments.
@@ -127,30 +144,38 @@ cTrans e (H.Arr mx c1 c2) = do
   let xN = Named $ Var x
   [f1] <- cTrans xN c1
   [f2] <- cTrans (e H.:@: xN) c2
-  return $ [F.Forall [x] (f1 :=>: f2)]
+  return [F.Forall [x] (f1 :=>: f2)]
 
 cTrans e (H.And c1 c2) = do
   [f1] <- cTrans e c1
   [f2] <- cTrans e c2
-  return $ [F.And [f1,f2]]
+  return [F.And [f1,f2]]
 
 cTrans e (H.Or c1 c2) = do
   [f1] <- cTrans e c1
   [f2] <- cTrans e c2
-  return $ [F.Or [f1,f2]]
+  return [F.Or [f1,f2]]
 
 cTrans e (H.CF) = do
   et <- eTrans e
-  return $ [F.CF $ et]
+  return [F.CF et]
 
 -- Data decl translation
 ------------------------
 
 -- The axioms phi_* have type :: H.DataType -> [F.Formula (F.Term F.Variable)]
 tTrans :: H.DataType -> Fresh [F.Formula]
-tTrans d = return $ concat [phi_project d,phi_disjoint d,phi_cf d,phi_total d]
+tTrans d = return $ concat [phi_project d
+                           ,phi_disjoint d
+                           ,phi_cf d
+                           ,phi_total d
+                           ,tPtr d]
+  where tPtr (H.Data _ cas) = [dPtr (Con c) (makeVars a "X") | (c,a,_) <- cas]
 
--- Axiom: Term constructors are invertable (Phi_1 in paper).
+-- | Axiom: Term constructors are invertable (Phi_1 in paper).
+--
+-- XXX: this axiom isn't used, although it could be used to eliminate
+-- some quantified variables in other axioms.
 phi_project (H.Data _ dns) = map f dns where
   f (c,a,_) =
     let xs = makeVars a "X"
@@ -185,7 +210,8 @@ phi_total (H.Data _ dns) = map f dns where
         xsN = map (Named . Var) xs
     in
     F.Forall xs $
-      F.FullApp (Con c) xsN :/=: unr
+      F.And [F.FullApp (Con c) xsN :/=: unr
+            ,F.FullApp (Con c) xsN :/=: bad]
 
 -- Final translation
 --------------------
@@ -233,15 +259,38 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
               notCont <- map F.Not <$> F.appifyF a <$> cTrans (H.Named $ H.Var x) y
               return $ notCont ++ contRec
           return $ concat $ prelude : regFormulae ++ checkFormulae
-            where prelude = [F.Forall [f,x]
-                             $ F.And [F.CF fN, F.CF xN]
-                               :=>: (F.CF $ fN :@: xN)
+            where prelude = [cf1, cf2
+
                             ,F.Not $ F.CF bad
                             ,F.CF unr
+
+                            -- XXX, MAYBE TODO: use 'dTrans' helper functions on
+                            -- 'Data "Bool" [("True",0,undefined),("False",0,undefined)]'
+                            -- instead of expanding them manually as below. NB: but don't
+                            -- include 'phi_lazy'!
                             ,false :/=: true
                             ,F.CF true
                             ,F.CF false
                             ,true  :/=: unr
-                            ,false :/=: unr]
+                            ,false :/=: unr
+                            ,true :/=: bad
+                            ,false :/=: bad
+                            ]
+                  -- forall f,x. cf(f) /\ cf(x) -> cf(f x)
+                  cf1 = F.Forall [f,x]
+                        $ F.And [F.CF fN, F.CF xN]
+                          :=>: (F.CF $ fN :@: xN)
+                  -- The "CF = CF -> CF" axiom.  Only makes sense when
+                  -- the expression in question has an arrow type, but
+                  -- hopefully it's sound in general.  This
+                  -- corresponds to fptr1 above.
+                  --
+                  -- XXX: convince ourselves this is sound. See
+                  -- discussion by ftpr1 above.
+                  --
+                  -- forall f. (forall x. cf(x) -> cf(f x)) <-> cf(f)
+                  cf2 = F.Forall [f]
+                        $ (F.Forall [x] $ (F.CF xN :=>: (F.CF $ fN :@: xN)))
+                          :<=>: F.CF fN
                   [f,x] = ["F","X"]
                   [fN,xN] = map (Named . Var) [f,x]
