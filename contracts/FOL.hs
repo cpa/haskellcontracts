@@ -49,14 +49,25 @@ splitOnAnd f = [f]
 removeConstants :: Formula -> Formula
 removeConstants (Forall [] f) = removeConstants f
 removeConstants (Forall xs f) = Forall xs (removeConstants f)
-removeConstants (Bottom :=>: _) = Top
-removeConstants (Top :<=>: f) = f
-removeConstants (f :<=>: Top) = f
-removeConstants (Bottom :<=>: f) = Not f
-removeConstants (f :<=>: Bottom) = Not f
+removeConstants (f1 :=>: f2) = case (removeConstants f1, removeConstants f2) of
+                                 (Top, f)    -> f
+                                 (Bottom, f) -> Top
+                                 (f, Top)    -> Top
+                                 (f, Bottom) -> Bottom
+                                 (f1', f2')  -> f1' :=>: f2'
+removeConstants (f1 :<=>: f2) = case (removeConstants f1, removeConstants f2) of
+                                  (Top, f)    -> f
+                                  (f, Top)    -> f
+                                  (Bottom, f) -> Not f
+                                  (f, Bottom) -> Not f
+                                  (f1', f2')  -> f1' :<=>: f2'
 removeConstants (Not f) = Not $ removeConstants f
-removeConstants (Or fs) = if any (==Top) fs then Top else Or $ filter (/=Bottom) fs
-removeConstants (And fs) = if any (==Bottom) fs then Bottom else And $ filter (/=Top) fs
+removeConstants (Or []) = Bottom
+removeConstants (And []) = Top
+removeConstants (Or fs) = if any (==Top) fs' then Top else Or $ filter (/=Bottom) fs'
+    where fs' = map removeConstants fs
+removeConstants (And fs) = if any (==Bottom) fs' then Bottom else And $ filter (/=Top) fs'
+    where fs' = map removeConstants fs
 removeConstants f = f
 
 simplify f = filter (/= Top) $ splitOnAnd $ removeConstants f
@@ -84,9 +95,7 @@ toTPTP f = header ++ "\n" ++ go [] f ++ "\n" ++ footer
         go qs (f1 :<=>: f2) = "(" ++ go qs f1 ++ ") <=> (" ++ go qs f2 ++ ")"
         go qs (Not (t1 :=: t2)) =  goTerm qs t1 ++ " != " ++ goTerm qs t2
         go qs (Not f) = "~(" ++ go qs f ++ ")"
-        go qs (Or []) = error "add suport for empty OR becomes false"
         go qs (Or fs) = "(" ++ (intercalate " | " (map (go qs) fs)) ++ ")"
-        go qs (And []) = "$true"
         go qs (And fs) = "(" ++ (intercalate " & " (map (go qs) fs)) ++ ")"
         go qs Top = "$true"
         go qs Bottom = "$false"
