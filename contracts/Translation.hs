@@ -11,6 +11,8 @@ import Data.List (partition)
 import Data.Char (toUpper)
 import Control.Applicative
 
+--import Debug.Trace (traceShow)
+
 type Fresh = State TransState
 data TransState = S { prefix  :: String -- the prefix of our fresh variables
                     , count   :: Int    -- a counter for the suffix of our fresh variables

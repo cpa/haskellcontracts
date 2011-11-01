@@ -2,7 +2,7 @@
 
 module FOL (module FOL, module Haskell) where
 
---import qualified Haskell as H
+import qualified Haskell as H
 import Haskell (Name,Named,MetaNamed(..),Expression,MetaExpression(..),Arity,appifyExpr,getName)
 import Debug.Trace
 import Data.Char (toUpper)
@@ -123,6 +123,72 @@ toTPTP f = header ++ "\n" ++ go [] f ++ "\n" ++ footer
         -- Uppercase a variable if quantified.
         goVar qs v = if v `elem` qs then uppercase v else v
         uppercase = map toUpper
+
+toSMTLIB :: Formula -> String
+toSMTLIB f = header ++ "\n" ++ go f ++ "\n" ++ footer
+  where header = "(assert "
+        footer = ")\n"
+        -- 'go f' converts formula 'f' to TPTP syntax, assuming
+        -- 'qs' are the names of the quantified variables in 'f'.
+        go (Forall xs f) = "(forall " ++ goQList xs++" "
+                              ++ go f ++ ")"
+        go (f1 :=>: f2) = "(=> " ++ go f1 ++" "++ go f2 ++ ")"
+        go (f1 :<=>: f2) = "(= " ++ go f1 ++" "++ go f2 ++ ")"
+        go (Not f) = "(not " ++ go f ++ ")"
+        go (Or fs) = "(or " ++ (intercalate " " (map (go) fs)) ++ ")"
+        go (And fs) = "(and " ++ (intercalate " " (map (go) fs)) ++ ")"
+        go Top = "true" -- XXX, ???: are these right?
+        go Bottom = "false"
+        go (t1 :=: t2) = "(= "++goTerm t1 ++ " " ++ goTerm t2++")"
+        go (t1 :/=: t2) = go (Not (t1 :=: t2))
+        go (CF t) = "(cf " ++ goTerm t ++ ")"
+
+        goTerm (Named n) = goNamed n
+        goTerm (e1 :@: e2) = "(app " ++ goTerm e1 ++ " " ++ goTerm e2 ++ ")"
+        goTerm (FullApp f []) = goNamed f
+        goTerm (FullApp f as) = "("++goFull f++" "
+                                   ++ (intercalate " " $ map (goTerm) as) ++ ")"
+
+        goNamed (Var v) = v
+        goNamed (Con v) = v
+        goNamed (Rec v) = v ++ "__R"
+        goNamed (Proj i v) = v++"__"++show i
+
+        goQList xs = "("++intercalate " " (map annote xs)++")"
+        -- Annotate a full application.  We only fully applied defined
+        -- functions, and defined functions are never quantified over,
+        -- so no 'qs' here.
+        goFull = goNamed . fmap ("f__"++)
+        annote x = "("++x++" Real)"
+
+showDefsSMTLIB defs = unlines $ cf:app:unr:bad:false:true:map showDef arities where
+  arities = concat $ map expand $ H.arities defs
+  expand (v,k) = if k == 0 then [(v,0),(v++"__R",0)] else vsFun++vsProj
+    where
+      -- XXX, FIX: these generate extra junk: recursive versions of
+      -- constructors and projectors for non-constructor functions.
+      --
+      -- Checking the case of the first letter in v would be enough to
+      -- remove redundancy here ... or better, actually pass the full
+      -- list of defined names and their arities.
+      vsFun = [ (v,0)
+              , (v++"__R",0)
+              , ("f__"++v,k)
+              , ("f__"++v++"__R",k)
+              ]
+      vsProj = concat [ [(v++"__"++show i,0)
+                        , ("f__"++v++"__"++show i,1)]
+                      | i <- [1..k]]
+  cf = "(declare-fun cf (Real) Bool)"
+  app = "(declare-fun app (Real Real) Real)"
+  unr = "(declare-const UNR Real)"
+  bad = "(declare-const BAD Real)"
+  false = "(declare-const False Real)"
+  true = "(declare-const True Real)"
+  showDef (v,k) =
+    if k == 0
+    then "(declare-const "++v++" Real)"
+    else "(declare-fun "++v++" ("++intercalate " " (replicate k "Real")++") Real)"
 
 -- takes formulas and a list of arities for each definition
 -- and returns those formulas using "full application" wherever possible
