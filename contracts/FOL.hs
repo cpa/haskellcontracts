@@ -11,14 +11,6 @@ import Data.List (intercalate)
 type Term = Expression
 type Formula = MetaFormula Term
 
--- instance Show a => Show (MetaTerm a) where
---   show (Var v) = show v
---   show (App []) = error "Cannot apply nothing"
---   show (App [t]) = show t
---   show (App ts) = "app(" ++ show (App (init ts)) ++ "," ++ show (last ts) ++ ")"
---   show (FullApp f []) = show f
---   show (FullApp f as) = show f ++ "(" ++ (intercalate "," $ map show as) ++ ")"
-
 infix 7 :<=>:
 infix 7 :=>:
 data MetaFormula a = Forall [Name] (MetaFormula a)
@@ -34,10 +26,12 @@ data MetaFormula a = Forall [Name] (MetaFormula a)
                    | Bottom
                    | a :=: a
                    | a :/=: a
+--                 | Pred Name a -- ^ Unary predicate. XXX: could unify CF and Min as Pred.
                    | CF a
-                   -- | Min a
+                   | Min a
                    deriving (Show,Eq,Functor)
-
+-- cf = Pred "cf"
+-- min = Pred "min"
 
 -- forall a . x && y --> (forall a . x) && (forall a . y)
 splitOnAnd :: Formula -> [Formula]
@@ -89,19 +83,20 @@ toTPTP f = header ++ "\n" ++ go [] f ++ "\n" ++ footer
         footer = ").\n"
         -- 'go qs f' converts formula 'f' to TPTP syntax, assuming
         -- 'qs' are the names of the quantified variables in 'f'.
-        go qs (Forall xs f) = "! " ++ goQList xs
-                              ++ "  : (" ++ go (xs++qs) f ++ ")"
-        go qs (f1 :=>: f2) = "(" ++ go qs f1 ++ ") => (" ++ go qs f2 ++ ")"
-        go qs (f1 :<=>: f2) = "(" ++ go qs f1 ++ ") <=> (" ++ go qs f2 ++ ")"
-        go qs (Not (t1 :=: t2)) =  goTerm qs t1 ++ " != " ++ goTerm qs t2
+        go qs (Forall xs f) = "(! " ++ goQList xs
+                              ++ " : "++go (xs++qs) f ++ ")"
+        go qs (f1 :=>: f2) = "(" ++ go qs f1 ++ " => " ++ go qs f2 ++ ")"
+        go qs (f1 :<=>: f2) = "(" ++ go qs f1 ++ " <=> " ++ go qs f2 ++ ")"
+        go qs (Not (t1 :=: t2)) =  "("++goTerm qs t1 ++ " != " ++ goTerm qs t2++")"
         go qs (Not f) = "~(" ++ go qs f ++ ")"
         go qs (Or fs) = "(" ++ (intercalate " | " (map (go qs) fs)) ++ ")"
         go qs (And fs) = "(" ++ (intercalate " & " (map (go qs) fs)) ++ ")"
         go qs Top = "$true"
         go qs Bottom = "$false"
-        go qs (t1 :=: t2) = goTerm qs t1 ++ " = " ++ goTerm qs t2
-        go qs (t1 :/=: t2) = goTerm qs t1 ++ " != " ++ goTerm qs t2
+        go qs (t1 :=: t2) = "("++goTerm qs t1 ++ " = " ++ goTerm qs t2++")"
+        go qs (t1 :/=: t2) = "("++goTerm qs t1 ++ " != " ++ goTerm qs t2++")"
         go qs (CF t) = "cf(" ++ goTerm qs t ++ ")"
+        go qs (Min t) = "min("++goTerm qs t++")"
 
         goTerm qs (Named n) = goNamed qs n
         goTerm qs (e1 :@: e2) = "app(" ++ goTerm qs e1 ++ "," ++ goTerm qs e2 ++ ")"
@@ -142,6 +137,7 @@ toSMTLIB f = header ++ "\n" ++ go f ++ "\n" ++ footer
         go (t1 :=: t2) = "(= "++goTerm t1 ++ " " ++ goTerm t2++")"
         go (t1 :/=: t2) = go (Not (t1 :=: t2))
         go (CF t) = "(cf " ++ goTerm t ++ ")"
+        go (Min t) = "(min "++goTerm t++")"
 
         goTerm (Named n) = goNamed n
         goTerm (e1 :@: e2) = "(app " ++ goTerm e1 ++ " " ++ goTerm e2 ++ ")"
@@ -167,6 +163,7 @@ showDefsSMTLIB defs = unlines $ cf:app:unr:bad:false:true:map showDef arities wh
     where
       -- XXX, FIX: these generate extra junk: recursive versions of
       -- constructors and projectors for non-constructor functions.
+      -- This makes the comparison with Equinox unfair.
       --
       -- Checking the case of the first letter in v would be enough to
       -- remove redundancy here ... or better, actually pass the full
@@ -180,6 +177,7 @@ showDefsSMTLIB defs = unlines $ cf:app:unr:bad:false:true:map showDef arities wh
                         , ("f__"++v++"__"++show i,1)]
                       | i <- [1..k]]
   cf = "(declare-fun cf (Real) Bool)"
+  min = "(declare-fun min (Real) Bool)"
   app = "(declare-fun app (Real Real) Real)"
   unr = "(declare-const UNR Real)"
   bad = "(declare-const BAD Real)"
