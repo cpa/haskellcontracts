@@ -93,19 +93,23 @@ check f prog [] cfg _ = error "There should be at least one definition!"
 check f prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
                                 | otherwise = do
   let safeSubset prog checkedDefs = filter (hasBeenChecked (fs++checkedDefs)) prog
-      tptpTheory = (trans (safeSubset prog checkedDefs) fs)
-                   >>= simplify >>= toTPTP
-      tmpFile = (takeFileName f) ++ "." ++ head fs ++ ".tptp"
+
+      (enginePath,engineOpts,engineUnsat,thy) =
+        case lookup (engine cfg) provers of
+          Nothing -> error "Engine not recognized. Try -h."
+          Just x  -> (path x,opts x,unsat x,theory x)
+
+      defs = safeSubset prog checkedDefs
+      out = trans defs fs
+            >>= simplify >>= showFormula thy
+      tmpFile = takeFileName f ++ "." ++ head fs ++ "." ++ fileExtension thy
   unless (quiet cfg) $ do
     putStrLn $ "Writing " ++ tmpFile
     putStrLn $ show fs ++ " are mutually recursive. Checking them altogether..."
-  writeFile tmpFile tptpTheory
+  writeFile tmpFile (unlines [header thy defs,out,footer thy])
   hFlush stdout
   res <- if not $ dryRun cfg
     then do 
-    let (enginePath,engineOpts,engineUnsat) = case lookup (engine cfg) provers of
-          Nothing -> error "Engine not recognized. Supported engines are: equinox, SPASS, vampire, E"
-          Just x  -> (path x,opts x,unsat x)
     out <- readProcess enginePath (engineOpts ++ [tmpFile]) ""
     let res = engineUnsat out
     unless (quiet cfg) $ do
