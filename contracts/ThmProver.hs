@@ -57,7 +57,7 @@ provers = [ ("equinox", T "equinox"
                     fof
             )
           , ("z3", T "z3"
-                     ["-smt2"]
+                     ["-nw","-smt2"]
                      ("unsat" `isInfixOf`)
                      smtlib
             )
