@@ -48,13 +48,21 @@ eTrans = return
 -- | Auxillary axioms relating 'f' to 'f_ptr'.
 --
 -- forall [x1, ..., xn]. f(x1, ..., xn) = f@x1@...@xn
-dPtr f vs = if null vs then Top else F.And [eq1,eq2]
+dPtr f vs = if null vs then Top else F.And [eq1Min,eq2Min]
   -- 'null' check above to avoid pointless 'f = f'.
   where vsN = map (Named . Var) vs
         fN = Named f
         apps = foldl (F.:@:)
-        eq1 = F.Forall vs $
-                F.FullApp f vsN :=: (fN `apps` vsN)
+        full = F.FullApp f vsN
+        app = fN `apps` vsN
+
+        eq1    = F.Forall vs $ full :=: app
+        -- XXX, ???: are these min's right?
+        eq1Min = F.Forall vs $
+                   F.Or [F.Min full, F.Min app]
+                     -- NB: once we know they're equal, we have min() for both.
+                     :=>: full :=: app
+
 -- XXX, ???: the old f_ptr support included eq2 below, asserting
 -- that the poitner is CF iff the full application is for CF
 -- arguments.  Is this sound? It's not sound in the model where
@@ -68,6 +76,8 @@ dPtr f vs = if null vs then Top else F.And [eq1,eq2]
         eq2 = (F.Forall vs $
                  F.And [F.CF v | v <- vsN] :=>: F.CF (F.FullApp f vsN))
               :<=>: F.CF fN
+        eq2Min = F.Min fN :=>: eq2 -- XXX, ???: is this min right?
+
 -- | Same as dPtr, but for recursive occurances of f.
 dPtrRec f@(Var v) = dPtr $ Rec v
 
@@ -76,7 +86,12 @@ dTrans (H.Let f vs e) = do
   eT <- eTrans e
   let vsN = map (Named . Var) vs
       fV = Var f
-  return [F.Forall vs $ (F.FullApp fV vsN) :=: eT
+      full = F.FullApp fV vsN
+
+      eq    = F.Forall vs $ full :=: eT
+      eqMin = F.Forall vs $ F.Min full :=>: (full :=: eT)
+
+  return [eqMin
          ,dPtr fV vs, dPtrRec fV vs]
 
 
@@ -115,52 +130,75 @@ dTrans (H.LetCase f vs e pes) = do
       fV = Var f
   pesT <- sequence $ map (eTrans . patternSub) pes
       -- e = Ki x1 ... xni -> f(xs) = ei
-  let eq1 = [(eT :=: F.FullApp (Con c) (take (length xs) zsN))
-             :=>: (F.FullApp (Var f) vsN :=: peT)
+  let full = F.FullApp (Var f) vsN
+
+      eq1 = [(eT :=: F.FullApp (Con c) (take (length xs) zsN))
+             :=>: (full :=: peT)
             | (((c,xs),_),peT) <- zip pes pesT]
       -- XXX: this equation is not in the paper, altho it looks reasonable.
-      eq2 = (eT :=: bad) :=>: (F.FullApp (Var f) vsN :=: bad)
+      eq2 = (eT :=: bad) :=>: (full :=: bad)
+      -- XXX: this equation is not in the paper, altho it's implied by
+      -- the equations in the paper.
       eq3 = (F.And $ (eT :/=: bad):bigAndSel ) :=>: eq4
-      eq4 = (F.FullApp (Var f) vsN :=: unr)
+      eq4 = (full :=: unr)
       bigAndSel = [eT :/=: (F.FullApp (Con c) [F.FullApp (Proj i c) [eT] | i <- [1..a]])
                   | (c,a) <- arities]
       -- The main equations.
-      eqs = map (F.Forall (vs++zs)) (eq1++[eq2,eq3])
-  return $ dPtr fV vs : dPtrRec fV vs : eqs
+      -- XXX: in the paper, the eqs are conjoined under a single 'forall'.
+      eqs = (eq1++[eq2,eq3])
+      eqs'    = map (F.Forall (vs++zs)) eqs
+      eqs'Min = map (\eq -> F.Forall (vs++zs) $ F.Min full :=>: F.And [F.Min eT,eq]) eqs
+  return $ dPtr fV vs : dPtrRec fV vs : eqs'Min
 
 -- Contract translation
 -----------------------
 
-cTrans :: H.Expression -> H.Contract -> Fresh [F.Formula]
-cTrans e H.Any = return [Top]
+data Variance = Plus | Minus
+dual :: Variance -> Variance
+dual Plus = Minus
+dual Minus = Plus
 
-cTrans e (H.Pred x u) =  do
-  let  u' = H.subst e x u
+cTrans :: Variance -> H.Expression -> H.Contract -> Fresh [F.Formula]
+cTrans _ e H.Any = return [Top]
+
+cTrans v e (H.Pred x p) =  do
+  let  p' = H.subst e x p
   eT <- eTrans e
-  u'T <- eTrans u'
-  return [F.And [F.Or [(eT :=: unr), F.And [bad :/=: u'T, u'T :/=: false]]]]
+  p'T <- eTrans p'
+  -- XXX, DESIGN CHOICE: could also do 'F.Or[p'T :=: unr, p'T :=: true]'
+  let plain = F.And [F.Or [(eT :=: unr), F.And [bad :/=: p'T, p'T :/=: false]]]
+  case v of
+    Plus  -> return $ [F.And [F.Min(eT),            F.Min(p'T)] :=>: plain]
+    Minus -> return $ [       F.Min(eT)  :=>: F.And [F.Min(p'T),      plain]]
 
-cTrans e (H.Arr mx c1 c2) = do
+cTrans v e (H.Arr mx c1 c2) = do
   -- Parser inserts 'Nothing' for unnamed arrow arguments.
   x <- maybe fresh return mx
   let xN = Named $ Var x
-  [f1] <- cTrans xN c1
-  [f2] <- cTrans (e H.:@: xN) c2
-  return [F.Forall [x] (f1 :=>: f2)]
+      app = e H.:@: xN -- 'e' should be eTrans'd ... except eTrans is id.
+  [f1] <- cTrans (dual v) xN  c1
+  [f2] <- cTrans v        app c2
+  -- XXX, DESIGN CHOICE: need for 'min' constraint here depends on
+  -- whether we have a 'min(f x) -> min(f)' axiom.
+  return [F.Forall [x] $ F.Min app :=>: (f1 :=>: f2)]
 
-cTrans e (H.And c1 c2) = do
-  [f1] <- cTrans e c1
-  [f2] <- cTrans e c2
+cTrans v e (H.And c1 c2) = do
+  [f1] <- cTrans v e c1
+  [f2] <- cTrans v e c2
   return [F.And [f1,f2]]
 
-cTrans e (H.Or c1 c2) = do
-  [f1] <- cTrans e c1
-  [f2] <- cTrans e c2
+cTrans v e (H.Or c1 c2) = do
+  [f1] <- cTrans v e c1
+  [f2] <- cTrans v e c2
   return [F.Or [f1,f2]]
 
-cTrans e (H.CF) = do
-  et <- eTrans e
-  return [F.CF et]
+cTrans v e (H.CF) = do
+  eT <- eTrans e
+  -- XXX, DESIGN CHOICE: the 'min' constraint should be optional in
+  -- the 'Minus' case.
+  return $ case v of
+    Plus  -> [F.Min eT :=>: F.CF eT]
+    Minus -> [F.CF eT]
 
 -- Data decl translation
 ------------------------
@@ -176,14 +214,15 @@ tTrans d = return $ concat [phi_project d
 
 -- | Axiom: Term constructors are invertable (Phi_1 in paper).
 --
--- XXX: this axiom isn't used, although it could be used to eliminate
--- some quantified variables in other axioms.
+-- XXX, DESIGN CHOICE: this axiom isn't used, although it could be
+-- used to eliminate some quantified variables in other axioms.
 phi_project (H.Data _ dns) = map f dns where
   f (c,a,_) =
     let xs = makeVars a "X"
         xsN = map (Named . Var) xs
-    in F.Forall xs $ F.And [x :=: F.FullApp (Proj k c)
-                                    [F.FullApp (Con c) $ xsN]
+        full k = F.FullApp (Proj k c) [F.FullApp (Con c) xsN]
+    -- XXX: the paper has 'min(c(xs))', but that can't be right ?
+    in F.Forall xs $ F.And [F.Min (full k) :=>: (full k :=: x)
                            | (x,k) <- zip xsN [1..a]]
 
 -- Axiom: Term constructors have disjoint ranges (Phi_2 in paper).
@@ -193,27 +232,34 @@ phi_disjoint (H.Data _ dns) = map f $ zip dns (tail dns) where
         xsN = map (Named . Var) xs
         ys = makeVars a2 "Y"
         ysN = map (Named . Var) ys
-    in F.Forall (xs++ys) $
-      (F.FullApp (Con c1) xsN) :/=: (F.FullApp (Con c2) ysN)
+        fullC1 = F.FullApp (Con c1) xsN
+        fullC2 = F.FullApp (Con c2) ysN
+    -- XXX: are the 'min's right? Paper uses 'forall a.' here which
+    -- means only one 'min'.
+    in F.Forall (xs++ys) $ F.Or [F.Min fullC1, F.Min fullC2]
+                           :=>: (fullC1 :/=: fullC2)
 
 -- Axiom: Term constructors are CF (Phi_3 in paper).
 phi_cf (H.Data _ dns) = map f dns where
   f (c,a,_) =
     let xs = makeVars a "X"
         xsN = map (Named . Var) xs
+        full = F.FullApp (Con c) xsN
     in
-    F.Forall xs $ (F.CF $ F.FullApp (Con c) xsN)
-                  :<=>: (F.And [F.CF x | x <- xsN])
+    F.Forall xs $ F.Min full :=>:
+                  (F.CF full
+                  :<=>: (F.And [F.CF x | x <- xsN]))
 
 -- Axiom: Term constructors are total/lazy (Phi_4 in paper).
 phi_total (H.Data _ dns) = map f dns where
   f (c,a,_) =
     let xs = makeVars a "X"
         xsN = map (Named . Var) xs
+        full = F.FullApp (Con c) xsN
     in
-    F.Forall xs $
-      F.And [F.FullApp (Con c) xsN :/=: unr
-            ,F.FullApp (Con c) xsN :/=: bad]
+    F.Forall xs $ F.Min full :=>:
+      F.And [full :/=: unr
+            ,full :/=: bad]
 
 -- Final translation
 --------------------
@@ -240,7 +286,7 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
           regFormulae <- forM regDefs $ \d -> case d of
             H.DataType t                -> tTrans t
             H.Def d                     -> dTrans d
-            H.ContSat (H.Satisfies x y) -> F.appifyF a <$> cTrans (H.Named $ H.Var x) y
+            H.ContSat (H.Satisfies x y) -> F.appifyF a <$> cTrans Minus (H.Named $ H.Var x) y
           checkFormulae <- forM toCheck $ \d -> case d of
             H.DataType t                 -> error "No contracts for datatypes yet!"
             H.Def (H.Let f xs e)         -> dTrans $ H.Let     f xs (recSubst e)
@@ -252,16 +298,20 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
             -- XXX, ???: should 'f' be allowed to occur in 'c' at all? The 'recSubstC' below
             -- indicates this is expected.
             H.ContSat (H.Satisfies x y)  -> do
-              contRec <- F.appifyF a <$> cTrans (recVar x) (recSubstC y)
+              contRec <- F.appifyF a <$> cTrans Minus (recVar x) (recSubstC y)
               -- XXX, ???: why not 'recSubstC y' instead of plain 'y'?
               -- XXX, ???: should the goal receive a different label? The TPTP
               -- format supports e.g. 'conjecture' for goals, vs 'axiom' for
               -- assumptions. Doe Equinox distinguish (nc vaguely remembers getting
               -- different output in an experiment)?
-              notCont <- map F.Not <$> F.appifyF a <$> cTrans (H.Named $ H.Var x) y
+              notCont <- map F.Not <$> F.appifyF a <$> cTrans Plus (H.Named $ H.Var x) y
               return $ notCont ++ contRec
           return $ concat $ prelude : regFormulae ++ checkFormulae
-            where prelude = [cf1, cf2
+            -- XXX, TODO: add 'min's in prelude
+            where prelude = [
+--                             cf1, cf2
+--                            ,min
+                             min
 
                             ,F.Not $ F.CF bad
                             ,F.CF unr
@@ -294,5 +344,8 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
                   cf2 = F.Forall [f]
                         $ (F.Forall [x] $ (F.CF xN :=>: (F.CF $ fN :@: xN)))
                           :<=>: F.CF fN
+                  -- XXX, DESIGN CHOICE: may not need this when
+                  -- 'C[[x:c1 -> c2]]^v' always has 'min' constraints.
+                  min = F.Forall [f,x] $ F.Min (fN :@: xN) :=>: F.Min fN
                   [f,x] = ["F","X"]
                   [fN,xN] = map (Named . Var) [f,x]
