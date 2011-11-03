@@ -1,0 +1,34 @@
+# -*- org -*-
+
+Summarise bugs, features to add, etc. here, in addition to littering
+the source with "XXX" comments.
+
+* Bugs
+** TODO multiple contracts on the same function are translated incorrectly
+If
+
+  f ::: c1
+
+and
+
+  f ::: c2
+
+in the source, then the generated theory is
+
+  T /\ ~(f:::c1) /\ ~(f:::c2)
+
+when it should be
+
+  T /\ ~(f:::c1&&c2),
+
+i.e.
+
+  T /\ (~(f:::c1) \/ ~(f:::c2)).
+
+NB: the generated theory is unsat when either of c1 or c2 hold, which
+is very wrong!
+
+* Features
+** [0/2] command line switches to control theory parameters
+- [ ] whether or not 'min's are generated at all.
+- [ ] placement of various "design decision" 'min's.
