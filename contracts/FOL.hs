@@ -40,9 +40,22 @@ splitOnAnd (Forall xs f) = map (Forall xs) $ splitOnAnd f
 splitOnAnd (And fs) = concatMap splitOnAnd fs
 splitOnAnd f = [f]
 
+trivializeMin :: Formula -> Formula
+trivializeMin = t where
+  t f = case f of
+    Forall xs f -> Forall xs (t f)
+    f1 :=>: f2  -> t f1 :=>: t f2
+    f1 :<=>: f2 -> t f1 :=>: t f2
+    Not f       -> Not $ t f
+    Or fs       -> Or $ map t fs
+    And fs      -> And $ map t fs
+    Min t       -> Top
+    f           -> f
+
 removeConstants :: Formula -> Formula
 removeConstants (Forall [] f) = removeConstants f
-removeConstants (Forall xs f) = Forall xs (removeConstants f)
+removeConstants (Forall xs f) = if f' == Top then Top else Forall xs f'
+  where f' = removeConstants f
 removeConstants (f1 :=>: f2) = case (removeConstants f1, removeConstants f2) of
                                  (Top, f)    -> f
                                  (Bottom, f) -> Top
@@ -58,10 +71,14 @@ removeConstants (f1 :<=>: f2) = case (removeConstants f1, removeConstants f2) of
 removeConstants (Not f) = Not $ removeConstants f
 removeConstants (Or []) = Bottom
 removeConstants (And []) = Top
-removeConstants (Or fs) = if any (==Top) fs' then Top else Or $ filter (/=Bottom) fs'
+removeConstants (Or fs) = if any (==Top) fs' then Top else f
     where fs' = map removeConstants fs
-removeConstants (And fs) = if any (==Bottom) fs' then Bottom else And $ filter (/=Top) fs'
+          fs'' = filter (/=Bottom) fs'
+          f = if null fs'' then Bottom else Or fs''
+removeConstants (And fs) = if any (==Bottom) fs' then Bottom else f
     where fs' = map removeConstants fs
+          fs'' = filter (/=Top) fs'
+          f = if null fs'' then Top else And fs''
 removeConstants f = f
 
 simplify f = filter (/= Top) $ splitOnAnd $ removeConstants f
