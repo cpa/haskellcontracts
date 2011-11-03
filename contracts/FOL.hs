@@ -81,7 +81,7 @@ removeConstants (And fs) = if any (==Bottom) fs' then Bottom else f
           f = if null fs'' then Top else And fs''
 removeConstants f = f
 
-simplify f = filter (/= Top) $ splitOnAnd $ removeConstants f
+simplify = filter (/= Top) . splitOnAnd . removeConstants -- . trivializeMin
 
 
 toTPTP :: Formula -> String

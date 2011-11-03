@@ -48,7 +48,7 @@ eTrans = return
 -- | Auxillary axioms relating 'f' to 'f_ptr'.
 --
 -- forall [x1, ..., xn]. f(x1, ..., xn) = f@x1@...@xn
-dPtr f vs = if null vs then Top else F.And [eq1Min,eq2Min]
+dPtr f vs = if null vs then Top else F.And [eq1Min]--,eq2Min]
   -- 'null' check above to avoid pointless 'f = f'.
   where vsN = map (Named . Var) vs
         fN = Named f
@@ -69,14 +69,17 @@ dPtr f vs = if null vs then Top else F.And [eq1Min,eq2Min]
 -- 'f x = UNR' when 'f x' is ill-typed: e.g., consider 'f = (BAD,BAD)'.
 -- On the other hand, maybe the model can have
 -- 'f x = UNR' when 'f x' is ill-typed *and* 'f' is CF, and 'f x = BAD'
--- otherwise?
+-- otherwise?  UPDATE: but, this axiom is specialized to a
+-- particular function, so it's type correct.  It's the general version
+-- in the prelude that's particularly dubious.
 --
 -- XXX: this axiom causes three otherwise passing tests of timeout,
 -- and three otherwise timing out tests to pass :P
-        eq2 = (F.Forall vs $
-                 F.And [F.CF v | v <- vsN] :=>: F.CF (F.FullApp f vsN))
-              :<=>: F.CF fN
-        eq2Min = F.Min fN :=>: eq2 -- XXX, ???: is this min right?
+        allCF = F.And [F.CF v | v <- vsN]
+        fullCF = F.Forall vs $ allCF :=>: F.CF full
+        eq2 = fullCF :<=>: F.CF fN
+        fullCFMin = F.Forall vs $ allCF :=>: (F.Min full :=>: F.CF full)
+        eq2Min = F.Min fN :=>: (fullCFMin :<=>: F.CF fN) -- XXX, ???: is this min right?
 
 -- | Same as dPtr, but for recursive occurances of f.
 dPtrRec f@(Var v) = dPtr $ Rec v
@@ -346,6 +349,6 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
                           :<=>: F.CF fN
                   -- XXX, DESIGN CHOICE: may not need this when
                   -- 'C[[x:c1 -> c2]]^v' always has 'min' constraints.
-                  min = F.Forall [f,x] $ F.Min (fN :@: xN) :=>: F.Min fN
+                  min = F.Forall [f,x] $ F.Min (fN :@: xN) :=>: F.And[F.Min fN,F.Min xN]
                   [f,x] = ["F","X"]
                   [fN,xN] = map (Named . Var) [f,x]
