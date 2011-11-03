@@ -8,3 +8,7 @@ Parser.hs: Parser.y
 
 etags:
 	find ./ -name '*.hs' -exec hasktags --etags {} +
+
+# Keep a copy of the examples handy
+egs:
+	git clone git@github.com:cpa/haskellcontracts-examples.git egs
