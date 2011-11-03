@@ -45,7 +45,7 @@ trivializeMin = t where
   t f = case f of
     Forall xs f -> Forall xs (t f)
     f1 :=>: f2  -> t f1 :=>: t f2
-    f1 :<=>: f2 -> t f1 :=>: t f2
+    f1 :<=>: f2 -> t f1 :<=>: t f2
     Not f       -> Not $ t f
     Or fs       -> Or $ map t fs
     And fs      -> And $ map t fs
