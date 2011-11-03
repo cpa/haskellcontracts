@@ -32,3 +32,37 @@ is very wrong!
 ** [0/2] command line switches to control theory parameters
 - [ ] whether or not 'min's are generated at all.
 - [ ] placement of various "design decision" 'min's.
+** TODO add support for 'Any' contract
+the easy way to do this is to parse 'Any' to '{_:True}'
+** TODO how to best support 'min(K(x1,...,xn)) -> min(x1) /\ ... /\ min(xn)'
+see file:./egs/yes/add-is-cf-to-cf-to-cf.hs for an example.  The proof
+gets stuck in the A = Succ(Succ_1(A)) branch where the result is
+Succ(add_R(Succ_1(A),B)). The problem is that we need
+min(add_R(Succ_1(A),B)) to conclude cf(add_R(Succ_1(A),B)).
+
+The easiest solution is too add
+
+  forall f,x. min(f x) -> min(f) /\ min(x)
+
+But this might generate more 'min's than we'd like.  Intuitively, we
+only need this propagation of 'min's into arguments for term
+constructors, since the equations defining functions propagate 'min's
+to the scrutinised parts already.  So, we could add
+
+  forall x1,...,xn. min(K(x1,...,xn)) -> min(x1) /\ ... /\ min(xn)
+
+for each term constructor 'K'.
+
+Another, more flexible solution, could be to introduce a "deep" 'min',
+s.t.
+
+  forall x. deepmin(x) -> min(x)
+  forall f,x. deepmin(f x) -> deepmin(f) /\ deepmin(x)
+
+and then maybe
+
+  forall x1,...,xn. min(K(x1,...,xn)) -> deepmin(K(x1,...,xn))
+
+or maybe some other, more specific, ways to introduce 'deepmin'.
+** TODO support 'import's in example files
+there is a lot of code duplication across examples.
