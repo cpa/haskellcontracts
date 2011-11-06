@@ -37,6 +37,11 @@
 
 \newtheorem{definition}{Definition}
 
+%% We could use \texttt{true} and \texttt{false} here, to be more
+%% consistent with \bad and \unr, but then we should also use
+%% \texttt{Nil}, \texttt{Cons}, etc.
+\newcommand{\true}{True}
+\newcommand{\false}{False}
 \newcommand{\unr}{\texttt{UNR}}
 \newcommand{\bad}{\texttt{BAD}}
 \newcommand{\any}{\texttt{Any}}
@@ -129,21 +134,17 @@ Finally, we define projections for $Cons$. \annote[nc]{It is not
 %%                  \text{\texttt{| equinox /dev/stdin}}}}
 %% \]
 
-Now we translate the $null$ function. Note that the symbols $true$ and
-$false$ are the representation of the data constructors $True$ and
-$False$ in Haskell, not the boolean values $\top$ and $\bot$ in our
-logic.\note[nc]{XXX, TODO: use $True$ and $False$ in the
-  text.  The lowercase $true$ and $false$ is an artifact of the implementation, i.e. Equinox accepts TPTP format, which doesn't allow bare uppercase function symbols.  Moreover, the lower case here is inconsistent with the rest of the presentation, e.g. $Cons$ and $Nil$ above.}
+Now we translate the $null$ function.
 \begin{equation*}
-\forall xs.~ xs=Nil \implies notnull(xs) = false
+\forall xs.~ xs=Nil \implies notnull(xs) = \false
 \end{equation*}\note[nc]{Here we might ask the same question as above: why not use the simpler definition
 \[
-notnull(Nil) = false
+notnull(Nil) = \false
 \]? The answer is that this is an expansion of the $e = K_i(\vec{x_i}) \to a = e_i$ part of the $\dtrans{}$ rule for functions defined by cases.  I.e., the scrutinee $Nil$ is, in general, an expression involving, but not necessarily equal to, the arguments to the function.  In this special case we could remove the implication, but not in general.  The $a = e_i$ part is missing above, but I guess that's because this text was not updated for the $\min$-translation.}
 
 \begin{equation}
   \label{defnotnull}
-\forall xs,y,ys.~ xs=Cons(y,ys) \implies notnull(xs) = true
+\forall xs,y,ys.~ xs=Cons(y,ys) \implies notnull(xs) = \true
 \end{equation}
 
 We also need to specify the translation of calls to $notnull$ with
@@ -180,7 +181,7 @@ The translation of $head$ follows the same pattern:
 We now have translated the source code. Let us call all those formulae
 the theory $T$. We translate separatly the contract:
 \begin{equation*}
-  \phi := \forall xs.~\cf{xs} \land notnull(xs) = true \to \cf{head(xs)} 
+  \phi := \forall xs.~\cf{xs} \land notnull(xs) = \true \to \cf{head(xs)} 
 \end{equation*}
 
 Now that we translated everything to first-order logic, we can ask the
@@ -265,14 +266,14 @@ formula serves a specific purpose.\note[nc]{
 }
 
 Now, assume that $xs$ satisfies
-$\cf{xs}$ and $notnull(xs) = true$.  We can derive that $xs \neq \bad$
+$\cf{xs}$ and $notnull(xs) = \true$.  We can derive that $xs \neq \bad$
 because we have $\cf{xs}$ and \annote[nc]{$\lnot \cf{\bad}$}{
 
 Follows from the definition of $CF$, but it's worth noting that this
 plays a key part in the axiomitization of $CF$.
 
 }. The constraint
-$notnull(xs) = true$ doesn't directly imply that $xs = Cons(y,ys)$ for
+$notnull(xs) = \true$ doesn't directly imply that $xs = Cons(y,ys)$ for
 some $y$ and $ys$. But $notnull$ is totally defined, because of
 \eqref{unrnotnull}. This implies (by \eqref{defnotnull}) that there exist
 $y$ and $ys$ such that $xs = Cons(y,ys)$. Recalling $\cf{xs}$, we can
@@ -390,7 +391,7 @@ meets the specification given by its contract.
 \begin{figure}[h]
  \centering
   \[  \begin{array}{rcl}
-    e \in \{x \mid p \} &\iff& e \mbox{ diverges or } p[e/x] \not \to^\star \{\bad,False\}\\
+    e \in \{x \mid p \} &\iff& e \mbox{ diverges or } p[e/x] \not \to^\star \{\bad,\false\}\\
     e \in x:c_1 \to c_2 &\iff& \forall e_1 \in c_1, (e~e_1) \in c_2[e_1/x]\\
     e \in (c_1,c_2) &\iff& e \mbox{ diverges or }\\
     &&  (e \to^\star (e_1,e_2) \mbox{ and } e_1 \in c_1, e_2 \in c_2)\\
@@ -685,9 +686,9 @@ Figure~\ref{fig:newCTrans}.  To prove that $e \in \{x|p\}$, we get to
 assume interest in $e$ and $p[e/x]$, whereas, to use $e \in \{x|p\}$,
 we need to prove we're interested in $e$.  The $\min{e}$ constraint
 here is not optional, because in addition to concluding 
-$e \neq \unr \to p[e/x] \in \{True,\unr\}$, we also conclude $\min{p[e/x]}$.
+$e \neq \unr \to p[e/x] \in \{\true,\unr\}$, we also conclude $\min{p[e/x]}$.
 The $\min{p[e/x]}$ is necessary to unfold definitions in $p[e/x]$ and prove
-$p[e/x] \in \{True,\unr\}$, and because it can be used to unfold definitions,
+$p[e/x] \in \{\true,\unr\}$, and because it can be used to unfold definitions,
 we guard it with $\min{e}$.
 }
 \begin{figure*}
@@ -723,11 +724,6 @@ of optional parts, are enclosed in single square brackets.}
 \end{figure*}
 
 We give in figure~\ref{ctrans} the translation of contract satisfaction.
-\annote[nc]{$true$ refers to the translation to a term of the data constructor
-\texttt{True} in $\hprime$, not to the actual true value.}{
-Again, we should use $True$ (or \texttt{True}) in the translation; the
-lowercase is an artifact of the concrete TPTP syntax.
-}
 \remove[nc]{Note that we define the translation of $f \in c$ and of $f \not \in
 c$. We have to do that because one is not the negation of the other,
 even though $\lnot (f \not \in c)$ implies $f \in c$.}\note[nc]{
@@ -868,14 +864,14 @@ Concerns about the current translation
   arrow case and symmetric predicate contract cases).
   I had trouble proving
   \protect \[
-  (\lambda x. \text{case $x$ of $True \to True$; $False \to \bad$}) 
-  \in \{x|x==True\} \to \cfc
+  (\lambda x. \text{case $x$ of $\true \to \true$; $\false \to \bad$})
+  \in \{x|x==\true\} \to \cfc
   \]
   , after adding $p = \unr$ to $\ctrans{x \in \{x|p\}}$, but I need to think about it more.
 
 \item There may need to be some $\min{}$ assumptions in the prelude.  E.g. right now 
-  it's impossble to prove $\ctrans{True \in \cfc}$, because you can't prove 
-  $\min{True}$ a priori.  On the other hand, we don't need any extra 
+  it's impossble to prove $\ctrans{\true \in \cfc}$, because you can't prove
+  $\min{\true}$ a priori.  On the other hand, we don't need any extra
   $\min{}$ assumption in the arrow case, since it's already assumed, at least in
   very simple examples (checked on the simple
   example that $id \in \cfc \to \cfc$). (UPDATE: removing the $\min{x} \land$ in $cfc$, 
@@ -1069,7 +1065,7 @@ the former is nice because it's more concise?
 \end{eqnarray*}
 
 \begin{eqnarray*}
-  \ctrans{e \not \in \{x \mid b \}} &=&  \min{b[e/x]} \land (b[e/x] = false \lor e = \bad)\\
+  \ctrans{e \not \in \{x \mid b \}} &=&  \min{b[e/x]} \land (b[e/x] = \false \lor e = \bad)\\
   \ctrans{e \not \in x:c_1 \to c_2} &=& \exists x.~ \ctrans{x \in c_1} \land  \ctrans{e~x \not \in c_2}\\
   \ctrans{e \not \in \cfc} &=& \min{e} \land \lnot \cf{e}
 \end{eqnarray*}
@@ -1127,7 +1123,7 @@ data Bool = True 0 | False 0
   \begin{itemize}
     \item $\lnot \cf{\bad}$
     \item $\cf{\unr}$
-    \item $\dtrans{data~Bool = True~0 | False~0}$
+    \item $\dtrans{data~Bool = \true~0 | \false~0}$
     \item \designChoice\\ $\forall f,x. \min{f ~x} \to \min{f}$
     \item \designChoice\\ $\forall x. \min{\bad ~x} \to \bad ~x = \bad$ 
     \item \designChoice\\ $\forall x. \min{\unr ~x} \to \unr ~x = \unr$
