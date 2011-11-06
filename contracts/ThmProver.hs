@@ -27,11 +27,11 @@ fof = Theory {
       , fileExtension = "tptp"
       , footer = ""
       }
-smtlib :: Theory
-smtlib = Theory {
+smt2 :: Theory
+smt2 = Theory {
            showFormula = F.toSMTLIB
          , header = F.showDefsSMTLIB
-         , fileExtension = "smtlib"
+         , fileExtension = "smt2"
          , footer = "(check-sat)"
          }
                     
@@ -46,9 +46,14 @@ provers = [ ("equinox", T "equinox"
                         ("Proof found" `isInfixOf`)
                         fof
             )
-          , ("vampire", T "vampire_lin64"
+          , ("vampire32", T "vampire_lin32"
                           ["--mode", "casc" ,"--input_file"]
-                          ("Refutation" `isInfixOf`)
+                          ("SZS status Unsatisfiable" `isInfixOf`)
+                          fof
+            )
+          , ("vampire64", T "vampire_lin64"
+                          ["--mode", "casc" ,"--input_file"]
+                          ("SZS status Unsatisfiable" `isInfixOf`)
                           fof
             )
           , ("E", T "eprover"
@@ -59,6 +64,6 @@ provers = [ ("equinox", T "equinox"
           , ("z3", T "z3"
                      ["-nw","-smt2"]
                      ("unsat" `isInfixOf`)
-                     smtlib
+                     smt2
             )
           ]
