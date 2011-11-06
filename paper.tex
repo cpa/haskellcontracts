@@ -28,7 +28,6 @@
 \begin{document}
 
 \def\ruleform#1{{\setlength{\fboxrule}{1.2pt}\fbox{\normalsize $#1$}}}
-\newcommand{\etrans}[1]{\mathcal{E} \llbracket #1 \rrbracket}
 \newcommand{\dtrans}[1]{\mathcal{D} \llbracket #1 \rrbracket}
 \newcommand{\ktrans}[1]{\mathcal{K} \llbracket #1 \rrbracket}
 \newcommand{\ctrans}[1]{\mathcal{C} \llbracket #1 \rrbracket}
@@ -42,7 +41,7 @@
 \newcommand{\bad}{\texttt{BAD}}
 \newcommand{\any}{\texttt{Any}}
 \newcommand{\ok}{\texttt{Ok}}
-\newcommand{\hprime}{\mathcal{H}'}
+\newcommand{\hprime}{\ensuremath{\mathcal{H}'}}
 \newcommand{\cfc}{\texttt{CF}}
 \newcommand{\cf}[1]{\texttt{CF}(#1)}
 \newcommand{\weak}[1]{\mbox{$\$$weak}(#1)}
@@ -140,7 +139,7 @@ logic.\note[nc]{XXX, TODO: use $True$ and $False$ in the
 \end{equation*}\note[nc]{Here we might ask the same question as above: why not use the simpler definition
 \[
 notnull(Nil) = false
-\]? The answer is that this is an expansion of the $\etrans{e} = K_i(\vec{x_i}) \to a = \etrans{e_i}$ part of the $\dtrans{}$ rule for functions defined by cases.  I.e., the scrutinee $Nil$ is, in general, an expression involving, but not necessarily equal to, the arguments to the function.  In this special case we could remove the implication, but not in general.  The $a = \etrans{e_i}$ part is missing above, but I guess that's because this text was not updated for the $\min$-translation.}
+\]? The answer is that this is an expansion of the $e = K_i(\vec{x_i}) \to a = e_i$ part of the $\dtrans{}$ rule for functions defined by cases.  I.e., the scrutinee $Nil$ is, in general, an expression involving, but not necessarily equal to, the arguments to the function.  In this special case we could remove the implication, but not in general.  The $a = e_i$ part is missing above, but I guess that's because this text was not updated for the $\min$-translation.}
 
 \begin{equation}
   \label{defnotnull}
@@ -302,7 +301,7 @@ $x:c_1 \to c_2$ already includes partial applications.  We could add a
 special cases for each function arity, e.g.
 \begin{eqnarray*}
 &&\ctrans{f \in x_1:c_1 \to \cdots \to x_n:c_n \to c} \\
-&&      :=\forall x_1, \ldots, x_n. \min{\etrans{f(x_1, \ldots, x_n)}} \\
+&&      :=\forall x_1, \ldots, x_n. \min{f(x_1, \ldots, x_n)} \\
 &&\quad   \to \left( \bigvee_{i=1}^n \ctrans{x_i \notin c_i} \right)
               \lor \ctrans{f(x_1, \ldots, x_n) \in c}
 \end{eqnarray*}
@@ -525,7 +524,6 @@ For an overview of the different translations we define, see figure~\ref{trans}
 \begin{figure}
  \begin{center}
   \[  \begin{array}{rcl}
-    \etrans{\mbox{expression}} &\to& t~(\mbox{Term}) \\
     \dtrans{def} &\to& \Phi~(\mbox{Set of formulae}) \\
     \ktrans{\mbox{data } T = \dots} &\to& \Phi~(\mbox{Set of formulae}) \\
     \ctrans{f \in c} &\to& \Phi~(\mbox{Set of formulae}) \\
@@ -536,25 +534,9 @@ For an overview of the different translations we define, see figure~\ref{trans}
 \end{figure}
 
 
-\subsection{$\etrans{}$ -- Expressions}
-Our most basic translation is from expressions in $\hprime$ to terms
-in first-order logic. Given this translation we will be able to
-translate definitions, data types and contracts to first-order
-formulae. It is described in figure~\ref{etrans}.
-
-\begin{figure}
-$$
-\begin{array}{rcl}
-\multicolumn{3}{c}{\ruleform{\etrans{e} = t}} \\[2.5mm]
- \etrans{x} &=& x\\
-  \etrans{f(e_1,\dots,e_n)} &=& f(\etrans{e_1},\dots,\etrans{e_n})\\
-  \etrans{K(e_1,\dots,e_n)} &=& K(\etrans{e_1},\dots,\etrans{e_n})\\
-  \etrans{\bad} &=& \bad
-\end{array}
-$$
-\caption{$\etrans{}$ -- Expression translation}
-\label{etrans}
-\end{figure}
+\subsection{Expressions}
+Expressions are the same in \hprime and FOL, so no translation is
+necessary.
 
 \subsection{$\dtrans{}$ -- Definitions}
 We give in figure~\ref{dtrans} the two translations of function
@@ -583,14 +565,14 @@ $\unr$.\note[nc]{This text does not agree with the figure.  In
   \dtrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} &=& \ktrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} \\
   \dtrans{f \in c} &=& \ctrans{f \in c}\\
   \dtrans{f(\vec{x}) = e} &=& \forall \vec{x},a.~ (\min{a} \land a =
-  f(\vec{x})) \to a = \etrans{e} \\
+  f(\vec{x})) \to a = e \\
    \raisebox{ 0.5 cm }{$\dtrans{f(\vec{x}) = \mbox{case } e \mbox{ of } [K_i(\vec{x_i}) = e_i]}$} &\raisebox{0.5cm}{=}&  \hspace{-0.18cm} \begin{array}{rclcl}
      \forall \vec{x},a.~(\mbox{min}(a) \land a = f(\vec{x})) &\to&
      \multicolumn{3}{c}{  \texttt{min}(e) \land (e = \texttt{BAD} \lor
        \left(\bigvee_i \exists \vec{x_i}.~e = K_i(\vec{x_i})\right) \lor a = \texttt{UNR})} \\
-     &\land& \forall \vec{x_1}.~\etrans{e} = K_1(\vec{x_1}) &\to& a = \etrans{e_1} \\
+     &\land& \forall \vec{x_1}.~e = K_1(\vec{x_1}) &\to& a = e_1 \\
      &\land& & \cdots & \\
-     &\land& \forall \vec{x_n}.~\etrans{e} = K_n(\vec{x_n}) &\to& a = \etrans{e_n} \\%removed } here ...
+     &\land& \forall \vec{x_n}.~e = K_n(\vec{x_n}) &\to& a = e_n \\
    \end{array} 
 \end{array}
 \]
@@ -646,8 +628,8 @@ $$\ktrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} = \Phi_1 \cup \Phi_2 \cup \P
  \hspace{5.6cm}where
   \begin{center}
     \[  \begin{array}{rcl}
-      \Phi_1 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to \bigwedge_{1 \leq j \leq k} x_j = sel_{j,K_i}(a) \text{\note[nc]{??? $\min{a}$ or $\min{sel_{j,K_i}{a}}$?}}\\
-      \Phi_2 &=& \bigcup_{1 \leq i < j \leq n}~\forall \vec{x},\vec{y},a.~ \lnot (\min{a} \land a = K_i(\vec{x}) \land a = K_j(\vec{x})) \\
+      \Phi_1 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to \bigwedge_{1 \leq j \leq a_i} x_j = sel_{j,K_i}(a) \text{\note[nc]{??? $\min{a}$ or $\min{sel_{j,K_i}{a}}$?}}\\
+      \Phi_2 &=& \bigcup_{1 \leq i < j \leq n}~\forall \vec{x},\vec{y},a.~ \lnot (\min{a} \land a = K_i(\vec{x}) \land a = K_j(\vec{y})) \\
       \Phi_3 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to ((\bigwedge_{1 \leq j \leq k} \cf{x_j}) \tot \cf{a}) \\
       \Phi_4 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to a \neq \unr \land a \neq \bad 
     \end{array} \]
@@ -1083,15 +1065,15 @@ the former is nice because it's more concise?
 \begin{figure*}
   $$ \ruleform{\ctrans{contract} = \Phi} $$
 \begin{eqnarray*}
-  \ctrans{e \in \{x \mid b \}} &=&  \min{\etrans{b[e/x]}} \land (\etrans{b[e/x]} = true \lor \etrans{e} = \unr)\\
-  \ctrans{e \in x:c_1 \to c_2} &=& \forall x.~\min{\etrans{e~x}} \to (\ctrans{x \not \in c_1} \lor  \ctrans{e~x \in c_2})\\
-  \ctrans{e \in \cfc} &=& \min{\etrans{e}} \land \cf{\etrans{e}}
+  \ctrans{e \in \{x \mid b \}} &=&  \min{b[e/x]} \land (b[e/x] = true \lor e = \unr)\\
+  \ctrans{e \in x:c_1 \to c_2} &=& \forall x.~\min{e~x} \to (\ctrans{x \not \in c_1} \lor  \ctrans{e~x \in c_2})\\
+  \ctrans{e \in \cfc} &=& \min{e} \land \cf{e}
 \end{eqnarray*}
 
 \begin{eqnarray*}
-  \ctrans{e \not \in \{x \mid b \}} &=&  \min{\etrans{b[e/x]}} \land (\etrans{b[e/x]} = false \lor \etrans{e} = \bad)\\
+  \ctrans{e \not \in \{x \mid b \}} &=&  \min{b[e/x]} \land (b[e/x] = false \lor e = \bad)\\
   \ctrans{e \not \in x:c_1 \to c_2} &=& \exists x.~ \ctrans{x \in c_1} \land  \ctrans{e~x \not \in c_2}\\
-  \ctrans{e \not \in \cfc} &=& \min{\etrans{e}} \land \lnot \cf{\etrans{e}}
+  \ctrans{e \not \in \cfc} &=& \min{e} \land \lnot \cf{e}
 \end{eqnarray*}
 
 \begin{center}
@@ -1237,7 +1219,7 @@ on their $ptr$ counterpart.
 
 
 \begin{figure*}
-$$\etrans{e_1~e_2} = app(e_1,e_2)$$
+$$e_1~e_2 = app(e_1,e_2)$$
 $$ \forall x_1,\dots,x_n.~f(x_1,\dots,x_n) = app(app(\dots app(f\_ptr,x_1),x_2),\dots,x_n)$$
 $$ \cf{f\_ptr} \tot \forall x_1,\dots,x_n.~\cf{x_1} \land \dots \land \cf{x_n} \to \cf{f(x_1,\dots,x_n)}$$
 $$\forall f\_ptr,x.~\cf{f\_ptr} \land \cf{x} \to \cf{app(f\_ptr,x)}$$
