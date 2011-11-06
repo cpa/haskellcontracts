@@ -106,12 +106,12 @@ can't think of a good way to explain it right now.
 \end{equation*}
 \begin{equation*}
 Nil \neq \unr 
-\end{equation*}\note[nc]{\unr means ``infinite loop'', approximately (it's also the result of pattern matches on non-loop expressions with the wrong constructor head), and so these rules ($\Phi_4$) say that constructors are ``lazy'' or ``total''.}
+\end{equation*}\note[nc]{\unr means ``infinite loop'', approximately (it's also the result of pattern matches on non-loop expressions with the wrong constructor head), and so these rules ($\phi_\text{lazy}$) say that constructors are ``lazy'' or ``total''.}
 
 Finally, we define projections for $Cons$. \annote[nc]{It is not
   strictly necessary, but it will be handy:}{??? Why is it handy? It
   doesn't seem to play any role in formal part of this paper (besides
-  being specified in axioms $\Phi_1$ (projections)). In the current
+  being specified in axioms $\phi_\text{projection}$). In the current
   implementation it's used to avoid introducing existentially
   quantified variables in the $\bigvee_i$ part of $\dtrans{}$ for
   functions defined by case expressions. Equation \eqref{unrnotnull}
@@ -509,11 +509,9 @@ We use first-order logic with equality, defined in figure \ref{fol-stx}.\note[nc
     v,w,s,t &:=& x \mid K(t,\dots,t) \mid f(t,\dots,t) \mid app(t,t)\\
     && \mid \bad \mid \unr \\
     \phi &:=& \forall x.\phi \mid \text{\add[nc]{$\exists x.\phi \mid$}} \lnot \phi \mid \phi \lor \phi \mid \top \mid \bot \mid t=t \mid \mbox{CF}(t)\\
-    && \mid \phi \land \phi \mid \phi \to \phi \mid \phi \tot \phi \\
-    \Phi &:=& \epsilon \mid \phi \mid \Phi \cup \Phi \\
+    && \mid \phi \land \phi \mid \phi \to \phi \mid \phi \tot \phi
   \end{array} \]
   \caption{First-order logic syntax}
-  \note[nc]{The $\Phi$ are unnecessary and don't make things simpler, because a set of formulas is equivalent to the conjunction of its contents.  XXX, TODO: drop $\Phi$ and replace all $\bigcup$ with $\bigwedge$.}
   \label{fol-stx}
 \end{figure}
 
@@ -524,9 +522,9 @@ For an overview of the different translations we define, see figure~\ref{trans}
 \begin{figure}
  \begin{center}
   \[  \begin{array}{rcl}
-    \dtrans{def} &\to& \Phi~(\mbox{Set of formulae}) \\
-    \ktrans{\mbox{data } T = \dots} &\to& \Phi~(\mbox{Set of formulae}) \\
-    \ctrans{f \in c} &\to& \Phi~(\mbox{Set of formulae}) \\
+    \dtrans{def} &\to& \phi~(\mbox{formulae}) \\
+    \ktrans{\mbox{data } T = \dots} &\to& \phi~(\mbox{formulae}) \\
+    \ctrans{f \in c} &\to& \phi~(\mbox{formulae}) \\
   \end{array} \]
   \end{center}
   \caption{Translations}
@@ -561,7 +559,7 @@ $\unr$.\note[nc]{This text does not agree with the figure.  In
 \begin{figure*}
 \[
 \begin{array}{rcl}
-  \multicolumn{3}{c}{\ruleform{\dtrans{def} = \Phi}} \\[2.5mm]
+  \multicolumn{3}{c}{\ruleform{\dtrans{def} = \phi}} \\[2.5mm]
   \dtrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} &=& \ktrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} \\
   \dtrans{f \in c} &=& \ctrans{f \in c}\\
   \dtrans{f(\vec{x}) = e} &=& \forall \vec{x},a.~ (\min{a} \land a =
@@ -588,15 +586,15 @@ $\unr$.\note[nc]{This text does not agree with the figure.  In
 
 \subsection{$\ktrans{}$ -- Datatypes}
 We break down the translation for datatypes in four parts, described in figure~\ref{ktrans}
-$$\ktrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} = \Phi_1 \cup \Phi_2 \cup \Phi_3 \cup \Phi_4$$
+$$\ktrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} = \phi_\text{projection} \land \phi_\text{disjoint} \land \phi_\text{cf} \land \phi_\text{lazy}$$
 
 \begin{itemize}
-\item $(\Phi_1)$ For each $K_i$ of arity $a_i$ we introduce selectors
+\item $(\phi_\text{projection})$ For each $K_i$ of arity $a_i$ we introduce selectors
   $sel_{k,K_i}$, which are the projection of $K_i(x_1,\dots,x_{a_i})$
   on its $k$-th component, $k = 1\text{ to }a_i$.
-\item $(\Phi_2)$ For each pair of constructors $K_i,K_j$, $i \not = j$, we state that they can
+\item $(\phi_\text{disjoint})$ For each pair of constructors $K_i,K_j$, $i \not = j$, we state that they can
   never map to the same value.
-\item $(\Phi_3)$ Then, we have to give crash-freeness conditions for each $K_i$:
+\item $(\phi_\text{cf})$ Then, we have to give crash-freeness conditions for each $K_i$:
   Notice that we have a equivalence.
   \begin{itemize}
   \item $\gets$: if we pack crash-free values in a data
@@ -616,7 +614,7 @@ $$\ktrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} = \Phi_1 \cup \Phi_2 \cup \P
   being crash-free or not doesn't matter.
   \end{itemize}
 
-\item $(\Phi_4)$ No full application of a constructor $K_i$ is unreachable or crashing.
+\item $(\phi_\text{lazy})$ No full application of a constructor $K_i$ is unreachable or crashing.
 \item One may want to also state that if for all $j$, $x_j \neq \bad$ then
   $K_i(\vec{x}) \neq \bad$. It is already implied by the fact that
   $\left(\forall j. \cf{x_j}\right) \to \cf{K_i(\vec{x})}$.
@@ -624,14 +622,14 @@ $$\ktrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} = \Phi_1 \cup \Phi_2 \cup \P
 
 \begin{figure*}
   $$ \ruleform{\ktrans{data~def} = \Phi} $$
-$$\ktrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} = \Phi_1 \cup \Phi_2 \cup \Phi_3 \cup \Phi_4$$
+$$\ktrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} = \phi_\text{projection} \land \phi_\text{disjoint} \land \phi_\text{cf} \land \phi_\text{lazy}$$
  \hspace{5.6cm}where
   \begin{center}
     \[  \begin{array}{rcl}
-      \Phi_1 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to \bigwedge_{1 \leq j \leq a_i} x_j = sel_{j,K_i}(a) \text{\note[nc]{??? $\min{a}$ or $\min{sel_{j,K_i}{a}}$?}}\\
-      \Phi_2 &=& \bigcup_{1 \leq i < j \leq n}~\forall \vec{x},\vec{y},a.~ \lnot (\min{a} \land a = K_i(\vec{x}) \land a = K_j(\vec{y})) \\
-      \Phi_3 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to ((\bigwedge_{1 \leq j \leq k} \cf{x_j}) \tot \cf{a}) \\
-      \Phi_4 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to a \neq \unr \land a \neq \bad 
+      \phi_\text{projection} &=& \bigwedge_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to \bigwedge_{1 \leq j \leq a_i} x_j = sel_{j,K_i}(a) \text{\note[nc]{??? $\min{a}$ or $\min{sel_{j,K_i}{a}}$?}}\\
+      \phi_\text{disjoint} &=& \bigwedge_{1 \leq i < j \leq n}~\forall \vec{x},\vec{y},a.~ \lnot (\min{a} \land a = K_i(\vec{x}) \land a = K_j(\vec{y})) \\
+      \phi_\text{cf} &=& \bigwedge_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to ((\bigwedge_{1 \leq j \leq k} \cf{x_j}) \tot \cf{a}) \\
+      \phi_\text{lazy} &=& \bigwedge_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to a \neq \unr \land a \neq \bad 
     \end{array} \]
   \end{center}
   \caption{$\ktrans{}$ -- Data type translation}
@@ -1063,7 +1061,7 @@ the former is nice because it's more concise?
 \end{verbatim}
 
 \begin{figure*}
-  $$ \ruleform{\ctrans{contract} = \Phi} $$
+  $$ \ruleform{\ctrans{contract} = \phi} $$
 \begin{eqnarray*}
   \ctrans{e \in \{x \mid b \}} &=&  \min{b[e/x]} \land (b[e/x] = true \lor e = \unr)\\
   \ctrans{e \in x:c_1 \to c_2} &=& \forall x.~\min{e~x} \to (\ctrans{x \not \in c_1} \lor  \ctrans{e~x \in c_2})\\
