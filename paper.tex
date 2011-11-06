@@ -523,9 +523,9 @@ For an overview of the different translations we define, see figure~\ref{trans}
 \begin{figure}
  \begin{center}
   \[  \begin{array}{rcl}
-    \dtrans{def} &\to& \phi~(\mbox{formulae}) \\
-    \ktrans{\mbox{data } T = \dots} &\to& \phi~(\mbox{formulae}) \\
-    \ctrans{f \in c} &\to& \phi~(\mbox{formulae}) \\
+    \dtrans{def} &\to& \phi~(\mbox{formula}) \\
+    \ktrans{\mbox{data } T = \dots} &\to& \phi~(\mbox{formula}) \\
+    \ctrans{f \in c} &\to& \phi~(\mbox{formula}) \\
   \end{array} \]
   \end{center}
   \caption{Translations}
@@ -690,6 +690,17 @@ The $\min{p[e/x]}$ is necessary to unfold definitions in $p[e/x]$ and prove
 $p[e/x] \in \{\true,\unr\}$, and because it can be used to unfold definitions,
 we guard it with $\min{e}$.
 }
+
+\begin{figure*}
+\begin{verbatim}
+[[e in {x|p}]]      := e /= unr -> p[e/x] in {true, unr}
+[[e in cf]]         := cf(e)
+[[e in x:c1 -> c2]] := forall x. [[x in c1]] -> [[e x in c2]]
+\end{verbatim}
+\caption{$\ctrans{}$ -- Naive (no $\min$) contract translation.}
+\label{fig:naiveCTrans}
+\end{figure*}
+
 \begin{figure*}
 \begin{verbatim}
 [[e in {x|p}]]+ := min(e) /\ min(p[e/x]) -> [[e in {x|p}]]
@@ -710,16 +721,6 @@ we guard it with $\min{e}$.
 \caption{$\ctrans{}$ -- New contract translation. Design choices, in the form
 of optional parts, are enclosed in single square brackets.}
 \label{fig:newCTrans}
-\end{figure*}
-
-\begin{figure*}
-\begin{verbatim}
-[[e in {x|p}]]      := e /= unr -> p[e/x] in {true, unr}
-[[e in cf]]         := cf(e)
-[[e in x:c1 -> c2]] := forall x. [[x in c1]] -> [[e x in c2]]
-\end{verbatim}
-\caption{$\ctrans{}$ -- Naive (no $\min$) contract translation.}
-\label{fig:naiveCTrans}
 \end{figure*}
 
 We give in figure~\ref{ctrans} the translation of contract satisfaction.
