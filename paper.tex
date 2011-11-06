@@ -28,7 +28,6 @@
 \begin{document}
 
 \def\ruleform#1{{\setlength{\fboxrule}{1.2pt}\fbox{\normalsize $#1$}}}
-\newcommand{\etrans}[1]{\mathcal{E} \llbracket #1 \rrbracket}
 \newcommand{\dtrans}[1]{\mathcal{D} \llbracket #1 \rrbracket}
 \newcommand{\ktrans}[1]{\mathcal{K} \llbracket #1 \rrbracket}
 \newcommand{\ctrans}[1]{\mathcal{C} \llbracket #1 \rrbracket}
@@ -38,14 +37,21 @@
 
 \newtheorem{definition}{Definition}
 
+%% We could use \texttt{true} and \texttt{false} here, to be more
+%% consistent with \bad and \unr, but then we should also use
+%% \texttt{Nil}, \texttt{Cons}, etc.
+\newcommand{\true}{True}
+\newcommand{\false}{False}
 \newcommand{\unr}{\texttt{UNR}}
 \newcommand{\bad}{\texttt{BAD}}
 \newcommand{\any}{\texttt{Any}}
 \newcommand{\ok}{\texttt{Ok}}
-\newcommand{\hprime}{\mathcal{H}'}
+\newcommand{\hprime}{\ensuremath{\mathcal{H}'}}
+% Full function application, e.g. $\full{f}(x_1,\ldots,x_n)$. Contrast
+% with partial application, e.g. $f~x_1 \ldots x_n$
+\newcommand{\full}[1]{\hat{#1}}
 \newcommand{\cfc}{\texttt{CF}}
 \newcommand{\cf}[1]{\texttt{CF}(#1)}
-\newcommand{\weak}[1]{\mbox{$\$$weak}(#1)}
 \renewcommand{\min}[1]{\mbox{min}(#1)}
 
 \newcommand{\designChoice}{(DESIGN CHOICE/OPTIONAL)}
@@ -79,14 +85,14 @@ First, we need to encode the List structure.
 
 We start by stating that $Nil$ and $Cons$ can never be equal:
 \begin{equation*}
-\forall a,b.~Cons(a,b) \neq Nil
+\forall a,b.~Cons~a~b \neq Nil
 \end{equation*}
 
 Then, we state that $Nil$ can cannot cause a crash, and that
-$Cons(x,y)$ cannot cause a crash iff both its arguments cannot. The
+$Cons~x~y$ cannot cause a crash iff both its arguments cannot. The
 statement ``$x$ cannot cause a crash'' is encoded by the formula
 $\cf{x}$.\note[nc]{I just rewrote this, but it still sounds weird: in
-  $head(Nil) = \bad$, who ``caused'' the crash? The precise definition
+  $head~Nil = \bad$, who ``caused'' the crash? The precise definition
   of $\cf$ in Section \ref{sec:cf}, in terms of not leading to crashes
   when inserted into syntactically \bad-free environments,  is good, but
   how to state it informally?}
@@ -96,33 +102,33 @@ $\cf{x}$.\note[nc]{I just rewrote this, but it still sounds weird: in
 \end{equation*}
 \begin{equation}
   \label{cfcons}
-\forall a,b.~\cf{a} \land \cf{b} \iff \cf{Cons(a,b)}
+\forall a,b.~\cf{a} \land \cf{b} \iff \cf{Cons~a~b}
 \end{equation}
 
 We also say some stuff about \annote[nc]{unreachibility}{??? e.g. \[
-  CF(fst(x,BAD)) \iff CF(x) \] as in section \ref{sec:cf}?} but I
+  CF(fst~(x,BAD)) \iff CF(x) \] as in section \ref{sec:cf}?} but I
 can't think of a good way to explain it right now.
 \begin{equation*}
-\forall y,ys.~Cons(y,ys) \neq \unr 
+\forall y,ys.~Cons~y~ys \neq \unr
 \end{equation*}
 \begin{equation*}
 Nil \neq \unr 
-\end{equation*}\note[nc]{\unr means ``infinite loop'', approximately (it's also the result of pattern matches on non-loop expressions with the wrong constructor head), and so these rules ($\Phi_4$) say that constructors are ``lazy'' or ``total''.}
+\end{equation*}\note[nc]{\unr means ``infinite loop'', approximately (it's also the result of pattern matches on non-loop expressions with the wrong constructor head), and so these rules ($\phi_\text{lazy}$) say that constructors are ``lazy'' or ``total''.}
 
 Finally, we define projections for $Cons$. \annote[nc]{It is not
   strictly necessary, but it will be handy:}{??? Why is it handy? It
   doesn't seem to play any role in formal part of this paper (besides
-  being specified in axioms $\Phi_1$ (projections)). In the current
+  being specified in axioms $\phi_\text{projection}$). In the current
   implementation it's used to avoid introducing existentially
   quantified variables in the $\bigvee_i$ part of $\dtrans{}$ for
   functions defined by case expressions. Equation \eqref{unrnotnull}
   below uses it that way. ??? Does Equinox care?}
 \begin{equation*}
-\forall xs,y,ys.~sel_{1,Cons}(Cons(y,ys)) = xs \implies xs = y 
+\forall xs,y,ys.~sel_{1,Cons}~Cons~y~ys = xs \implies xs = y 
 \end{equation*}
 \begin{equation*}
-\forall xs,y,ys.~sel_{2,Cons}(Cons(y,ys)) = xs \implies xs = ys 
-\end{equation*}\note[nc]{??? Why not the simpler \[\forall y,ys.~sel_{2,Cons}(Cons(y,ys)) = ys\]? Same question in Figure \ref{dtrans}.  (Equinox does have a built in notion of equality, e.g. running equinox on
+\forall xs,y,ys.~sel_{2,Cons}~Cons~y~ys = xs \implies xs = ys 
+\end{equation*}\note[nc]{??? Why not the simpler \[\forall y,ys.~sel_{2,Cons}~Cons~y~ys = ys\]? Same question in Figure \ref{dtrans}.  (Equinox does have a built in notion of equality, e.g. running equinox on
 \center{\texttt{fof(\_,theorem,? [X,Y] : (X = Y \& f(X) != f(Y))).}}\\
  results in ``Unsatisfiable'', so support for equality reasoning is not the reason.)}
 %% \[
@@ -130,27 +136,23 @@ Finally, we define projections for $Cons$. \annote[nc]{It is not
 %%                  \text{\texttt{| equinox /dev/stdin}}}}
 %% \]
 
-Now we translate the $null$ function. Note that the symbols $true$ and
-$false$ are the representation of the data constructors $True$ and
-$False$ in Haskell, not the boolean values $\top$ and $\bot$ in our
-logic.\note[nc]{XXX, TODO: use $True$ and $False$ in the
-  text.  The lowercase $true$ and $false$ is an artifact of the implementation, i.e. Equinox accepts TPTP format, which doesn't allow bare uppercase function symbols.  Moreover, the lower case here is inconsistent with the rest of the presentation, e.g. $Cons$ and $Nil$ above.}
+Now we translate the $null$ function.
 \begin{equation*}
-\forall xs.~ xs=Nil \implies notnull(xs) = false
+\forall xs.~ xs=Nil \implies notnull~xs = \false
 \end{equation*}\note[nc]{Here we might ask the same question as above: why not use the simpler definition
 \[
-notnull(Nil) = false
-\]? The answer is that this is an expansion of the $\etrans{e} = K_i(\vec{x_i}) \to a = \etrans{e_i}$ part of the $\dtrans{}$ rule for functions defined by cases.  I.e., the scrutinee $Nil$ is, in general, an expression involving, but not necessarily equal to, the arguments to the function.  In this special case we could remove the implication, but not in general.  The $a = \etrans{e_i}$ part is missing above, but I guess that's because this text was not updated for the $\min$-translation.}
+notnull~Nil = \false
+\]? The answer is that this is an expansion of the $e = K_i~\vec{x_i} \to a = e_i$ part of the $\dtrans{}$ rule for functions defined by cases.  I.e., the scrutinee $Nil$ is, in general, an expression involving, but not necessarily equal to, the arguments to the function.  In this special case we could remove the implication, but not in general.  The $a = e_i$ part is missing above, but I guess that's because this text was not updated for the $\min$-translation.}
 
 \begin{equation}
   \label{defnotnull}
-\forall xs,y,ys.~ xs=Cons(y,ys) \implies notnull(xs) = true
+\forall xs,y,ys.~ xs=Cons~y~ys \implies notnull~xs = \true
 \end{equation}
 
 We also need to specify the translation of calls to $notnull$ with
-$\bad$ values, to encode the fact that $notnull(\bad) = \bad$.
+$\bad$ values, to encode the fact that $notnull~\bad = \bad$.
 \begin{equation*}
-\forall xs.~xs=\bad \to notnull(xs) = \bad
+\forall xs.~xs=\bad \to notnull~xs = \bad
 \end{equation*}
 
 Finally, we say that one call $notnull$ with a an argument which is
@@ -158,30 +160,30 @@ not $Nil$ or $Cons$ or $\bad$ then the result is $\unr$.
 \begin{align}
   \label{unrnotnull}
   \forall xs.~xs \neq \bad \land xs \neq Nil  \notag \\
-  \land xs \neq Cons(sel_{1,Cons}(xs),sel_{2,Cons}(xs)) \to  \notag \\
+  \land xs \neq Cons~(sel_{1,Cons}~xs)~(sel_{2,Cons}~xs) \to  \notag \\
   notnull(xs) = \unr 
 \end{align}
 
 The translation of $head$ follows the same pattern:
 \begin{align}
-  \forall xs.~ x=Nil \implies head(xs) = \bad \notag\\
-  \forall xs,y,ys.~ xs=Cons(y,ys) \implies head(xs) = y     \label{defhead} \\
-    \forall xs.~xs=\bad \to head(xs) = \bad \notag
+  \forall xs.~ x=Nil \implies head~xs = \bad \notag\\
+  \forall xs,y,ys.~ xs=Cons~y~ys \implies head~xs = y     \label{defhead} \\
+    \forall xs.~xs=\bad \to head~xs = \bad \notag
 \end{align}\note[nc]{??? Why not use the same project+construct trick from the last equation?  I.e., why not
 \[
-\forall xs.~ xs=Cons(sel_{Cons,1}(xs),sel_{Cons,2}(xs)) \implies head(xs) = sel_{Cons,1}(xs)
+\forall xs.~ xs=Cons~(sel_{Cons,1}~xs)~(sel_{Cons,2}~xs) \implies head~xs = sel_{Cons,1}~xs
 \]?  Because it's ugly?  Would Equinox care?}
 
 \begin{align*}
  \forall xs.~xs \neq \bad \land xs \neq Nil \notag \\
- \land xs \neq Cons(sel_{1,Cons}(xs),sel_{2,Cons}(xs)) \to  \notag \\
- head(xs) = \unr 
+ \land xs \neq Cons~(sel_{1,Cons}~xs)~(sel_{2,Cons}~xs) \to  \notag \\
+ head~xs = \unr
 \end{align*}
 
 We now have translated the source code. Let us call all those formulae
 the theory $T$. We translate separatly the contract:
 \begin{equation*}
-  \phi := \forall xs.~\cf{xs} \land notnull(xs) = true \to \cf{head(xs)} 
+  \phi := \forall xs.~\cf{xs} \land notnull~xs = \true \to \cf{head~xs} 
 \end{equation*}
 
 Now that we translated everything to first-order logic, we can ask the
@@ -207,15 +209,15 @@ formula serves a specific purpose.\note[nc]{
   The semantics are what you would expect for ``well-typed''
   terminating expressions (again, ``well-typed'' in the sense that the
   corresponding Haskell expression is well-typed in an environment
-  including $P$'s decls). For example, \texttt{Cons(Z,Nil)} is
-  ``well-typed'' but \texttt{Cons(Nil,Z)} is ``ill-typed'' in a the
+  including $P$'s decls). For example, \texttt{Cons~Z~Nil} is
+  ``well-typed'' but \texttt{Cons~Nil~Z} is ``ill-typed'' in a the
   context of a program declaring List and Nat types.  
 
   In general, scrutinizing a \unr{} yields \unr, as does scrutinizing
   a terminating expression with the wrong constructor head
-  (e.g. \texttt{tail(S Z) =} \unr{}). Scrutinizing an ill-typed
+  (e.g. \texttt{tail~(S Z) =} \unr{}). Scrutinizing an ill-typed
   expression with a constructor head of the right type evaluates as
-  specified by the pattern (e.g. \texttt{tail(Cons(Nil,Z)) = Z}),
+  specified by the pattern (e.g. \texttt{tail~(Cons~Nil~Z) = Z}),
   unless there is no corresponding pattern (``non-exhaustive
   pattern''), in which case the result is \bad{}.  NB: wrong-type and
   no-corresponding-pattern are treated very differently.  The
@@ -266,20 +268,20 @@ formula serves a specific purpose.\note[nc]{
 }
 
 Now, assume that $xs$ satisfies
-$\cf{xs}$ and $notnull(xs) = true$.  We can derive that $xs \neq \bad$
+$\cf{xs}$ and $notnull~xs = \true$.  We can derive that $xs \neq \bad$
 because we have $\cf{xs}$ and \annote[nc]{$\lnot \cf{\bad}$}{
 
 Follows from the definition of $CF$, but it's worth noting that this
 plays a key part in the axiomitization of $CF$.
 
 }. The constraint
-$notnull(xs) = true$ doesn't directly imply that $xs = Cons(y,ys)$ for
+$notnull~xs = \true$ doesn't directly imply that $xs = Cons~y~ys$ for
 some $y$ and $ys$. But $notnull$ is totally defined, because of
 \eqref{unrnotnull}. This implies (by \eqref{defnotnull}) that there exist
-$y$ and $ys$ such that $xs = Cons(y,ys)$. Recalling $\cf{xs}$, we can
-now derive $\cf{y}$ and $\cf{ys}$ (by \eqref{cfcons}). But $head(xs) =
+$y$ and $ys$ such that $xs = Cons~y~ys$. Recalling $\cf{xs}$, we can
+now derive $\cf{y}$ and $\cf{ys}$ (by \eqref{cfcons}). But $head~xs =
 y$ because of \eqref{defhead}, and $y$ is crash-free, so we can finally
-derive $\cf{head(xs)}$. QED.
+derive $\cf{head~xs}$. QED.
 
 
 \section{Languages}
@@ -291,26 +293,23 @@ contracts and data definitions.
 
 \begin{itemize}
 \item There's no $\lambda$-abstraction, because we can always lift
-  them to toplevel declaration.
+  them to a toplevel declaration.
 \item We do not allow nested case expressions, because once again, we
   can always lift them to the toplevel.
 \item Until section~\ref{ho} we will only consider full application of
-  functions ($f(x,y)$),\note[nc]{
+  functions ($\full{f}(x,y)$),\note[nc]{
 
-Not really true: the definition of satisfaction for arrow contracts
+Not true: the definition of satisfaction for arrow contracts
 $x:c_1 \to c_2$ already includes partial applications.  We could add a
 special cases for each function arity, e.g.
 \begin{eqnarray*}
 &&\ctrans{f \in x_1:c_1 \to \cdots \to x_n:c_n \to c} \\
-&&      :=\forall x_1, \ldots, x_n. \min{\etrans{f(x_1, \ldots, x_n)}} \\
+&&      :=\forall x_1, \ldots, x_n. \min{\full{f}(x_1, \ldots, x_n)} \\
 &&\quad   \to \left( \bigvee_{i=1}^n \ctrans{x_i \notin c_i} \right)
-              \lor \ctrans{f(x_1, \ldots, x_n) \in c}
+              \lor \ctrans{\full{f}(x_1, \ldots, x_n) \in c}
 \end{eqnarray*}
 for functions of arity $n$, to make the claim true, but that would add
-more clutter.  This may be related to my confusion where removing the
-$f_{ptr}$ stuff caused problems where no higher-orderness was
-involved?
-
+more clutter.
 }, in order to remove clutter. Dealing with
   partial application is not hard but a bit cumbersome.
 \end{itemize}
@@ -327,24 +326,25 @@ involved?
     &\raisebox{ 0.18 cm }{$\mid$}& \multicolumn{2}{c}{
       \begin{array}{rcl}
         \hspace{-0.2cm} f~\vec{x} &=& \texttt{case } e \texttt{ of } \\
-         && K_1(\vec{x}_1) \to e_1 \mid \cdots \mid K_n(\vec{x}_n) \to e_n \\
-       \end{array} 
+         && K_1~\vec{x}_1 \to e_1 \mid \cdots \mid K_n~\vec{x}_n \to e_n \\
+       \end{array}
        } \\
   \end{array} \]
   
   \[  \begin{array}{rclr}
-    x,y,f,g,a,b & \in & \mbox{Variables} \\
+    x,y,g,a,b & \in & \mbox{Variables} \\
     T &\in& \mbox{Type Constructors} \\
     K &\in& \mbox{Data Constructors} \\
+    f &\in& \text{Function Symbols} \\
   \end{array} \]
 
   \[  \begin{array}{rclr}
     e &\in& \mbox{Expressions} & \\
-    e &::=& x & \\
-    &\mid& \bad & \\
+    e &::=& x \mid f \mid K \mid \bad \mid \unr & \\
+%    &
     &\mid& e~e & \\
-    &\mid& f(e,\dots,e) & \\
-    &\mid& K(e,\dots,e) & \\
+    &\mid& \full{f}(e,\dots,e) & \\
+    &\mid& \full{K}(e,\dots,e) & \\
   \end{array} \]
 
 \caption{Syntax of the language $\hprime$}
@@ -352,18 +352,20 @@ involved?
 \end{figure}
 
 
-
 \subsection{Contracts}
 Contract syntax is described in figure \ref{cont-stx}. The predicates
 we use in our contracts can be any boolean $\hprime$ expression. We
 only consider pairs of contract for simplicity, although there is no
 issue with generalisation to arbitrary tuples.\note[nc]{
-
+%
+  XXX: Tuple contracts are not actually supported in the
+  implementation. Should they be discussed here?
+%
 So, ``tuples'' refers to the the term constructor, not the type
 constructor, and the generalization is e.g.
 \[
-e \in Cons(c_1,c_2) \iff e \text{ diverges or } 
-      (e \to^\star Cons(e_1,e_2) \mbox{ and } e_1 \in c_1, e_2 \in c_2)
+e \in Cons~c_1~c_2 \iff e \text{ diverges or } 
+      (e \to^\star Cons~e_1~e_2 \mbox{ and } e_1 \in c_1, e_2 \in c_2)
 \]
 ?
 }
@@ -391,7 +393,7 @@ meets the specification given by its contract.
 \begin{figure}[h]
  \centering
   \[  \begin{array}{rcl}
-    e \in \{x \mid p \} &\iff& e \mbox{ diverges or } p[e/x] \not \to^\star \{\bad,False\}\\
+    e \in \{x \mid p \} &\iff& e \mbox{ diverges or } p[e/x] \not \to^\star \{\bad,\false\}\\
     e \in x:c_1 \to c_2 &\iff& \forall e_1 \in c_1, (e~e_1) \in c_2[e_1/x]\\
     e \in (c_1,c_2) &\iff& e \mbox{ diverges or }\\
     &&  (e \to^\star (e_1,e_2) \mbox{ and } e_1 \in c_1, e_2 \in c_2)\\
@@ -445,7 +447,7 @@ A (possibly open) expression $e$ is \emph{syntactically safe} iff $\bad \not
 \end{definition}
 
 The notation $\bad \notin_s e$ means that $\bad$ does not appear
-anywhere in $e$, similarly for $\bad \not \in_s \mathcal{C}$. For
+anywhere in $e$\note[nc]{,including the definitions of the function symbols used in $e$}, similarly for $\bad \not \in_s \mathcal{C}$. For
 example, $Just ~3$ is syntactically safe whereas $Just ~\bad$ is not.
 
 \begin{definition}[Crash-free]\label{def:cf}
@@ -498,23 +500,19 @@ well-typed programs as input. That implies that the ``$a$'' case
 cannot happen. But given that our first-order logic is not typed, the
 theorem prover may decide to instanciate a variable with an ill-typed
 value! \change[nc]{In order to prevent this, we will need to encode some basic
-type-checking mecanism directly in our first-order theory.}{This is OK, because the axioms are designed so that scrutinizing an ill-typed constructor-head results in $\unr$.  On the other hand, some ill-typed expressions are not $\unr$, e.g. we can prove that $tail(Cons(Nil,Z)) = Z$.}
+type-checking mecanism directly in our first-order theory.}{This is OK, because the axioms are designed so that scrutinizing an ill-typed constructor-head results in $\unr$.  On the other hand, some ill-typed expressions are not $\unr$, e.g. we can prove that $tail~(Cons~Nil~Z) = Z$.}
 
 \subsection{First-order logic with equality}
 We use first-order logic with equality, defined in figure \ref{fol-stx}.\note[nc]{I guess ``with equality'' means that the proof theory has an axiom schema for substition, i.e. forall $\phi$, $\forall x,y.x=y \to (\phi \tot \phi[y/x])$, axioms making $=$ an equality relation, and the requirement that all models interpret $=$ as true equality on the carrier.}
-\note[nc]{See Section~\ref{sec:contracts} for a discussion of the $\min{}$ predicate.}
+\note[nc]{See Section~\ref{sec:contracts} for a discussion of the $\min{}$ predicate.} The expression language in our logic is \hprime.
 
 \begin{figure}
  \centering
   \[  \begin{array}{rcl}
-    v,w,s,t &:=& x \mid K(t,\dots,t) \mid f(t,\dots,t) \mid app(t,t)\\
-    && \mid \bad \mid \unr \\
-    \phi &:=& \forall x.\phi \mid \text{\add[nc]{$\exists x.\phi \mid$}} \lnot \phi \mid \phi \lor \phi \mid \top \mid \bot \mid t=t \mid \mbox{CF}(t)\\
-    && \mid \phi \land \phi \mid \phi \to \phi \mid \phi \tot \phi \\
-    \Phi &:=& \epsilon \mid \phi \mid \Phi \cup \Phi \\
+    \phi &:=& \forall x.\phi \mid \text{\add[nc]{$\exists x.\phi \mid$}} \lnot \phi \mid \phi \lor \phi \mid \top \mid \bot \mid t=t \mid \mbox{CF}(t) \mid \min{t} \\
+    && \mid \phi \land \phi \mid \phi \to \phi \mid \phi \tot \phi
   \end{array} \]
   \caption{First-order logic syntax}
-  \note[nc]{The $\Phi$ are unnecessary and don't make things simpler, because a set of formulas is equivalent to the conjunction of its contents.  XXX, TODO: drop $\Phi$ and replace all $\bigcup$ with $\bigwedge$.}
   \label{fol-stx}
 \end{figure}
 
@@ -525,10 +523,9 @@ For an overview of the different translations we define, see figure~\ref{trans}
 \begin{figure}
  \begin{center}
   \[  \begin{array}{rcl}
-    \etrans{\mbox{expression}} &\to& t~(\mbox{Term}) \\
-    \dtrans{def} &\to& \Phi~(\mbox{Set of formulae}) \\
-    \ktrans{\mbox{data } T = \dots} &\to& \Phi~(\mbox{Set of formulae}) \\
-    \ctrans{f \in c} &\to& \Phi~(\mbox{Set of formulae}) \\
+    \dtrans{def} &\to& \phi~(\mbox{formula}) \\
+    \ktrans{\mbox{data } T = \dots} &\to& \phi~(\mbox{formula}) \\
+    \ctrans{f \in c} &\to& \phi~(\mbox{formula}) \\
   \end{array} \]
   \end{center}
   \caption{Translations}
@@ -536,25 +533,9 @@ For an overview of the different translations we define, see figure~\ref{trans}
 \end{figure}
 
 
-\subsection{$\etrans{}$ -- Expressions}
-Our most basic translation is from expressions in $\hprime$ to terms
-in first-order logic. Given this translation we will be able to
-translate definitions, data types and contracts to first-order
-formulae. It is described in figure~\ref{etrans}.
-
-\begin{figure}
-$$
-\begin{array}{rcl}
-\multicolumn{3}{c}{\ruleform{\etrans{e} = t}} \\[2.5mm]
- \etrans{x} &=& x\\
-  \etrans{f(e_1,\dots,e_n)} &=& f(\etrans{e_1},\dots,\etrans{e_n})\\
-  \etrans{K(e_1,\dots,e_n)} &=& K(\etrans{e_1},\dots,\etrans{e_n})\\
-  \etrans{\bad} &=& \bad
-\end{array}
-$$
-\caption{$\etrans{}$ -- Expression translation}
-\label{etrans}
-\end{figure}
+\subsection{Expressions}
+Expressions are the same in \hprime and FOL, so no translation is
+necessary.
 
 \subsection{$\dtrans{}$ -- Definitions}
 We give in figure~\ref{dtrans} the two translations of function
@@ -579,18 +560,18 @@ $\unr$.\note[nc]{This text does not agree with the figure.  In
 \begin{figure*}
 \[
 \begin{array}{rcl}
-  \multicolumn{3}{c}{\ruleform{\dtrans{def} = \Phi}} \\[2.5mm]
-  \dtrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} &=& \ktrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} \\
+  \multicolumn{3}{c}{\ruleform{\dtrans{def} = \phi}} \\[2.5mm]
+  \dtrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} &=& \ktrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} \\
   \dtrans{f \in c} &=& \ctrans{f \in c}\\
-  \dtrans{f(\vec{x}) = e} &=& \forall \vec{x},a.~ (\min{a} \land a =
-  f(\vec{x})) \to a = \etrans{e} \\
-   \raisebox{ 0.5 cm }{$\dtrans{f(\vec{x}) = \mbox{case } e \mbox{ of } [K_i(\vec{x_i}) = e_i]}$} &\raisebox{0.5cm}{=}&  \hspace{-0.18cm} \begin{array}{rclcl}
-     \forall \vec{x},a.~(\mbox{min}(a) \land a = f(\vec{x})) &\to&
+  \dtrans{f~\vec{x} = e} &=& \forall \vec{x},a.~ (\min{a} \land a =
+  \full{f}(\vec{x})) \to a = e \\
+   \raisebox{ 0.5 cm }{$\dtrans{f~\vec{x} = \mbox{case } e \mbox{ of } [K_i~\vec{x_i} = e_i]}$} &\raisebox{0.5cm}{=}&  \hspace{-0.18cm} \begin{array}{rclcl}
+     \forall \vec{x},a.~(\mbox{min}(a) \land a = \full{f}(\vec{x})) &\to&
      \multicolumn{3}{c}{  \texttt{min}(e) \land (e = \texttt{BAD} \lor
-       \left(\bigvee_i \exists \vec{x_i}.~e = K_i(\vec{x_i})\right) \lor a = \texttt{UNR})} \\
-     &\land& \forall \vec{x_1}.~\etrans{e} = K_1(\vec{x_1}) &\to& a = \etrans{e_1} \\
+       \left(\bigvee_i \exists \vec{x_i}.~e = \full{K}_i(\vec{x_i})\right) \lor a = \texttt{UNR})} \\
+     &\land& \forall \vec{x_1}.~e = \full{K}_1(\vec{x_1}) &\to& a = e_1 \\
      &\land& & \cdots & \\
-     &\land& \forall \vec{x_n}.~\etrans{e} = K_n(\vec{x_n}) &\to& a = \etrans{e_n} \\%removed } here ...
+     &\land& \forall \vec{x_n}.~e = \full{K}_n(\vec{x_n}) &\to& a = e_n \\
    \end{array} 
 \end{array}
 \]
@@ -606,15 +587,14 @@ $\unr$.\note[nc]{This text does not agree with the figure.  In
 
 \subsection{$\ktrans{}$ -- Datatypes}
 We break down the translation for datatypes in four parts, described in figure~\ref{ktrans}
-$$\ktrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} = \Phi_1 \cup \Phi_2 \cup \Phi_3 \cup \Phi_4$$
+$$\ktrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phi_\text{projection} \land \phi_\text{disjoint} \land \phi_\text{cf} \land \phi_\text{lazy}$$
 
 \begin{itemize}
-\item $(\Phi_1)$ For each $K_i$ of arity $a_i$ we introduce selectors
-  $sel_{k,K_i}$, which are the projection of $K_i(x_1,\dots,x_{a_i})$
+\item $(\phi_\text{projection})$ For each $K_i$ of arity $a_i$ we introduce selectors
+  $sel_{k,K_i}$, which are the projection of $K_i~x_1~\dots~x_{a_i}$
   on its $k$-th component, $k = 1\text{ to }a_i$.
-\item $(\Phi_2)$ For each pair of constructors $K_i,K_j$, $i \not = j$, we state that they can
-  never map to the same value.
-\item $(\Phi_3)$ Then, we have to give crash-freeness conditions for each $K_i$:
+\item $(\phi_\text{disjoint})$ Distinct constructors have disjoint ranges.
+\item $(\phi_\text{cf})$ Then, we have to give crash-freeness conditions for each $K_i$:
   Notice that we have a equivalence.
   \begin{itemize}
   \item $\gets$: if we pack crash-free values in a data
@@ -634,22 +614,22 @@ $$\ktrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} = \Phi_1 \cup \Phi_2 \cup \P
   being crash-free or not doesn't matter.
   \end{itemize}
 
-\item $(\Phi_4)$ No full application of a constructor $K_i$ is unreachable or crashing.
+\item $(\phi_\text{lazy})$ No full application of a constructor $K_i$ is unreachable or crashing.
 \item One may want to also state that if for all $j$, $x_j \neq \bad$ then
-  $K_i(\vec{x}) \neq \bad$. It is already implied by the fact that
-  $\left(\forall j. \cf{x_j}\right) \to \cf{K_i(\vec{x})}$.
+  $\full{K}_i(\vec{x}) \neq \bad$. It is already implied by the fact that
+  $\left(\forall j. \cf{x_j}\right) \to \cf{\full{K}_i(\vec{x})}$.
 \end{itemize}
 
 \begin{figure*}
   $$ \ruleform{\ktrans{data~def} = \Phi} $$
-$$\ktrans{\mbox{data } T = K_1 a_1, \dots, K_n a_n} = \Phi_1 \cup \Phi_2 \cup \Phi_3 \cup \Phi_4$$
+$$\ktrans{\mbox{data } T = K_1 ~a_1, \dots, K_n ~a_n} = \phi_\text{projection} \land \phi_\text{disjoint} \land \phi_\text{cf} \land \phi_\text{lazy}$$
  \hspace{5.6cm}where
   \begin{center}
     \[  \begin{array}{rcl}
-      \Phi_1 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to \bigwedge_{1 \leq j \leq k} x_j = sel_{j,K_i}(a) \text{\note[nc]{??? $\min{a}$ or $\min{sel_{j,K_i}{a}}$?}}\\
-      \Phi_2 &=& \bigcup_{1 \leq i < j \leq n}~\forall \vec{x},\vec{y},a.~ \lnot (\min{a} \land a = K_i(\vec{x}) \land a = K_j(\vec{x})) \\
-      \Phi_3 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to ((\bigwedge_{1 \leq j \leq k} \cf{x_j}) \tot \cf{a}) \\
-      \Phi_4 &=& \bigcup_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = K_i(\vec{x})) \to a \neq \unr \land a \neq \bad 
+      \phi_\text{projection} &=& \bigwedge_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = \full{K}_i(\vec{x})) \to \bigwedge_{1 \leq j \leq a_i} x_j = sel_{j,K_i}(a) \text{\note[nc]{??? $\min{a}$ or $\min{sel_{j,K_i}{a}}$?}}\\
+      \phi_\text{disjoint} &=& \bigwedge_{1 \leq i < j \leq n}~\forall \vec{x},\vec{y},a.~ \lnot (\min{a} \land a = \full{K}_i(\vec{x}) \land a = \full{K}_j(\vec{y})) \\
+      \phi_\text{cf} &=& \bigwedge_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = \full{K}_i(\vec{x})) \to ((\bigwedge_{1 \leq j \leq k} \cf{x_j}) \tot \cf{a}) \\
+      \phi_\text{lazy} &=& \bigwedge_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = \full{K}_i(\vec{x})) \to a \neq \unr \land a \neq \bad 
     \end{array} \]
   \end{center}
   \caption{$\ktrans{}$ -- Data type translation}
@@ -692,7 +672,7 @@ another axiom at $e$).
 
 As another example, consider the $\dtrans{}$ for functions defined by pattern matching,
 in Figure~\ref{dtrans}.  Definition translations are axioms, 
-so the the initial $\min{f(\vec{x})}$
+so the the initial $\min{\full{f}(\vec{x})}$
 is an obligation: we aren't allowed to 
 ``unfold the definition'' of the function unless we prove
 that we're interested in a particular application.  
@@ -705,11 +685,22 @@ Figure~\ref{fig:newCTrans}.  To prove that $e \in \{x|p\}$, we get to
 assume interest in $e$ and $p[e/x]$, whereas, to use $e \in \{x|p\}$,
 we need to prove we're interested in $e$.  The $\min{e}$ constraint
 here is not optional, because in addition to concluding 
-$e \neq \unr \to p[e/x] \in \{True,\unr\}$, we also conclude $\min{p[e/x]}$.
+$e \neq \unr \to p[e/x] \in \{\true,\unr\}$, we also conclude $\min{p[e/x]}$.
 The $\min{p[e/x]}$ is necessary to unfold definitions in $p[e/x]$ and prove
-$p[e/x] \in \{True,\unr\}$, and because it can be used to unfold definitions,
+$p[e/x] \in \{\true,\unr\}$, and because it can be used to unfold definitions,
 we guard it with $\min{e}$.
 }
+
+\begin{figure*}
+\begin{verbatim}
+[[e in {x|p}]]      := e /= unr -> p[e/x] in {true, unr}
+[[e in cf]]         := cf(e)
+[[e in x:c1 -> c2]] := forall x. [[x in c1]] -> [[e x in c2]]
+\end{verbatim}
+\caption{$\ctrans{}$ -- Naive (no $\min$) contract translation.}
+\label{fig:naiveCTrans}
+\end{figure*}
+
 \begin{figure*}
 \begin{verbatim}
 [[e in {x|p}]]+ := min(e) /\ min(p[e/x]) -> [[e in {x|p}]]
@@ -732,22 +723,7 @@ of optional parts, are enclosed in single square brackets.}
 \label{fig:newCTrans}
 \end{figure*}
 
-\begin{figure*}
-\begin{verbatim}
-[[e in {x|p}]]      := e /= unr -> p[e/x] in {true, unr}
-[[e in cf]]         := cf(e)
-[[e in x:c1 -> c2]] := forall x. [[x in c1]] -> [[e x in c2]]
-\end{verbatim}
-\caption{$\ctrans{}$ -- Naive (no $\min$) contract translation.}
-\label{fig:naiveCTrans}
-\end{figure*}
-
 We give in figure~\ref{ctrans} the translation of contract satisfaction.
-\annote[nc]{$true$ refers to the translation to a term of the data constructor
-\texttt{True} in $\hprime$, not to the actual true value.}{
-Again, we should use $True$ (or \texttt{True}) in the translation; the
-lowercase is an artifact of the concrete TPTP syntax.
-}
 \remove[nc]{Note that we define the translation of $f \in c$ and of $f \not \in
 c$. We have to do that because one is not the negation of the other,
 even though $\lnot (f \not \in c)$ implies $f \in c$.}\note[nc]{
@@ -888,14 +864,14 @@ Concerns about the current translation
   arrow case and symmetric predicate contract cases).
   I had trouble proving
   \protect \[
-  (\lambda x. \text{case $x$ of $True \to True$; $False \to \bad$}) 
-  \in \{x|x==True\} \to \cfc
+  (\lambda x. \text{case $x$ of $\true \to \true$; $\false \to \bad$})
+  \in \{x|x==\true\} \to \cfc
   \]
   , after adding $p = \unr$ to $\ctrans{x \in \{x|p\}}$, but I need to think about it more.
 
 \item There may need to be some $\min{}$ assumptions in the prelude.  E.g. right now 
-  it's impossble to prove $\ctrans{True \in \cfc}$, because you can't prove 
-  $\min{True}$ a priori.  On the other hand, we don't need any extra 
+  it's impossble to prove $\ctrans{\true \in \cfc}$, because you can't prove
+  $\min{\true}$ a priori.  On the other hand, we don't need any extra
   $\min{}$ assumption in the arrow case, since it's already assumed, at least in
   very simple examples (checked on the simple
   example that $id \in \cfc \to \cfc$). (UPDATE: removing the $\min{x} \land$ in $cfc$, 
@@ -1081,17 +1057,17 @@ the former is nice because it's more concise?
 \end{verbatim}
 
 \begin{figure*}
-  $$ \ruleform{\ctrans{contract} = \Phi} $$
+  $$ \ruleform{\ctrans{contract} = \phi} $$
 \begin{eqnarray*}
-  \ctrans{e \in \{x \mid b \}} &=&  \min{\etrans{b[e/x]}} \land (\etrans{b[e/x]} = true \lor \etrans{e} = \unr)\\
-  \ctrans{e \in x:c_1 \to c_2} &=& \forall x.~\min{\etrans{e~x}} \to (\ctrans{x \not \in c_1} \lor  \ctrans{e~x \in c_2})\\
-  \ctrans{e \in \cfc} &=& \min{\etrans{e}} \land \cf{\etrans{e}}
+  \ctrans{e \in \{x \mid b \}} &=&  \min{b[e/x]} \land (b[e/x] = true \lor e = \unr)\\
+  \ctrans{e \in x:c_1 \to c_2} &=& \forall x.~\min{e~x} \to (\ctrans{x \not \in c_1} \lor  \ctrans{e~x \in c_2})\\
+  \ctrans{e \in \cfc} &=& \min{e} \land \cf{e}
 \end{eqnarray*}
 
 \begin{eqnarray*}
-  \ctrans{e \not \in \{x \mid b \}} &=&  \min{\etrans{b[e/x]}} \land (\etrans{b[e/x]} = false \lor \etrans{e} = \bad)\\
+  \ctrans{e \not \in \{x \mid b \}} &=&  \min{b[e/x]} \land (b[e/x] = \false \lor e = \bad)\\
   \ctrans{e \not \in x:c_1 \to c_2} &=& \exists x.~ \ctrans{x \in c_1} \land  \ctrans{e~x \not \in c_2}\\
-  \ctrans{e \not \in \cfc} &=& \min{\etrans{e}} \land \lnot \cf{\etrans{e}}
+  \ctrans{e \not \in \cfc} &=& \min{e} \land \lnot \cf{e}
 \end{eqnarray*}
 
 \begin{center}
@@ -1147,7 +1123,7 @@ data Bool = True 0 | False 0
   \begin{itemize}
     \item $\lnot \cf{\bad}$
     \item $\cf{\unr}$
-    \item $\dtrans{data~Bool = True~0 | False~0}$
+    \item $\dtrans{data~Bool = \true~0 | \false~0}$
     \item \designChoice\\ $\forall f,x. \min{f ~x} \to \min{f}$
     \item \designChoice\\ $\forall x. \min{\bad ~x} \to \bad ~x = \bad$ 
     \item \designChoice\\ $\forall x. \min{\unr ~x} \to \unr ~x = \unr$
@@ -1165,11 +1141,12 @@ defined in $M$.
 We say that the function implementation is correct wrt to its contract
 iff $$\trans{M} \vdash \ctrans{f \in c}$$
 
+\newcommand{\rec}[1]{#1_\text{rec}}
 \subsection{Contract checking -- Recursive case}\label{sec:recursiveContracts}
 If the function $f=e$ is recursive, then we ask the theorem prover the
 following:
 
-$$\trans{M - f}, \dtrans{f=e[f/f_p]}, \ctrans{f_p \in c} \vdash \ctrans{f \in c}$$
+$$\trans{M - f}, \dtrans{f=e[f/\rec{f}]}, \ctrans{\rec{f} \in c} \vdash \ctrans{f \in c}$$
 
 Where $M - f $ means the content of the module $M$ without $f$'s
 definition and $f$'s contract. XXX, TODO Stress that it's not always enough
@@ -1237,10 +1214,9 @@ on their $ptr$ counterpart.
 
 
 \begin{figure*}
-$$\etrans{e_1~e_2} = app(e_1,e_2)$$
-$$ \forall x_1,\dots,x_n.~f(x_1,\dots,x_n) = app(app(\dots app(f\_ptr,x_1),x_2),\dots,x_n)$$
-$$ \cf{f\_ptr} \tot \forall x_1,\dots,x_n.~\cf{x_1} \land \dots \land \cf{x_n} \to \cf{f(x_1,\dots,x_n)}$$
-$$\forall f\_ptr,x.~\cf{f\_ptr} \land \cf{x} \to \cf{app(f\_ptr,x)}$$
+$$ \forall x_1,\dots,x_n.~\full{f}(x_1,\dots,x_n) = f~x_1~x_2~\dots~x_n$$
+$$ \cf{f} \tot \forall x_1,\dots,x_n.~\cf{x_1} \land \dots \land \cf{x_n} \to \cf{\full{f}(x_1,\dots,x_n)}$$
+$$\forall g,x.~\cf{f} \land \cf{x} \to \cf{g~x}$$
 \caption{Encoding of higher-orderness}
 \label{ho-fig}
 \end{figure*}
