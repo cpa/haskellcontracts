@@ -115,6 +115,20 @@ it's annoying and ugly to write
 so, introduce a source level translation
 
   {x:p} -> c ==> x:{x:p} -> c
+
+or, maybe better to change {x:p} to x:{p}, and then
+
+  x:x:{p} -> c ==> x:{p} -> c
+
+This is better in the case of compound contracts, e.g.
+
+  x:(CF&&{gt x Zero}) -> c
+
+vs
+
+  x:(CF&&{x:gt x Zero}) -> c
+
+But what's the translation here?
 ** TODO comments on generated formulas
 e.g.
 
