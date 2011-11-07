@@ -208,11 +208,13 @@ cTrans v e (H.CF) = do
 
 -- The axioms phi_* have type :: H.DataType -> [F.Formula (F.Term F.Variable)]
 tTrans :: H.DataType -> Fresh [F.Formula]
-tTrans d = return $ concat [phi_project d
+tTrans d = do
+           phi_cfd <- phi_cf d
+           return $ concat [phi_project d
                            ,phi_disjoint d
-                           ,phi_cf d
                            ,phi_total d
                            ,tPtr d]
+                    ++ phi_cfd
   where tPtr (H.Data _ cas) = [dPtr (Con c) (makeVars a "X") | (c,a,_) <- cas]
 
 -- | Axiom: Term constructors are invertable (Phi_1 in paper).
@@ -243,16 +245,22 @@ phi_disjoint (H.Data _ dns) = map f $ zip dns (tail dns) where
                            :=>: (fullC1 :/=: fullC2)
 
 -- Axiom: Term constructors are CF (Phi_3 in paper).
-phi_cf (H.Data _ dns) = map f dns where
+phi_cf (H.Data _ dns) = concat <$> mapM f dns where
   f (c,a,_) =
     let xs = makeVars a "X"
         xsN = map (Named . Var) xs
         full = F.FullApp (Con c) xsN
-    in
-    F.Forall xs $ F.Min full :=>:
-                  (F.CF full
-                  :<=>: (F.And [F.CF x | x <- xsN]))
 
+        cN = Named $ Con c
+        cfs = replicate (a+1) H.CF
+        -- CF^a -> CF
+        contract = foldr1 (H.Arr Nothing) cfs
+    in do
+       cfc <- cTrans Minus cN contract
+       let phi = F.Forall xs $ F.Min full :=>:
+                       (F.CF full
+                       :=>: (F.And [F.CF x | x <- xsN]))
+       return $ phi:cfc
 -- Axiom: Term constructors are total/lazy (Phi_4 in paper).
 phi_total (H.Data _ dns) = map f dns where
   f (c,a,_) =
@@ -349,6 +357,6 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
                           :<=>: F.CF fN
                   -- XXX, DESIGN CHOICE: may not need this when
                   -- 'C[[x:c1 -> c2]]^v' always has 'min' constraints.
-                  min = F.Forall [f,x] $ F.Min (fN :@: xN) :=>: F.And[F.Min fN,F.Min xN]
+                  min = F.Forall [f,x] $ F.Min (fN :@: xN) :=>: F.And[F.Min fN]
                   [f,x] = ["F","X"]
                   [fN,xN] = map (Named . Var) [f,x]
