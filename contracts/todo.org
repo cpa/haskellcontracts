@@ -34,9 +34,30 @@ is very wrong!
 - [ ] placement of various "design decision" 'min's.
       - [ ] leading 'min's on arrows
       - [ ] leading 'min's on negative CFs
+- [ ] what kind of definition-by-cases translation is used
+
+      there are at least two styles
+
+      1. [(e = BAD) \/ (\/_i exists xs_i . e = K_i xs_i) \/ (f e = UNR)]
+         /\ (/\_i forall xs_i . e = K_i xs_i -> f(e) = e_i) /\ (e = BAD -> f e = BAD)
+
+      2. (e = BAD/\ f e = BAD)
+         \/ (\/_i exists xs_i . e = K_i xs_i/\ f(e) = e_i)
+         \/ (e /= BAD /\ (/\_i forall xs_i . e /= K_i xs_i) /\ f e = UNR)
+
+      and either of those can also use projectors instead of
+      quantifiers.  e.g. (2) becomes
+
+      2'. (e = BAD/\ f e = BAD)
+          \/ (\/_i e = K_i (pi_1 e) ... (pi_{a_i} e)/\ f(e) = e_i)
+          \/ (e /= BAD /\ (/\_i e /= K_i (pi_1 e) ... (pi_{a_i} e)) /\ f e = UNR)
+
+      fewer quantifiers seems good, but i need to experiment to see if
+      there is an improvement in practice.
+- [ ] whether the 'forall a. a = ...' versions are used.
 ** TODO add support for 'Any' contract
 the easy way to do this is to parse 'Any' to '{_:True}'
-** DONE how to best support 'min(K(x1,...,xn)) -> min(x1) /\ ... /\ min(xn)'
+** DONE decide how to best support 'min(K(x1,...,xn)) -> min(x1) /\ ... /\ min(xn)'
 update: the motivation below is still correct, but the solutions below
 are dumb.  a better solution is to add
 
@@ -82,6 +103,7 @@ and then maybe
   forall x1,...,xn. min(K(x1,...,xn)) -> deepmin(K(x1,...,xn))
 
 or maybe some other, more specific, ways to introduce 'deepmin'.
+** TODO implement new phi_cf
 ** TODO support 'import's in example files
 there is a lot of code duplication across examples.
 
@@ -93,3 +115,12 @@ it's annoying and ugly to write
 so, introduce a source level translation
 
   {x:p} -> c ==> x:{x:p} -> c
+** TODO comments on generated formulas
+e.g.
+
+  % phi_lazy <type> <constructor>
+  fof(phi_lazy,axiom,...).
+** TODO better classifiers on generated formulas
+right now we use "axiom" for everything.  the goal formula should be a
+"conjecture".  basically, we want '-' ==> 'axiom' and '+' ==>
+'conjecture'.
