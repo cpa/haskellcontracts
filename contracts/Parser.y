@@ -49,7 +49,7 @@ sep1(p,s) : p list(snd(s,p)) {$1:$2}
 -- erroneously used sep(General,';;') here.
 --
 -- XXX: that was probably a bug, ask Simon M.
-ListGeneral : list(fst(General,';;')) {$1}
+ListGeneral : list(fst(General,list1(';;'))) {$1}
 
 Vars : list(var) {$1}
 Named : con {Con $1} | var {Var $1} -- constructor | constant.
@@ -132,6 +132,7 @@ lexer (';':';':cs) = TokenSep : lexer cs
 lexer ('|':cs) = TokenPipe : lexer cs
 lexer (',':cs) = TokenComma : lexer cs
 lexer ('"':cs) = lexPath cs
+lexer ('\n':cs) = tryLexBlankLine cs
 lexer ('\'':_) = error "Single quotes (\"'\") are not allowed in source files :P"
 -- Discard comments.
 lexer ('-':'-':cs) = lexer $ dropWhile (/= '\n') cs
@@ -158,6 +159,13 @@ lexVar (c:cs) = token : lexer rest where
 lexPath cs = TokenPath p : lexer rest
   where (p,'"':rest) = span (/='"') cs
 
+-- Lex blank lines as separators.
+tryLexBlankLine cs =
+  if all isSpace line
+  then TokenSep : lexer cs'
+  else lexer cs
+ where
+  (line,cs') = span (/='\n') cs
 
 main = getContents >>= print . haskell . lexer
 }
