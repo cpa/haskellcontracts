@@ -14,7 +14,7 @@ import System.IO (hFlush,stdout)
 import System.Exit (exitWith,ExitCode (ExitFailure))
 import System.Process (system,readProcess)
 import System.Directory (removeFile)
-import System.FilePath (takeFileName)
+import System.FilePath (takeFileName,takeDirectory,(</>))
 import Control.Applicative
 
 data Conf = Conf { printTPTP :: Bool
@@ -65,11 +65,23 @@ main = do
     putStrLn usage
     exitWith $ ExitFailure 1
 
+-- | Load a source file, recursively loading imports.
+loadFile :: FilePath -> IO Program
+loadFile f = do
+  s <- readFile f
+  let p = haskell $ lexer s
+  concat <$> mapM recLoadFile p
+ where
+  -- Expand imports to a list of their declarations.
+  recLoadFile (Import f') = loadFile (f' `resolvedRelative` f)
+  recLoadFile d           = return [d]
+  -- Resolve import path f' in f relative to f 's directory.
+  f' `resolvedRelative` f = takeDirectory f </> f'
+
 checkFile :: String -> Conf -> IO Bool  
 checkFile f cfg = do
-  s <- readFile f
-  let prog = haskell $ lexer s
-      order = checkOrder prog
+  prog <- loadFile f
+  let order = checkOrder prog
       cfg' = if toCheck cfg == [] then cfg {toCheck = concat order} else cfg
   res <- sequence $ go prog [] cfg' order
   return $ and res

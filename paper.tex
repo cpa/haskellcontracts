@@ -47,9 +47,13 @@
 \newcommand{\any}{\texttt{Any}}
 \newcommand{\ok}{\texttt{Ok}}
 \newcommand{\hprime}{\ensuremath{\mathcal{H}'}}
+
 % Full function application, e.g. $\full{f}(x_1,\ldots,x_n)$. Contrast
 % with partial application, e.g. $f~x_1 \ldots x_n$
 \newcommand{\full}[1]{\hat{#1}}
+% Recursive anonymous versions of functions.
+\newcommand{\rec}[1]{#1_\text{rec}}
+
 \newcommand{\cfc}{\texttt{CF}}
 \newcommand{\cf}[1]{\texttt{CF}(#1)}
 \renewcommand{\min}[1]{\mbox{min}(#1)}
@@ -597,8 +601,9 @@ $$\ktrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phi_\text{projection} \la
 \item $(\phi_\text{cf})$ Then, we have to give crash-freeness conditions for each $K_i$:
   Notice that we have a equivalence.
   \begin{itemize}
-  \item $\gets$: if we pack crash-free values in a data
-    constructor, the resulting value is crash-free.
+  \item $\gets$: if we pack crash-free values in a data constructor,
+    the resulting value is crash-free. \note[nc]{We use the contract
+    translation for arrows, and this translation is principled.}
   \item $\to$: a value $t$ of type $T$\note[nc]{
     ``type'' is used loosely here: it means the constructor head is of type $T$.
     } is crash-free implies
@@ -606,12 +611,29 @@ $$\ktrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phi_\text{projection} \la
     define projection on any argument of a value of type $t$. So if
     the $k$-th argument of $t$ is not crash-free, then the $k$-th
     projection is a crash-free context that throws an expression that
-    is not crash-free.
+    is not crash-free. \note[nc]{XXX: This translation is ad-hoc.}
 
   Note that this is not true for functions: a function is not required
   to use all of its arguments. \texttt{fst} is crash-free if and only
   if the first argument of the pair is crash-free. The second argument
   being crash-free or not doesn't matter.
+
+  \note[nc]{Things become more interesting when we add $\min$'s.  For
+    the $\gets$ direction, we are asserting that $K_i \in \cfc^{a_i} \to
+    \cfc$.  Since we are asserting, it's a minus translation, and so
+    the arguments are translated as goals, i.e. we get $\ctrans{x \in
+      \cfc}^+$, which is $\min{x} \to \cf{x}$.
+
+  Those $\min$ assumptions on $x$ are very important, as the following
+  example illustrates.  Consider proving that addition, defined by
+  recursion on the first argument, satisfies $\cfc^2 \to \cfc$. When
+  considering $add~(Succ~x)~y$ we need to show
+  $\cf{Succ~(\rec{add}~x~y)}$ from $\min{Succ~(\rec{add}~x~y)}$ and
+  $\ctrans{\rec{add} \in \cfc^2 \to \cfc}$.  The arrow contract for
+  $\rec{add}$ has a $\min{\rec{add}~x~y}$ constraint, but we only know
+  $\min$ for the $Succ$ of that.  Hence, the $\min{x}$ assumption,
+  from $\ctrans{x \in \cfc}^+$ in $\ctrans{Succ \in \cfc \to
+  \cfc}^-$, saves the day.}
   \end{itemize}
 
 \item $(\phi_\text{lazy})$ No full application of a constructor $K_i$ is unreachable or crashing.
@@ -628,7 +650,10 @@ $$\ktrans{\mbox{data } T = K_1 ~a_1, \dots, K_n ~a_n} = \phi_\text{projection} \
     \[  \begin{array}{rcl}
       \phi_\text{projection} &=& \bigwedge_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = \full{K}_i(\vec{x})) \to \bigwedge_{1 \leq j \leq a_i} x_j = sel_{j,K_i}(a) \text{\note[nc]{??? $\min{a}$ or $\min{sel_{j,K_i}{a}}$?}}\\
       \phi_\text{disjoint} &=& \bigwedge_{1 \leq i < j \leq n}~\forall \vec{x},\vec{y},a.~ \lnot (\min{a} \land a = \full{K}_i(\vec{x}) \land a = \full{K}_j(\vec{y})) \\
-      \phi_\text{cf} &=& \bigwedge_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = \full{K}_i(\vec{x})) \to ((\bigwedge_{1 \leq j \leq k} \cf{x_j}) \tot \cf{a}) \\
+      \phi_\text{cf} &=& 
+        \bigwedge_{1 \leq i \leq n}~\ctrans{K_i \in \cfc^{a_i} \to \cfc}^- 
+          \land \forall \vec{x},a.~(\min{a} \land a = \full{K}_i(\vec{x})) 
+                  \to \cf{a} \to (\bigwedge_{1 \leq j \leq a_i} \cf{x_j}) \\
       \phi_\text{lazy} &=& \bigwedge_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = \full{K}_i(\vec{x})) \to a \neq \unr \land a \neq \bad 
     \end{array} \]
   \end{center}
@@ -1141,7 +1166,6 @@ defined in $M$.
 We say that the function implementation is correct wrt to its contract
 iff $$\trans{M} \vdash \ctrans{f \in c}$$
 
-\newcommand{\rec}[1]{#1_\text{rec}}
 \subsection{Contract checking -- Recursive case}\label{sec:recursiveContracts}
 If the function $f=e$ is recursive, then we ask the theorem prover the
 following:
