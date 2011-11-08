@@ -820,7 +820,7 @@ lexPath cs = TokenPath p : lexer rest
   where (p,'"':rest) = span (/='"') cs
 
 -- Lex blank lines as separators.
-tryLexBlankLine cs =
+tryLexBlankLine cs = 
   if all isSpace line
   then TokenSep : lexer cs'
   else lexer cs
