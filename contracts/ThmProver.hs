@@ -46,6 +46,11 @@ provers = [ ("equinox", T "equinox"
                         ("Proof found" `isInfixOf`)
                         fof
             )
+          -- I can't locate any vampire usage docs, and '-h' and
+          -- '--help' don't work :P From the CASC competition page I
+          -- found that '-t <time>' can be used to time limit vampire.
+          -- Experience shows that, by default, vampire has a 60
+          -- second time limit.
           , ("vampire32", T "vampire_lin32"
                           ["--mode", "casc" ,"--input_file"]
                           ("SZS status Unsatisfiable" `isInfixOf`)
