@@ -228,10 +228,21 @@ phi_project (H.Data _ dns) = map f dns where
   f (c,a,_) =
     let xs = makeVars a "X"
         xsN = map (Named . Var) xs
-        full k = F.FullApp (Proj k c) [F.FullApp (Con c) xsN]
+        fullProj i e = F.FullApp (Proj i c) e
+        fullProjK i = fullProj i [F.FullApp (Con c) xsN]
     -- XXX: the paper has 'min(c(xs))', but that can't be right ?
-    in F.Forall xs $ F.And [F.Min (full k) :=>: (full k :=: x)
-                           | (x,k) <- zip xsN [1..a]]
+        projectCorrect = F.Forall xs $ F.And [F.Min (fullProjK i) :=>: (fullProjK i :=: x)
+                                             | (x,i) <- zip xsN [1..a]]
+        -- XXX,DESIGN CHOICE: no mins. This axiom slowed down Equinox,
+        -- do we really want it?
+        --
+        -- forall y. (forall xs. K xs /= y) -> K_i y = UNR
+        projectWrong i = F.Forall [y] $ (F.Forall xs $ yN :/=: F.FullApp (Con c) xsN)
+                         :=>: (fullProj i [yN] :=: unr)
+        y = "ZDEF"
+        yN = Named . Var $ y
+        projectWrongs = F.And [projectWrong i | i <- [1..a]]
+    in projectCorrect --F.And [projectCorrect, projectWrongs]
 
 -- Axiom: Term constructors have disjoint ranges (Phi_2 in paper).
 phi_disjoint (H.Data _ dns) = map f $ zip dns (tail dns) where
