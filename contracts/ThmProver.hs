@@ -12,7 +12,7 @@ data ThmProverOpt = T { path :: FilePath
                       }
 
 data Theory = Theory { 
-      showFormula :: F.Formula -> String
+      showFormula :: F.LabeledFormula -> String
     , header :: [H.DefGeneral] -> String
     , fileExtension :: String
     , footer :: String
@@ -29,12 +29,14 @@ fof = Theory {
       }
 smt2 :: Theory
 smt2 = Theory {
-           showFormula = F.toSMTLIB
+           showFormula = F.toSMTLIB . unlabel
          , header = F.showDefsSMTLIB
          , fileExtension = "smt2"
          , footer = "(check-sat)"
          }
-                    
+
+unlabel (LabeledFormula _ e) = e
+
 provers :: [ThmProver]
 provers = [ ("equinox", T "equinox"
                           []
