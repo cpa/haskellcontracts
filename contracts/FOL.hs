@@ -10,9 +10,6 @@ import Data.List (intercalate)
 
 type Term = Expression
 type Formula = MetaFormula Term
-type LabeledFormula = MetaLabeledFormula Formula
-data MetaLabeledFormula a = LabeledFormula Label a deriving (Show, Eq, Functor)
-type Label = String
 
 infix 7 :<=>:
 infix 7 :=>:
@@ -37,16 +34,10 @@ data MetaFormula a = Forall [Name] (MetaFormula a)
 -- min = Pred "min"
 
 -- forall a . x && y --> (forall a . x) && (forall a . y)
-
-splitOnAndLabeled :: LabeledFormula -> [LabeledFormula]
-splitOnAndLabeled (LabeledFormula lbl f)
-  = [LabeledFormula (lbl++show i) f' | (i,f') <- zip [1..] (splitOnAnd f)]
-
 splitOnAnd :: Formula -> [Formula]
 splitOnAnd (Forall xs (And fs)) = map (Forall xs) fs
 splitOnAnd (Forall xs f) = map (Forall xs) $ splitOnAnd f
 splitOnAnd (And fs) = concatMap splitOnAnd fs
-splitOnAnd Top = []
 splitOnAnd f = [f]
 
 trivializeMin :: Formula -> Formula
@@ -90,15 +81,11 @@ removeConstants (And fs) = if any (==Bottom) fs' then Bottom else f
           f = if null fs'' then Top else And fs''
 removeConstants f = f
 
+simplify = filter (/= Top) . splitOnAnd . removeConstants -- . trivializeMin
 
 
-
-simplify :: LabeledFormula -> [LabeledFormula]
-simplify = splitOnAndLabeled . fmap removeConstants -- . trivializeMin
-
-
-toTPTP :: LabeledFormula -> String
-toTPTP (LabeledFormula l f) = header ++ "\n" ++ go [] f ++ "\n" ++ footer
+toTPTP :: Formula -> String
+toTPTP f = header ++ "\n" ++ go [] f ++ "\n" ++ footer
   -- XXX, MAYBE TODO: add better header or comments. Right now the first "axiom"
   -- below is the name of the axiom.  The TPTP format also allows optional 4th and
   -- 5th fields for comments.  Would be nice to see each formula labeled with its
@@ -109,7 +96,7 @@ toTPTP (LabeledFormula l f) = header ++ "\n" ++ go [] f ++ "\n" ++ footer
   -- light on documentation, but the source might be worth a look.  It
   -- handles comments/annotations.  Curious to see if it handles
   -- quoting and case conversion automatically.
-  where header = "fof("++l++",axiom,"
+  where header = "fof(axiom,axiom,"
         footer = ").\n"
         -- 'go qs f' converts formula 'f' to TPTP syntax, assuming
         -- 'qs' are the names of the quantified variables in 'f'.
@@ -220,5 +207,5 @@ showDefsSMTLIB defs = unlines $ cf:app:unr:bad:false:true:map showDef arities wh
 
 -- takes formulas and a list of arities for each definition
 -- and returns those formulas using "full application" wherever possible
-appifyF :: [Arity] -> LabeledFormula -> LabeledFormula
-appifyF a = fmap (fmap $ appifyExpr a)
+appifyF :: [Arity] -> [Formula] -> [Formula]
+appifyF a fs = map (fmap $ appifyExpr a) fs

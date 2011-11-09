@@ -84,7 +84,7 @@ dPtr f vs = if null vs then Top else F.And [eq1Min]--,eq2Min]
 -- | Same as dPtr, but for recursive occurances of f.
 dPtrRec f@(Var v) = dPtr $ Rec v
 
-dTrans :: H.Definition -> Fresh [F.LabeledFormula]
+dTrans :: H.Definition -> Fresh [F.Formula]
 dTrans (H.Let f vs e) = do
   eT <- eTrans e
   let vsN = map (Named . Var) vs
@@ -94,8 +94,8 @@ dTrans (H.Let f vs e) = do
       eq    = F.Forall vs $ full :=: eT
       eqMin = F.Forall vs $ F.Min full :=>: (full :=: eT)
 
-  return $ map (F.LabeledFormula f)
-             [eqMin ,dPtr fV vs, dPtrRec fV vs]
+  return [eqMin
+         ,dPtr fV vs, dPtrRec fV vs]
 
 
 -- Recall that the patterns 'pes' has the form [([Variable],Expression)].
@@ -151,8 +151,7 @@ dTrans (H.LetCase f vs e pes) = do
       eqs = (eq1++[eq2,eq3])
       eqs'    = map (F.Forall (vs++zs)) eqs
       eqs'Min = map (\eq -> F.Forall (vs++zs) $ F.Min full :=>: F.And [F.Min eT,eq]) eqs
-
-  return $ map (F.LabeledFormula f) $ dPtr fV vs : dPtrRec fV vs : eqs'Min
+  return $ dPtr fV vs : dPtrRec fV vs : eqs'Min
 
 -- Contract translation
 -----------------------
@@ -162,62 +161,60 @@ dual :: Variance -> Variance
 dual Plus = Minus
 dual Minus = Plus
 
-cTrans :: Variance -> H.Expression -> H.Contract -> Fresh F.LabeledFormula
-cTrans v e c = F.LabeledFormula "hack2" <$> cTrans' v e c
+cTrans :: Variance -> H.Expression -> H.Contract -> Fresh [F.Formula]
+cTrans _ e H.Any = return [Top]
 
-cTrans' _ e H.Any = return Top
-
-cTrans' v e (H.Pred x p) =  do
+cTrans v e (H.Pred x p) =  do
   let  p' = H.subst e x p
   eT <- eTrans e
   p'T <- eTrans p'
   -- XXX, DESIGN CHOICE: could also do 'F.Or[p'T :=: unr, p'T :=: true]'
   let plain = F.And [F.Or [(eT :=: unr), F.And [bad :/=: p'T, p'T :/=: false]]]
   case v of
-    Plus  -> return $ F.And [F.Min(eT),            F.Min(p'T)] :=>: plain
-    Minus -> return $        F.Min(eT)  :=>: F.And [F.Min(p'T),      plain]
+    Plus  -> return $ [F.And [F.Min(eT),            F.Min(p'T)] :=>: plain]
+    Minus -> return $ [       F.Min(eT)  :=>: F.And [F.Min(p'T),      plain]]
 
-cTrans' v e (H.Arr mx c1 c2) = do
+cTrans v e (H.Arr mx c1 c2) = do
   -- Parser inserts 'Nothing' for unnamed arrow arguments.
   x <- maybe fresh return mx
   let xN = Named $ Var x
       app = e H.:@: xN -- 'e' should be eTrans'd ... except eTrans is id.
-  f1 <- cTrans' (dual v) xN  c1
-  f2 <- cTrans' v        app c2
+  [f1] <- cTrans (dual v) xN  c1
+  [f2] <- cTrans v        app c2
   -- XXX, DESIGN CHOICE: need for 'min' constraint here depends on
   -- whether we have a 'min(f x) -> min(f)' axiom.
-  return $ F.Forall [x] $ F.Min app :=>: (f1 :=>: f2)
+  return [F.Forall [x] $ F.Min app :=>: (f1 :=>: f2)]
 
-cTrans' v e (H.And c1 c2) = do
-  f1 <- cTrans' v e c1
-  f2 <- cTrans' v e c2
-  return $ F.And [f1,f2]
+cTrans v e (H.And c1 c2) = do
+  [f1] <- cTrans v e c1
+  [f2] <- cTrans v e c2
+  return [F.And [f1,f2]]
 
-cTrans' v e (H.Or c1 c2) = do
-  f1 <- cTrans' v e c1
-  f2 <- cTrans' v e c2
-  return $ F.Or [f1,f2]
+cTrans v e (H.Or c1 c2) = do
+  [f1] <- cTrans v e c1
+  [f2] <- cTrans v e c2
+  return [F.Or [f1,f2]]
 
-cTrans' v e (H.CF) = do
+cTrans v e (H.CF) = do
   eT <- eTrans e
   -- XXX, DESIGN CHOICE: the 'min' constraint should be optional in
   -- the 'Minus' case.
   return $ case v of
-    Plus  -> F.Min eT :=>: F.CF eT
-    Minus -> F.CF eT
+    Plus  -> [F.Min eT :=>: F.CF eT]
+    Minus -> [F.CF eT]
 
 -- Data decl translation
 ------------------------
 
-tTrans :: H.DataType -> Fresh [F.LabeledFormula]
-tTrans d@(H.Data nm _) = do
+-- The axioms phi_* have type :: H.DataType -> [F.Formula (F.Term F.Variable)]
+tTrans :: H.DataType -> Fresh [F.Formula]
+tTrans d = do
            phi_cfd <- phi_cf d
-           let phis = concat [phi_project d
-                             ,phi_disjoint d
-                             ,phi_total d
-                             ,tPtr d]
-                      ++ phi_cfd
-           return $ map (F.LabeledFormula nm) phis
+           return $ concat [phi_project d
+                           ,phi_disjoint d
+                           ,phi_total d
+                           ,tPtr d]
+                    ++ phi_cfd
   where tPtr (H.Data _ cas) = [dPtr (Con c) (makeVars a "X") | (c,a,_) <- cas]
 
 -- | Axiom: Term constructors are invertable (Phi_1 in paper).
@@ -228,19 +225,10 @@ phi_project (H.Data _ dns) = map f dns where
   f (c,a,_) =
     let xs = makeVars a "X"
         xsN = map (Named . Var) xs
-        fullProj i e = F.FullApp (Proj i c) e
-        fullProjK i = fullProj i [F.FullApp (Con c) xsN]
+        full k = F.FullApp (Proj k c) [F.FullApp (Con c) xsN]
     -- XXX: the paper has 'min(c(xs))', but that can't be right ?
-        projectCorrect = F.Forall xs $ F.And [F.Min (fullProjK i) :=>: (fullProjK i :=: x)
-                                             | (x,i) <- zip xsN [1..a]]
-        -- XXX: no mins.
-        -- forall y. (forall xs. K xs /= y) -> K_i y = UNR
-        projectWrong i = F.Forall [y] $ (F.Forall xs $ yN :/=: F.FullApp (Con c) xsN)
-                         :=>: (fullProj i [yN] :=: unr)
-        y = "ZDEF"
-        yN = Named . Var $ y
-        projectWrongs = F.And [projectWrong i | i <- [1..a]]
-    in F.And [projectCorrect, projectWrongs]
+    in F.Forall xs $ F.And [F.Min (full k) :=>: (full k :=: x)
+                           | (x,k) <- zip xsN [1..a]]
 
 -- Axiom: Term constructors have disjoint ranges (Phi_2 in paper).
 phi_disjoint (H.Data _ dns) = map f $ zip dns (tail dns) where
@@ -255,7 +243,6 @@ phi_disjoint (H.Data _ dns) = map f $ zip dns (tail dns) where
     -- means only one 'min'.
     in F.Forall (xs++ys) $ F.Or [F.Min fullC1, F.Min fullC2]
                            :=>: (fullC1 :/=: fullC2)
-    --in F.Forall (xs++ys) $ fullC1 :/=: full c2
 
 -- Axiom: Term constructors are CF (Phi_3 in paper).
 phi_cf (H.Data _ dns) = concat <$> mapM f dns where
@@ -269,11 +256,11 @@ phi_cf (H.Data _ dns) = concat <$> mapM f dns where
         -- CF^a -> CF
         contract = foldr1 (H.Arr Nothing) cfs
     in do
-       cfc <- cTrans' Minus cN contract
+       cfc <- cTrans Minus cN contract
        let phi = F.Forall xs $ F.Min full :=>:
                        (F.CF full
                        :=>: (F.And [F.CF x | x <- xsN]))
-       return [phi,cfc]
+       return $ phi:cfc
 -- Axiom: Term constructors are total/lazy (Phi_4 in paper).
 phi_total (H.Data _ dns) = map f dns where
   f (c,a,_) =
@@ -298,7 +285,7 @@ isToCheck _ _                              = False
 -- also makes the generated formulas simpler, but at the cost of
 -- complicating the generation code.  Would like to see how much if
 -- any it speeds up Equinox in practice.
-trans :: H.Program -> [H.Variable] -> [F.LabeledFormula]
+trans :: H.Program -> [H.Variable] -> [F.Formula]
 trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
   where go fs ds = do
           let (toCheck,regDefs) = partition (isToCheck fs) ds
@@ -310,9 +297,7 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
           regFormulae <- forM regDefs $ \d -> case d of
             H.DataType t                -> tTrans t
             H.Def d                     -> dTrans d
-            H.ContSat (H.Satisfies x y) -> do { r <- cTrans Minus (H.Named $ H.Var x) y
-                                              ; return [F.appifyF a r]
-                                              }
+            H.ContSat (H.Satisfies x y) -> F.appifyF a <$> cTrans Minus (H.Named $ H.Var x) y
           checkFormulae <- forM toCheck $ \d -> case d of
             H.DataType t                 -> error "No contracts for datatypes yet!"
             H.Def (H.Let f xs e)         -> dTrans $ H.Let     f xs (recSubst e)
@@ -324,18 +309,17 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
             -- XXX, ???: should 'f' be allowed to occur in 'c' at all? The 'recSubstC' below
             -- indicates this is expected.
             H.ContSat (H.Satisfies x y)  -> do
-              contRec <- cTrans Minus (recVar x) (recSubstC y)
+              contRec <- F.appifyF a <$> cTrans Minus (recVar x) (recSubstC y)
               -- XXX, ???: why not 'recSubstC y' instead of plain 'y'?
               -- XXX, ???: should the goal receive a different label? The TPTP
               -- format supports e.g. 'conjecture' for goals, vs 'axiom' for
               -- assumptions. Doe Equinox distinguish (nc vaguely remembers getting
               -- different output in an experiment)?
-              notCont <- (fmap F.Not) <$> cTrans Plus (H.Named $ H.Var x) y
-              return $ map (F.appifyF a) [notCont, contRec]
-
+              notCont <- map F.Not <$> F.appifyF a <$> cTrans Plus (H.Named $ H.Var x) y
+              return $ notCont ++ contRec
           return $ concat $ prelude : regFormulae ++ checkFormulae
             -- XXX, TODO: add 'min's in prelude
-            where prelude = map (F.LabeledFormula "prelude") [
+            where prelude = [
 --                             cf1, cf2
 --                            ,min
                              min
