@@ -1173,9 +1173,54 @@ following:
 $$\trans{M - f}, \dtrans{f=e[f/\rec{f}]}, \ctrans{\rec{f} \in c} \vdash \ctrans{f \in c}$$
 
 Where $M - f $ means the content of the module $M$ without $f$'s
-definition and $f$'s contract. XXX, TODO Stress that it's not always enough
-and that we may have to unroll several times!\note[nc]{??? Why? Need an example here.}
+definition and $f$'s contract. However, this translation is not
+complete: some proofs need to unroll the definition more than
+once!\note[nc]{For a simple example, consider a contract that is
+  proved by a finite number of reductions, but not by induction.  E.g.
+}
+  \begin{verbatim}
+  isZero y = case y of Z -> True | S _ -> False
+  eqNat x y = case x of
+    Z -> isZero y
+    S x' -> eqNatAux x' y
+  eqNatAux x y = case y of
+    Z -> False
+    S y' -> eqNat x y'
 
+  f x = case x of Z -> True | S x' -> f x'
+  f ::: (CF&&{x: eqNat x (S Z)}) -> {y:y} 
+  \end{verbatim}
+\note[nc]{
+  Now, the correct way to prove $f$'s contract is two unfoldings and
+  reduction: from $eqNat ~x ~(S ~Z)$ we get $x = S ~Z$, and $f~(S~Z) =
+  f~Z = \true$.  However, since we translate $f$ to
+}
+  \begin{verbatim}
+  f x = case x of Z -> True | S x' -> f_rec x'
+  \end{verbatim}
+\note[nc]{
+  we get $f~(S~Z) = \rec{f}~Z$ and we're stuck.
+
+  That example is very contrived, in that the much strong contract $f
+  ::: \cfc \to \{y:y\}$ is provable by induction in our translation,
+  but the same thing can happen in more realistic examples.  For
+  example, if you try to prove $add ::: x:(\cfc \land \{x:gt ~x ~Zero\})
+  \to y:\cfc \to \{z:gt ~z ~y\}$, then you eventually get to $gt
+  ~(S~(\rec{add} ~Z ~y)) ~y$ and then $gt ~(\rec{add} ~Z ~y') ~y'$, for
+  $y = S~y'$. But now you're stuck, because there is no reduction rule
+  for $\rec{add}$ allowing you to conclude $\rec{add} ~Z ~y' = y'$.
+
+  OK, so we might hope to simply fully define $\rec{add}$, so that
+  computations with $\rec{add}$ can be reduced.  That approach is
+  unsound.  It's obvious, because as part of the translation of $f :::
+  c$ we get $\rec{f} ::: c$ as an axiom, and so if $f ::: c$ doesn't
+  actually hold, then $\rec{f} ::: c$ is contradictory.  For
+  concreteness, here's simple example. Consider $f$ as above, but
+  change the contract to $c := \cfc \to \{y: not ~y\}$.  Then $f$
+  doesn't satisfy $c$, and a context that assumes $\rec{f}$ satisfies
+  $c$ is contradictory when $\rec{f}$ is fully defined, by
+  e.g. reducing $\rec{f}~Z = \true$.
+ }
 \subsection{Module checking}
 A module is a collection of function definitions, data definitions and
 contracts. What we want to do is to check that functions satisfy their
