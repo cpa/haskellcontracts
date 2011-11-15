@@ -187,7 +187,7 @@ toSMTLIB f = header ++ "\n" ++ go f ++ "\n" ++ footer
         goFull = goNamed . fmap ("f__"++)
         annote x = "("++x++" Real)"
 
-showDefsSMTLIB defs = unlines $ cf:app:unr:bad:false:true:map showDef arities where
+showDefsSMTLIB defs = unlines $ cf:app:unr:bad:map showDef arities where
   arities = concat $ map expand $ H.arities defs
   expand (v,k) = if k == 0 then [(v,0),(v++"__R",0)] else vsFun++vsProj
     where
@@ -211,8 +211,6 @@ showDefsSMTLIB defs = unlines $ cf:app:unr:bad:false:true:map showDef arities wh
   app = "(declare-fun app (Real Real) Real)"
   unr = "(declare-const UNR Real)"
   bad = "(declare-const BAD Real)"
-  false = "(declare-const False Real)"
-  true = "(declare-const True Real)"
   showDef (v,k) =
     if k == 0
     then "(declare-const "++v++" Real)"

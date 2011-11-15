@@ -54,7 +54,7 @@ data MetaExpression v = Named v
 data MetaDefGeneral a = ContSat (MetaContSat a)
                       | Def (MetaDefinition a)
                       | DataType (MetaDataType a)
-                      | Import FilePath
+                      | Import [String]
                       deriving (Eq,Show,Functor,Ord)
 
 -- No contracts for constructors! So, Name, not Named here.

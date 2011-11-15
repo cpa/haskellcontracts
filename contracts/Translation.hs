@@ -23,7 +23,8 @@ data TransState = S { prefix  :: String -- the prefix of our fresh variables
 
 -- Define constants in one place: more concise code and easier to
 -- change their definitions.
-[false,true,unr,bad] = map (F.Named . F.Con) ["False","True","UNR","BAD"]
+[false,true] = map (F.Named . F.Con) ["False","True"]
+[unr,bad] = map (F.Named . F.Var) ["unr","bad"]
 
 -- Generate a fresh name.
 fresh :: Fresh F.Name
@@ -344,18 +345,6 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
 
                             ,F.Not $ F.CF bad
                             ,F.CF unr
-
-                            -- XXX, MAYBE TODO: use 'dTrans' helper functions on
-                            -- 'Data "Bool" [("True",0,undefined),("False",0,undefined)]'
-                            -- instead of expanding them manually as below. NB: but don't
-                            -- include 'phi_lazy'!
-                            ,false :/=: true
-                            ,F.CF true
-                            ,F.CF false
-                            ,true  :/=: unr
-                            ,false :/=: unr
-                            ,true :/=: bad
-                            ,false :/=: bad
                             ]
                   -- forall f,x. cf(f) /\ cf(x) -> cf(f x)
                   cf1 = F.Forall [f,x]

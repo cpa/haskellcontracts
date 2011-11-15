@@ -20,12 +20,12 @@ import Haskell
         '{'   {TokenCurlyO}
         '}'   {TokenCurlyC}
         '->'  {TokenArrow}
-        path  {TokenPath $$}
         con   {TokenCon $$}
         var   {TokenVar $$}
-        int   {TokenInt $$}
         '|'   {TokenPipe}
-        ';;'  {TokenSep}
+        ';;'  {TokenDoubleSep}
+        ';'   {TokenSingleSep}
+        '.'   {TokenDot}
         case  {TokenCase}
         of    {TokenOf}
         '('   {TokenParenO}
@@ -34,6 +34,8 @@ import Haskell
         cf    {TokenCF}
         '||'  {TokenOr}
         '&&'  {TokenAnd}
+        '{-# CONTRACT'  {TokenContractPragmaO}
+        '#-}' {TokenPragmaC}
 %%
 
 -- Parameterized parsers based on section 6.4.1 of the Happy manual (I
@@ -53,20 +55,21 @@ ListGeneral : list(fst(General,';;')) {$1}
 
 Vars : list(var) {$1}
 Named : con {Con $1} | var {Var $1} -- constructor | constant.
+Module : sep1(con,'.') { $1 }
 
-General : var Vars '=' Expr                  { Def $ Let $1 $2 $4 } 
-        | var Vars '=' case Expr of PatExprs { Def $ LetCase $1 $2 $5 $7 }
-        | var ':::' Contr                    { ContSat $ Satisfies $1 $3 }
+General : var Vars '=' Expr                    { Def $ Let $1 $2 $4 }
+        | var Vars '=' case Expr of PatExprs   { Def $ LetCase $1 $2 $5 $7 }
+        | '{-# CONTRACT' var ':::' Contr '#-}' { ContSat $ Satisfies $2 $4 }
 -- XXX: do we actually support parameterized types?
-        | data con Vars '=' ConDecls         { DataType $ Data $2 $5 }
-        | import path                        { Import $2 }
+        | data con Vars '=' ConDecls           { DataType $ Data $2 $5 }
+        | import Module                        { Import $2 }
 
 Pattern  : con Vars              { ($1,$2) }
-PatExpr  : '|' Pattern '->' Expr { ($2,$4) }
+PatExpr  : ';' Pattern '->' Expr { ($2,$4) } -- Leading ';' resembles '|' and is haskell.
 PatExprs : list(PatExpr)         { $1 }
 
 -- 'undefined' here is the constructor contract.  Not currently used.
-ConDecl  : con int          { ($1,$2,error "Parser.y: ConDecl: constructor contracts aren't supported.") }
+ConDecl  : con list(Atom)   { ($1,length $2,error "Parser.y: ConDecl: constructor contracts aren't supported.") }
 ConDecls : sep(ConDecl,'|') { $1 }
 
 Atom : Named        { Named $1 }
@@ -86,6 +89,7 @@ Contr : ContrAtom '&&' ContrAtom      { And $1 $3 }
        -- XXX, HACK: "" becomes a fresh name in cTrans.
       |         ContrAtom '->' Contr  { Arr Nothing $1 $3 }
       | ContrAtom                     { $1 }
+
 {
 happyError :: [Token] -> a
 happyError x = error $ "Parse error: " ++ show x
@@ -95,53 +99,75 @@ data Token = TokenCase
            | TokenOf
            | TokenData
            | TokenImport
-           | TokenInt Int
            | TokenPipe
            | TokenCF
            | TokenAny
-           | TokenSep
+           | TokenDoubleSep
+           | TokenSingleSep
            | TokenEquals
            | TokenSatisfies
            | TokenCon String -- Upper case var
            | TokenVar String -- Lower case var
-           | TokenPath FilePath
+           | TokenDot
            | TokenArrow
            | TokenColon
-           | TokenParenO
-           | TokenParenC
+           | TokenParenO -- 'O' = 'open'
+           | TokenParenC -- 'C' = 'close'
            | TokenCurlyO
            | TokenCurlyC
            | TokenComma
            | TokenOr
            | TokenAnd
+           | TokenContractPragmaO
+           | TokenPragmaC
            deriving (Eq,Show)
 
 lexer :: String -> [Token]
 lexer [] = []
+-- Skip lines we don't care about.
+--
+-- XXX: this is pretty ad-hoc.  Maybe better to use CPP?  Can't use
+-- '{-# SKIP #-}' because GHC complains about 'Unrecognized pragma'.
+lexer ('{':'-':' ':'S':'K':'I':'P':' ':'-':'}':cs) = lexer . skip $ skip cs
+-- We don't use '{- SKIP -}' here since we may want to support module
+-- names later and it would annoying to remove all the {- SKIP -}'s.
+lexer ('m':'o':'d':'u':'l':'e':cs) = lexer $ skip cs
 lexer ('=':cs) = TokenEquals : lexer cs
 lexer (':':':':':':cs) = TokenSatisfies : lexer cs
 lexer (':':cs) = TokenColon : lexer cs
 lexer ('|':'|':cs) = TokenOr : lexer cs
 lexer ('&':'&':cs) = TokenAnd : lexer cs
 lexer ('-':'>':cs) = TokenArrow : lexer cs
+-- The POPL 09 syntax.
+lexer ('{':'-':'#':' ':'C':'O':'N':'T':'R':'A':'C':'T':cs)
+  = TokenContractPragmaO : lexer cs
+lexer ('#':'-':'}':cs) = TokenPragmaC : lexer cs
 lexer ('{':cs) = TokenCurlyO : lexer cs
 lexer ('}':cs) = TokenCurlyC : lexer cs
 lexer ('(':cs) = TokenParenO : lexer cs
 lexer (')':cs) = TokenParenC : lexer cs
-lexer (';':';':cs) = TokenSep : lexer cs
+lexer (';':';':cs) = TokenDoubleSep : lexer cs
+lexer (';':cs) = TokenSingleSep : lexer cs
 lexer ('|':cs) = TokenPipe : lexer cs
 lexer (',':cs) = TokenComma : lexer cs
-lexer ('"':cs) = lexPath cs
+lexer ('.':cs) = TokenDot : lexer cs
 lexer ('\'':_) = error "Single quotes (\"'\") are not allowed in source files :P"
 -- Discard comments.
-lexer ('-':'-':cs) = lexer $ dropWhile (/= '\n') cs
+lexer ('-':'-':cs) = lexer $ skip cs
 lexer (c:cs) 
       | isSpace c = lexer cs
       | isAlpha c = lexVar (c:cs)
-      | isDigit c = lexInt (c:cs)
-
+      | isDigit c = error "We don't lex numbers currently!" -- lexInt (c:cs)
+{-
 lexInt cs = TokenInt (read num) : lexer rest
       where (num,rest) = span isDigit cs
+-}
+lexer cs = error $ "Don't know how to lex: "++(head . lines $ cs)
+
+skip cs = let cs' = dropWhile (/= '\n') cs
+          in if not (null cs')
+             then tail cs' -- Drop the newline, if any.
+             else ""
 
 lexVar (c:cs) = token : lexer rest where
   (var,rest) = span (\x -> isAlpha x || x == '_' || isDigit x) (c:cs)
@@ -153,11 +179,6 @@ lexVar (c:cs) = token : lexer rest where
     "CF"     -> TokenCF
     "import" -> TokenImport
     _        -> (if isUpper c then TokenCon else TokenVar) var
-
--- A path is a double-quoted string, without nested double quotes.
-lexPath cs = TokenPath p : lexer rest
-  where (p,'"':rest) = span (/='"') cs
-
 
 main = getContents >>= print . haskell . lexer
 }
