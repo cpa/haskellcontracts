@@ -20,13 +20,12 @@ import Haskell
         '{'   {TokenCurlyO}
         '}'   {TokenCurlyC}
         '->'  {TokenArrow}
-        path  {TokenPath $$}
         con   {TokenCon $$}
         var   {TokenVar $$}
-        int   {TokenInt $$}
         '|'   {TokenPipe}
         ';;'  {TokenDoubleSep}
         ';'   {TokenSingleSep}
+        '.'   {TokenDot}
         case  {TokenCase}
         of    {TokenOf}
         '('   {TokenParenO}
@@ -56,16 +55,17 @@ ListGeneral : list(fst(General,';;')) {$1}
 
 Vars : list(var) {$1}
 Named : con {Con $1} | var {Var $1} -- constructor | constant.
+Module : sep1(con,'.') { $1 }
 
 General : var Vars '=' Expr                    { Def $ Let $1 $2 $4 }
         | var Vars '=' case Expr of PatExprs   { Def $ LetCase $1 $2 $5 $7 }
         | '{-# CONTRACT' var ':::' Contr '#-}' { ContSat $ Satisfies $2 $4 }
 -- XXX: do we actually support parameterized types?
         | data con Vars '=' ConDecls           { DataType $ Data $2 $5 }
-        | import path                          { Import $2 }
+        | import Module                        { Import $2 }
 
 Pattern  : con Vars              { ($1,$2) }
-PatExpr  : ';' Pattern '->' Expr { ($2,$4) }
+PatExpr  : ';' Pattern '->' Expr { ($2,$4) } -- Leading ';' resembles '|' and is haskell.
 PatExprs : list(PatExpr)         { $1 }
 
 -- 'undefined' here is the constructor contract.  Not currently used.
@@ -99,7 +99,6 @@ data Token = TokenCase
            | TokenOf
            | TokenData
            | TokenImport
-           | TokenInt Int
            | TokenPipe
            | TokenCF
            | TokenAny
@@ -109,7 +108,7 @@ data Token = TokenCase
            | TokenSatisfies
            | TokenCon String -- Upper case var
            | TokenVar String -- Lower case var
-           | TokenPath FilePath
+           | TokenDot
            | TokenArrow
            | TokenColon
            | TokenParenO -- 'O' = 'open'
@@ -145,17 +144,18 @@ lexer (';':';':cs) = TokenDoubleSep : lexer cs
 lexer (';':cs) = TokenSingleSep : lexer cs
 lexer ('|':cs) = TokenPipe : lexer cs
 lexer (',':cs) = TokenComma : lexer cs
-lexer ('"':cs) = lexPath cs
+lexer ('.':cs) = TokenDot : lexer cs
 lexer ('\'':_) = error "Single quotes (\"'\") are not allowed in source files :P"
 -- Discard comments.
 lexer ('-':'-':cs) = lexer $ dropWhile (/= '\n') cs
 lexer (c:cs) 
       | isSpace c = lexer cs
       | isAlpha c = lexVar (c:cs)
-      | isDigit c = lexInt (c:cs)
-
+      | isDigit c = error "We don't lex numbers currently!" -- lexInt (c:cs)
+{-
 lexInt cs = TokenInt (read num) : lexer rest
       where (num,rest) = span isDigit cs
+-}
 
 lexVar (c:cs) = token : lexer rest where
   (var,rest) = span (\x -> isAlpha x || x == '_' || isDigit x) (c:cs)
@@ -167,11 +167,6 @@ lexVar (c:cs) = token : lexer rest where
     "CF"     -> TokenCF
     "import" -> TokenImport
     _        -> (if isUpper c then TokenCon else TokenVar) var
-
--- A path is a double-quoted string, without nested double quotes.
-lexPath cs = TokenPath p : lexer rest
-  where (p,'"':rest) = span (/='"') cs
-
 
 main = getContents >>= print . haskell . lexer
 }
