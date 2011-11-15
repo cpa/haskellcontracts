@@ -15,6 +15,7 @@ import System.Exit (exitWith,ExitCode (ExitFailure))
 import System.Process (system,readProcess)
 import System.Directory (removeFile,doesFileExist)
 import System.FilePath (takeFileName,joinPath,(</>),(<.>))
+import System.Posix.Process (executeFile)
 import Control.Applicative
 
 data Conf = Conf { printTPTP :: Bool
@@ -24,6 +25,7 @@ data Conf = Conf { printTPTP :: Bool
                  , quiet     :: Bool
                  , verbose   :: Bool
                  , idirs     :: [FilePath] -- include directories
+                 , typeCheck :: Bool -- True is we just want to run ghci
                  }
 
 conf flags = go flags defaults
@@ -37,16 +39,20 @@ conf flags = go flags defaults
         go ("--engine":e:flags) cfg = go flags (cfg {engine=e})
         go ("-q":flags)         cfg = go flags (cfg {quiet=True})
         go ("-v":flags)         cfg = go flags (cfg {verbose=True})
+        go ("-t":flags)         cfg = go flags (cfg {typeCheck = True})
         go (f:flags)            cfg = error $ f ++": unrecognized option"
         go []                   cfg = cfg
 
         defaults = Conf { printTPTP=False, toCheck=[], dryRun=False
                         , engine="equinox", quiet=False, verbose=False
-                        , idirs=["."]
+                        , idirs=["."], typeCheck=False
                         }
 usage = unlines
-  [ "usage: ./Check FILE [-p] [-q] [-c FUN] [i DIR] [--dry-run] [--engine (equinox|vampire32|vampire64|SPASS|E|z3]"
+  [ "usage: ./Check FILE [-t] [-p] [-q] [-c FUN] [i DIR] [--dry-run] [--engine (equinox|vampire32|vampire64|SPASS|E|z3]"
   , ""
+  , " * -t"
+  , "        run 'ghci' on the FILE. Useful to typecheck and to run functions."
+  , "        If you only want to typecheck, than add support for 'ghc -e <dummy>'."
   , " * -p"
   , "        write the first-order TPTP theory is written in files for each"
   , "        contract proof (the name of the file is outputed on stdout)"
@@ -81,6 +87,7 @@ main = do
   ffs@(f:flags) <- getArgs
   when ("-h" `elem` ffs || "--help" `elem` ffs) usageAndExit
   let cfg = conf flags
+  when (typeCheck cfg) $ runGHCi f cfg
   res <- checkFile f cfg
   if res
     then unless (dryRun cfg || quiet cfg) $ putStrLn $ f ++ ": all the contracts hold."
@@ -92,6 +99,11 @@ main = do
   usageAndExit = do
     putStrLn usage
     exitWith $ ExitFailure 1
+  runGHCi f cfg = executeFile "ghci" usePATH args env
+   where usePATH = True
+         env = Nothing
+         args = ["-XNoImplicitPrelude", idirs', f]
+         idirs' = "-i"++intercalate ":" (idirs cfg)
 
 -- | Load a source file, recursively loading imports.
 loadFile :: FilePath -> Conf -> IO Program
