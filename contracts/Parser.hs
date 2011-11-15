@@ -851,8 +851,14 @@ data Token = TokenCase
 
 lexer :: String -> [Token]
 lexer [] = []
--- drop module decls because they're for GHC
-lexer ('m':'o':'d':'u':'l':'e':cs) = lexer $ dropWhile (/= '\n') cs
+-- Skip lines we don't care about.
+--
+-- XXX: this is pretty ad-hoc.  Maybe better to use CPP?  Can't use
+-- '{-# SKIP #-}' because GHC complains about 'Unrecognized pragma'.
+lexer ('{':'-':' ':'S':'K':'I':'P':' ':'-':'}':cs) = lexer . skip $ skip cs
+-- We don't use '{- SKIP -}' here since we may want to support module
+-- names later and it would annoying to remove all the {- SKIP -}'s.
+lexer ('m':'o':'d':'u':'l':'e':cs) = lexer $ skip cs
 lexer ('=':cs) = TokenEquals : lexer cs
 lexer (':':':':':':cs) = TokenSatisfies : lexer cs
 lexer (':':cs) = TokenColon : lexer cs
@@ -874,7 +880,7 @@ lexer (',':cs) = TokenComma : lexer cs
 lexer ('.':cs) = TokenDot : lexer cs
 lexer ('\'':_) = error "Single quotes (\"'\") are not allowed in source files :P"
 -- Discard comments.
-lexer ('-':'-':cs) = lexer $ dropWhile (/= '\n') cs
+lexer ('-':'-':cs) = lexer $ skip cs
 lexer (c:cs) 
       | isSpace c = lexer cs
       | isAlpha c = lexVar (c:cs)
@@ -884,6 +890,11 @@ lexInt cs = TokenInt (read num) : lexer rest
       where (num,rest) = span isDigit cs
 -}
 lexer cs = error $ "Don't know how to lex: "++(head . lines $ cs)
+
+skip cs = let cs' = dropWhile (/= '\n') cs
+          in if not (null cs')
+             then tail cs' -- Drop the newline, if any.
+             else ""
 
 lexVar (c:cs) = token : lexer rest where
   (var,rest) = span (\x -> isAlpha x || x == '_' || isDigit x) (c:cs)

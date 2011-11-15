@@ -111,6 +111,7 @@ loadFile f cfg = do
                        ++(show $ intercalate "." mod)
                        ++" relative to include directories "
                        ++show (idirs cfg)
+                       ++" when loading file "++f
   findAndLoad mod (i:is) = do
                    cond <- doesFileExist f'
                    if cond
