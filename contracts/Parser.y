@@ -35,6 +35,8 @@ import Haskell
         cf    {TokenCF}
         '||'  {TokenOr}
         '&&'  {TokenAnd}
+        '{-# CONTRACT'  {TokenContractPragmaO}
+        '#-}' {TokenPragmaC}
 %%
 
 -- Parameterized parsers based on section 6.4.1 of the Happy manual (I
@@ -55,12 +57,12 @@ ListGeneral : list(fst(General,';;')) {$1}
 Vars : list(var) {$1}
 Named : con {Con $1} | var {Var $1} -- constructor | constant.
 
-General : var Vars '=' Expr                  { Def $ Let $1 $2 $4 } 
-        | var Vars '=' case Expr of PatExprs { Def $ LetCase $1 $2 $5 $7 }
-        | var ':::' Contr                    { ContSat $ Satisfies $1 $3 }
+General : var Vars '=' Expr                    { Def $ Let $1 $2 $4 }
+        | var Vars '=' case Expr of PatExprs   { Def $ LetCase $1 $2 $5 $7 }
+        | '{-# CONTRACT' var ':::' Contr '#-}' { ContSat $ Satisfies $2 $4 }
 -- XXX: do we actually support parameterized types?
-        | data con Vars '=' ConDecls         { DataType $ Data $2 $5 }
-        | import path                        { Import $2 }
+        | data con Vars '=' ConDecls           { DataType $ Data $2 $5 }
+        | import path                          { Import $2 }
 
 Pattern  : con Vars              { ($1,$2) }
 PatExpr  : ';' Pattern '->' Expr { ($2,$4) }
@@ -87,6 +89,7 @@ Contr : ContrAtom '&&' ContrAtom      { And $1 $3 }
        -- XXX, HACK: "" becomes a fresh name in cTrans.
       |         ContrAtom '->' Contr  { Arr Nothing $1 $3 }
       | ContrAtom                     { $1 }
+
 {
 happyError :: [Token] -> a
 happyError x = error $ "Parse error: " ++ show x
@@ -109,13 +112,15 @@ data Token = TokenCase
            | TokenPath FilePath
            | TokenArrow
            | TokenColon
-           | TokenParenO
-           | TokenParenC
+           | TokenParenO -- 'O' = 'open'
+           | TokenParenC -- 'C' = 'close'
            | TokenCurlyO
            | TokenCurlyC
            | TokenComma
            | TokenOr
            | TokenAnd
+           | TokenContractPragmaO
+           | TokenPragmaC
            deriving (Eq,Show)
 
 lexer :: String -> [Token]
@@ -128,6 +133,10 @@ lexer (':':cs) = TokenColon : lexer cs
 lexer ('|':'|':cs) = TokenOr : lexer cs
 lexer ('&':'&':cs) = TokenAnd : lexer cs
 lexer ('-':'>':cs) = TokenArrow : lexer cs
+-- The POPL 09 syntax.
+lexer ('{':'-':'#':' ':'C':'O':'N':'T':'R':'A':'C':'T':cs)
+  = TokenContractPragmaO : lexer cs
+lexer ('#':'-':'}':cs) = TokenPragmaC : lexer cs
 lexer ('{':cs) = TokenCurlyO : lexer cs
 lexer ('}':cs) = TokenCurlyC : lexer cs
 lexer ('(':cs) = TokenParenO : lexer cs
