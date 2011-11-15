@@ -23,7 +23,8 @@ data TransState = S { prefix  :: String -- the prefix of our fresh variables
 
 -- Define constants in one place: more concise code and easier to
 -- change their definitions.
-[false,true,unr,bad] = map (F.Named . F.Con) ["False","True","UNR","BAD"]
+[false,true] = map (F.Named . F.Con) ["False","True"]
+[unr,bad] = map (F.Named . F.Var) ["unr","bad"]
 
 -- Generate a fresh name.
 fresh :: Fresh F.Name
