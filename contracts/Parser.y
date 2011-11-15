@@ -25,7 +25,8 @@ import Haskell
         var   {TokenVar $$}
         int   {TokenInt $$}
         '|'   {TokenPipe}
-        ';;'  {TokenSep}
+        ';;'  {TokenDoubleSep}
+        ';'   {TokenSingleSep}
         case  {TokenCase}
         of    {TokenOf}
         '('   {TokenParenO}
@@ -62,11 +63,11 @@ General : var Vars '=' Expr                  { Def $ Let $1 $2 $4 }
         | import path                        { Import $2 }
 
 Pattern  : con Vars              { ($1,$2) }
-PatExpr  : '|' Pattern '->' Expr { ($2,$4) }
+PatExpr  : ';' Pattern '->' Expr { ($2,$4) }
 PatExprs : list(PatExpr)         { $1 }
 
 -- 'undefined' here is the constructor contract.  Not currently used.
-ConDecl  : con int          { ($1,$2,error "Parser.y: ConDecl: constructor contracts aren't supported.") }
+ConDecl  : con list(Atom)   { ($1,length $2,error "Parser.y: ConDecl: constructor contracts aren't supported.") }
 ConDecls : sep(ConDecl,'|') { $1 }
 
 Atom : Named        { Named $1 }
@@ -99,7 +100,8 @@ data Token = TokenCase
            | TokenPipe
            | TokenCF
            | TokenAny
-           | TokenSep
+           | TokenDoubleSep
+           | TokenSingleSep
            | TokenEquals
            | TokenSatisfies
            | TokenCon String -- Upper case var
@@ -118,6 +120,8 @@ data Token = TokenCase
 
 lexer :: String -> [Token]
 lexer [] = []
+-- drop module decls because they're for GHC
+lexer ('m':'o':'d':'u':'l':'e':cs) = lexer $ dropWhile (/= '\n') cs
 lexer ('=':cs) = TokenEquals : lexer cs
 lexer (':':':':':':cs) = TokenSatisfies : lexer cs
 lexer (':':cs) = TokenColon : lexer cs
@@ -128,7 +132,8 @@ lexer ('{':cs) = TokenCurlyO : lexer cs
 lexer ('}':cs) = TokenCurlyC : lexer cs
 lexer ('(':cs) = TokenParenO : lexer cs
 lexer (')':cs) = TokenParenC : lexer cs
-lexer (';':';':cs) = TokenSep : lexer cs
+lexer (';':';':cs) = TokenDoubleSep : lexer cs
+lexer (';':cs) = TokenSingleSep : lexer cs
 lexer ('|':cs) = TokenPipe : lexer cs
 lexer (',':cs) = TokenComma : lexer cs
 lexer ('"':cs) = lexPath cs
