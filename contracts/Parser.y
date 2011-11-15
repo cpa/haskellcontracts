@@ -156,6 +156,7 @@ lexer (c:cs)
 lexInt cs = TokenInt (read num) : lexer rest
       where (num,rest) = span isDigit cs
 -}
+lexer cs = error $ "Don't know how to lex: "++(head . lines $ cs)
 
 lexVar (c:cs) = token : lexer rest where
   (var,rest) = span (\x -> isAlpha x || x == '_' || isDigit x) (c:cs)
