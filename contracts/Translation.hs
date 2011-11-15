@@ -345,18 +345,6 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
 
                             ,F.Not $ F.CF bad
                             ,F.CF unr
-
-                            -- XXX, MAYBE TODO: use 'dTrans' helper functions on
-                            -- 'Data "Bool" [("True",0,undefined),("False",0,undefined)]'
-                            -- instead of expanding them manually as below. NB: but don't
-                            -- include 'phi_lazy'!
-                            ,false :/=: true
-                            ,F.CF true
-                            ,F.CF false
-                            ,true  :/=: unr
-                            ,false :/=: unr
-                            ,true :/=: bad
-                            ,false :/=: bad
                             ]
                   -- forall f,x. cf(f) /\ cf(x) -> cf(f x)
                   cf1 = F.Forall [f,x]
