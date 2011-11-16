@@ -150,12 +150,18 @@ hasBeenChecked checkedDefs (Def (LetCase f _ _ _)) = f `elem` checkedDefs
 hasBeenChecked checkedDefs (ContSat (Satisfies f _)) = f `elem` checkedDefs
 hasBeenChecked _ _  = True
 
-hasNoContract :: Variable -> [DefGeneral] -> Bool
-hasNoContract f prog = not $ f `elem` [g | ContSat (Satisfies g _) <- prog]
+getContracts :: [DefGeneral] -> Variable -> [DefGeneral]
+getContracts prog f = [c | c@(ContSat (Satisfies g _)) <- prog, g == f]
 
 check :: FilePath -> Program -> [Variable] -> Conf -> [Variable] -> IO Bool
 check f prog [] cfg _ = error "There should be at least one definition!"
-check f prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
+check f prog fs cfg checkedDefs | all null contracts           = return True
+                                | not (null multipleContracts) = error $
+          -- XXX, TODO: this is easy to fix: just conjoin all
+          -- contracts for each function.
+          "Some functions have more than one contract,"
+          ++"but we only support one contract currently."
+          ++"Namely: "++show multipleContracts
                                 | otherwise = do
   let safeSubset prog checkedDefs = filter (hasBeenChecked (fs++checkedDefs)) prog
 
@@ -185,3 +191,6 @@ check f prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
   unless (printTPTP cfg) $
     removeFile tmpFile
   return res
+ where
+  contracts           = map (getContracts prog) fs
+  multipleContracts = filter ((>1) . length) contracts
