@@ -11,7 +11,8 @@ import Data.List (intercalate)
 type Term = Expression
 type Formula = MetaFormula Term
 type LabeledFormula = MetaLabeledFormula Formula
-data MetaLabeledFormula a = LabeledFormula Label a deriving (Show, Eq, Functor)
+data MetaLabeledFormula a = LabeledFormula { getLabel :: Label, getFormula :: a }
+                            deriving (Show, Eq, Functor)
 type Label = String
 
 infix 7 :<=>:
