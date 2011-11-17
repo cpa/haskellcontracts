@@ -7,7 +7,7 @@ import Haskell (Name,Named,MetaNamed(..),Expression,MetaExpression(..),Arity)
 import qualified FOL as F
 import FOL (MetaFormula(..))
 import Control.Monad.State
-import Data.List (partition)
+import Data.List (partition, intercalate)
 import Data.Char (toUpper)
 import Control.Applicative
 
@@ -16,7 +16,9 @@ import Control.Applicative
 type Fresh = State TransState
 data TransState = S { prefix  :: String -- the prefix of our fresh variables
                     , count   :: Int    -- a counter for the suffix of our fresh variables
-                    , arities :: [Arity]} -- The arities of functions/data constructors in the program, which should be read-only
+                    , arities :: [Arity] -- The arities of functions/data constructors in the program, which should be read-only
+                    , getGoals :: [F.LabeledFormula] -- ^ translated goal contracts
+                    }
 
 -- Utilities
 ------------
@@ -302,14 +304,20 @@ isToCheck _ _                              = False
 -- complicating the generation code.  Would like to see how much if
 -- any it speeds up Equinox in practice.
 trans :: H.Program -> [H.Variable] -> [F.LabeledFormula]
-trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
-  where go fs ds = do
+trans ds fs = evalState (go fs ((H.appify) ds)) startState
+ where
+  startState = S { prefix = "Z"
+                 , count = 0
+                 , arities = H.arities ds
+                 , getGoals = []
+                 }
+  go fs ds = do
           let (toCheck,regDefs) = partition (isToCheck fs) ds
               recSubst  = H.substs  recVars
               recSubstC = H.substsC recVars
               recVars = zip (map recVar fs) fs
               recVar = H.Named . H.Rec
-          a <- arities <$> get
+          a <- gets arities
           regFormulae <- forM regDefs $ \d -> case d of
             H.DataType t                -> tTrans t
             H.Def d                     -> dTrans d
@@ -333,10 +341,19 @@ trans ds fs = evalState (go fs ((H.appify) ds)) (S "Z" 0 (H.arities ds))
               -- format supports e.g. 'conjecture' for goals, vs 'axiom' for
               -- assumptions. Doe Equinox distinguish (nc vaguely remembers getting
               -- different output in an experiment)?
-              notCont <- (fmap F.Not) <$> cTrans Plus (H.Named $ H.Var x) y
-              return $ map (F.appifyF a) [notCont, contRec]
-
-          return $ concat $ prelude : regFormulae ++ checkFormulae
+              goal <- cTrans Plus (H.Named $ H.Var x) y
+              modify (\s -> s { getGoals = goal : getGoals s })
+              return $ [F.appifyF a $ contRec]
+          -- The goal formula is the negated conjunction of all goals,
+          -- because we do a refutation proof.
+          goalFormula <- do
+            goals <- gets getGoals
+            let labels = map F.getLabel goals
+                formulas = map F.getFormula goals
+                label = intercalate "_" labels
+                formula = F.Not $ F.And formulas
+            return $ F.LabeledFormula label formula
+          return $ concat $ prelude : regFormulae ++ checkFormulae ++ [[goalFormula]]
             -- XXX, TODO: add 'min's in prelude
             where prelude = map (F.LabeledFormula "prelude") [
 --                             cf1, cf2
