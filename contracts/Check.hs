@@ -34,7 +34,8 @@ conf flags = go flags defaults
         -- the end.  XXX: not sure what GHC does here ... but easy to
         -- check.
         go ("-i":idir:flags)    cfg = go flags (cfg {idirs = idirs cfg ++ [idir]})
-        go ("-c":f:flags)       cfg = go flags (cfg {toCheck=f:(toCheck cfg)})
+        go ("-c":f:flags)       cfg = error "-c FUN is not supported currently :("
+                                   -- go flags (cfg {toCheck=f:(toCheck cfg)})
         go ("--dry-run":flags)  cfg = go flags (cfg {dryRun=True})
         go ("--engine":e:flags) cfg = go flags (cfg {engine=e})
         go ("-q":flags)         cfg = go flags (cfg {quiet=True})
@@ -192,5 +193,5 @@ check f prog fs cfg checkedDefs | all null contracts           = return True
     removeFile tmpFile
   return res
  where
-  contracts           = map (getContracts prog) fs
+  contracts         = map (getContracts prog) fs
   multipleContracts = filter ((>1) . length) contracts
