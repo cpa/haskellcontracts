@@ -10,6 +10,7 @@ import Control.Monad.State
 import Data.List (partition, intercalate)
 import Data.Char (toUpper)
 import Control.Applicative
+import Control.Exception (assert)
 
 --import Debug.Trace (traceShow)
 
@@ -17,6 +18,10 @@ type Fresh = State TransState
 data TransState = S { prefix  :: String -- the prefix of our fresh variables
                     , count   :: Int    -- a counter for the suffix of our fresh variables
                     , arities :: [Arity] -- The arities of functions/data constructors in the program, which should be read-only
+                      -- We save this up during processing because we
+                      -- need to conjoin all at the end.  An
+                      -- alternative would be tag formulas with their
+                      -- Plus / Minus status.
                     , getGoals :: [F.LabeledFormula] -- ^ translated goal contracts
                     }
 
@@ -39,6 +44,11 @@ fresh = do
 -- Make k distinction variables s_1 ... s_k
 makeVars k s = map ((s++) . show) [1..k]
 
+appify :: F.LabeledFormula -> Fresh F.LabeledFormula
+appify f = do
+  a <- gets arities
+  return $ F.appify a f
+
 -- Expression translation
 -------------------------
 
@@ -51,6 +61,8 @@ eTrans = return
 -- | Auxillary axioms relating 'f' to 'f_ptr'.
 --
 -- forall [x1, ..., xn]. f(x1, ..., xn) = f@x1@...@xn
+--
+-- NB: appification breaks this, so don't 'appify' it!
 dPtr f vs = if null vs then Top else F.And [eq1Min]--,eq2Min]
   -- 'null' check above to avoid pointless 'f = f'.
   where vsN = map (Named . Var) vs
@@ -67,7 +79,7 @@ dPtr f vs = if null vs then Top else F.And [eq1Min]--,eq2Min]
                      :=>: full :=: app
 
 -- XXX, ???: the old f_ptr support included eq2 below, asserting
--- that the poitner is CF iff the full application is for CF
+-- that the pointer is CF iff the full application is for CF
 -- arguments.  Is this sound? It's not sound in the model where
 -- 'f x = UNR' when 'f x' is ill-typed: e.g., consider 'f = (BAD,BAD)'.
 -- On the other hand, maybe the model can have
@@ -166,7 +178,7 @@ dual Plus = Minus
 dual Minus = Plus
 
 cTrans :: Variance -> H.Expression -> H.Contract -> Fresh F.LabeledFormula
-cTrans v e c = F.LabeledFormula "hack2" <$> cTrans' v e c
+cTrans v e c = appify =<< (F.LabeledFormula "cTrans" <$> cTrans' v e c)
 
 cTrans' _ e H.Any = return Top
 
@@ -293,94 +305,112 @@ phi_total (H.Data _ dns) = map f dns where
 -- Final translation
 --------------------
 
-isToCheck :: [H.Variable] -> H.DefGeneral -> Bool
-isToCheck fs (H.Def (H.Let f _ _))         = f `elem` fs
-isToCheck fs (H.Def (H.LetCase f _ _ _))   = f `elem` fs
-isToCheck fs (H.ContSat (H.Satisfies f _)) = f `elem` fs
-isToCheck _ _                              = False
-
 -- XXX, ???: "appification" is an optimization.  Do we need it? It
 -- also makes the generated formulas simpler, but at the cost of
 -- complicating the generation code.  Would like to see how much if
 -- any it speeds up Equinox in practice.
-trans :: H.Program -> [H.Variable] -> [F.LabeledFormula]
-trans ds fs = evalState (go fs ((H.appify) ds)) startState
+trans :: H.Program -> H.Program -> [F.LabeledFormula]
+trans checks deps = evalState result startState
  where
   startState = S { prefix = "Z"
                  , count = 0
-                 , arities = H.arities ds
+                 , arities = H.arities (checks++deps)
                  , getGoals = []
                  }
-  go fs ds = do
-          let (toCheck,regDefs) = partition (isToCheck fs) ds
-              recSubst  = H.substs  recVars
-              recSubstC = H.substsC recVars
-              recVars = zip (map recVar fs) fs
-              recVar = H.Named . H.Rec
-          a <- gets arities
-          regFormulae <- forM regDefs $ \d -> case d of
-            H.DataType t                -> tTrans t
-            H.Def d                     -> dTrans d
-            H.ContSat (H.Satisfies x y) -> do { r <- cTrans Minus (H.Named $ H.Var x) y
-                                              ; return [F.appifyF a r]
-                                              }
-          checkFormulae <- forM toCheck $ \d -> case d of
-            H.DataType t                 -> error "No contracts for datatypes yet!"
-            H.Def (H.Let f xs e)         -> dTrans $ H.Let     f xs (recSubst e)
-            H.Def (H.LetCase f xs e pes) -> dTrans $ H.LetCase f xs (recSubst e)
-                                                       [(p,(recSubst e)) | (p,e) <- pes]
-            -- For contract satisfaction 'f ::: c', generate
-            -- 1) an assumption that the recursive occurances 'f_rec' satisfy the contract
-            -- 2) the negation of 'f ::: c'
-            -- XXX, ???: should 'f' be allowed to occur in 'c' at all? The 'recSubstC' below
-            -- indicates this is expected.
-            H.ContSat (H.Satisfies x y)  -> do
-              contRec <- cTrans Minus (recVar x) (recSubstC y)
-              -- XXX, ???: why not 'recSubstC y' instead of plain 'y'?
-              -- XXX, ???: should the goal receive a different label? The TPTP
-              -- format supports e.g. 'conjecture' for goals, vs 'axiom' for
-              -- assumptions. Doe Equinox distinguish (nc vaguely remembers getting
-              -- different output in an experiment)?
-              goal <- cTrans Plus (H.Named $ H.Var x) y
-              modify (\s -> s { getGoals = goal : getGoals s })
-              return $ [F.appifyF a $ contRec]
-          -- The goal formula is the negated conjunction of all goals,
-          -- because we do a refutation proof.
-          goalFormula <- do
-            goals <- gets getGoals
-            let labels = map F.getLabel goals
-                formulas = map F.getFormula goals
-                label = intercalate "_" labels
-                formula = F.Not $ F.And formulas
-            return $ F.LabeledFormula label formula
-          return $ concat $ prelude : regFormulae ++ checkFormulae ++ [[goalFormula]]
-            -- XXX, TODO: add 'min's in prelude
-            where prelude = map (F.LabeledFormula "prelude") [
---                             cf1, cf2
---                            ,min
-                             min
+  result = do
+    let
+        -- Substitution functions for recursification.
+        --
+        -- XXX: We could generate a slightly better theory by
+        -- only recursifying functions that are actually
+        -- recursive.
+        --
+        -- XXX: this could be folded into the translation
+        -- functions themselves, by allowing them to return a
+        -- pair of goal and assumption formulas.  All Minus
+        -- translations would produce only assumptions, but the
+        -- Plus translation for contract satisfaction would also
+        -- return an assumption on the recursification.  With
+        -- that setup, the function translations could perform
+        -- the recursification locally, assuming they had access
+        -- to list of all recursive goal functions.  However,
+        -- breaking it up into two phases is probably easier to
+        -- understand.
+        fs = map H.def2Name checks
+        recSubst  = H.substs  recVars
+        recSubstC = H.substsC recVars
+        recVars = zip (map recVar fs) fs
+        recVar = H.Named . H.Rec
 
-                            ,F.Not $ F.CF bad
-                            ,F.CF unr
-                            ]
-                  -- forall f,x. cf(f) /\ cf(x) -> cf(f x)
-                  cf1 = F.Forall [f,x]
-                        $ F.And [F.CF fN, F.CF xN]
-                          :=>: (F.CF $ fN :@: xN)
-                  -- The "CF = CF -> CF" axiom.  Only makes sense when
-                  -- the expression in question has an arrow type, but
-                  -- hopefully it's sound in general.  This
-                  -- corresponds to fptr1 above.
-                  --
-                  -- XXX: convince ourselves this is sound. See
-                  -- discussion by ftpr1 above.
-                  --
-                  -- forall f. (forall x. cf(x) -> cf(f x)) <-> cf(f)
-                  cf2 = F.Forall [f]
-                        $ (F.Forall [x] $ (F.CF xN :=>: (F.CF $ fN :@: xN)))
-                          :<=>: F.CF fN
-                  -- XXX, DESIGN CHOICE: may not need this when
-                  -- 'C[[x:c1 -> c2]]^v' always has 'min' constraints.
-                  min = F.Forall [f,x] $ F.Min (fN :@: xN) :=>: F.And[F.Min fN]
-                  [f,x] = ["F","X"]
-                  [fN,xN] = map (Named . Var) [f,x]
+        recursifyDef (H.Let f xs e)         = H.Let     f xs (recSubst e)
+        recursifyDef (H.LetCase f xs e pes) = H.LetCase f xs (recSubst e)
+                                              [(p,(recSubst e)) | (p,e) <- pes]
+
+    -- Translate all the defs.  We treat 'checks' different than
+    -- 'deps', e.g. we assume contracts in 'deps', but break contracts
+    -- in 'checks' into an assumption of the recursive version and a
+    -- goal of the regular version.
+    depFormulae <- forM deps $ \d -> case d of
+      H.DataType t                -> tTrans t
+      -- assert: There shouldn't be any recursive occurrences of 'fs'
+      -- in 'deps', unless the '-c FUN' option is in use.
+      H.Def d                     -> assert (d' == d) $ dTrans d' where
+        d' = recursifyDef d
+      H.ContSat (H.Satisfies f c) -> (:[]) <$> cTrans Minus (H.Named $ H.Var f) c
+    checkFormulae <- forM checks $ \d -> case d of
+      H.DataType t                 -> tTrans t
+      H.Def d                      -> dTrans $ recursifyDef d
+      -- XXX, ???: should 'f' be allowed to occur in 'c' at all? The 'recSubstC' below
+      -- indicates this is expected.
+      H.ContSat (H.Satisfies f c)  -> do
+        -- XXX, ???: why not 'recSubstC c' instead of plain 'c'?
+        -- XXX, ???: should the goal receive a different label? The TPTP
+        -- format supports e.g. 'conjecture' for goals, vs 'axiom' for
+        -- assumptions. Doe Equinox distinguish (nc vaguely remembers getting
+        -- different output in an experiment)?
+        goal <- cTrans Plus (H.Named $ H.Var f) c
+        modify (\s -> s { getGoals = goal : getGoals s })
+
+        (:[]) <$> cTrans Minus (recVar f) (recSubstC c)
+    -- The goal formula is the negated conjunction of all goals,
+    -- because we do a refutation proof.
+    goalFormula <- do
+      goals <- gets getGoals
+      let labels = map F.getLabel goals
+          formulas = map F.getFormula goals
+          label = intercalate "_" labels
+          formula = F.Not $ F.And formulas
+      return $ F.LabeledFormula label formula
+
+    return . concat
+           $ prelude : depFormulae ++ checkFormulae ++ [[goalFormula]]
+      -- XXX, TODO: add 'min's in prelude
+      where prelude = map (F.LabeledFormula "prelude") [
+--                       cf1, cf2
+--                      ,min
+                       min
+
+                      ,F.Not $ F.CF bad
+                      ,F.CF unr
+                      ]
+            -- forall f,x. cf(f) /\ cf(x) -> cf(f x)
+            cf1 = F.Forall [f,x]
+                  $ F.And [F.CF fN, F.CF xN]
+                    :=>: (F.CF $ fN :@: xN)
+            -- The "CF = CF -> CF" axiom.  Only makes sense when
+            -- the expression in question has an arrow type, but
+            -- hopefully it's sound in general.  This
+            -- corresponds to fptr1 above.
+            --
+            -- XXX: convince ourselves this is sound. See
+            -- discussion by ftpr1 above.
+            --
+            -- forall f. (forall x. cf(x) -> cf(f x)) <-> cf(f)
+            cf2 = F.Forall [f]
+                  $ (F.Forall [x] $ (F.CF xN :=>: (F.CF $ fN :@: xN)))
+                    :<=>: F.CF fN
+            -- XXX, DESIGN CHOICE: may not need this when
+            -- 'C[[x:c1 -> c2]]^v' always has 'min' constraints.
+            min = F.Forall [f,x] $ F.Min (fN :@: xN) :=>: F.And[F.Min fN]
+            [f,x] = ["F","X"]
+            [fN,xN] = map (Named . Var) [f,x]

@@ -68,8 +68,10 @@ Pattern  : con Vars              { ($1,$2) }
 PatExpr  : ';' Pattern '->' Expr { ($2,$4) } -- Leading ';' resembles '|' and is haskell.
 PatExprs : list(PatExpr)         { $1 }
 
--- 'undefined' here is the constructor contract.  Not currently used.
-ConDecl  : con list(Atom)   { ($1,length $2,error "Parser.y: ConDecl: constructor contracts aren't supported.") }
+-- 'Any' here is the constructor contract.  Not currently used, but
+-- some 'assert's compare terms for equality, which looks at this
+-- component, so e.g. 'undefined' is not suitable.
+ConDecl  : con list(Atom)   { ($1,length $2,Any) }
 ConDecls : sep(ConDecl,'|') { $1 }
 
 Atom : Named        { Named $1 }

@@ -68,7 +68,8 @@ adjacencies defs = funAdjs ++ typeAdjs
     -- Pattern dependencies.
     pDeps = case mpes of
       Nothing -> []
-      Just pes -> concat [freeVars (xs++ysi) ei | ((_,ysi),ei) <- pes]
+      -- Need the term constructors 'c' too, to get data type deps.
+      Just pes -> concat [c:freeVars (xs++ysi) ei | ((c,ysi),ei) <- pes]
     deps = eDeps ++ pDeps
 
   funAdjsWithCons = map adj [d | d@(Def _) <- defs]
@@ -99,8 +100,8 @@ adjacencies defs = funAdjs ++ typeAdjs
 -- 'checks's, where 'depends' are the dependencies of the 'checks'.
 -- The 'checks' are a strongly connected component in the dependency
 -- graph.
-checkOrder :: Program -> [([DefGeneral],[DefGeneral])]
-checkOrder defs = checkDeps where
+orderedChecks :: Program -> [([DefGeneral],[DefGeneral])]
+orderedChecks defs = checkDeps where
   -- Dependency graph 'g'.
   gAdjs = adjacencies defs
   (g,gVertex2Adj,_) = G.graphFromEdges gAdjs

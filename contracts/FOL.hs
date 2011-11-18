@@ -219,5 +219,5 @@ showDefsSMTLIB defs = unlines $ cf:app:unr:bad:map showDef arities where
 
 -- takes formulas and a list of arities for each definition
 -- and returns those formulas using "full application" wherever possible
-appifyF :: [Arity] -> LabeledFormula -> LabeledFormula
-appifyF a = fmap (fmap $ appifyExpr a)
+appify :: [Arity] -> LabeledFormula -> LabeledFormula
+appify a = fmap (fmap $ appifyExpr a)

@@ -517,7 +517,7 @@ happyReduce_14 = happySpecReduce_2  12 happyReduction_14
 happyReduction_14 (HappyAbsSyn19  happy_var_2)
 	(HappyTerminal (TokenCon happy_var_1))
 	 =  HappyAbsSyn12
-		 ((happy_var_1,length happy_var_2,error "Parser.y: ConDecl: constructor contracts aren't supported.")
+		 ((happy_var_1,length happy_var_2,Any)
 	)
 happyReduction_14 _ _  = notHappyAtAll 
 
