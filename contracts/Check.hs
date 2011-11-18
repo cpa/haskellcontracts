@@ -1,14 +1,16 @@
 module Main where
 
-import Analysis (checkOrder)
+import Analysis (orderedChecks)
 import Parser hiding (main)
 import Translation (trans)
 import Haskell
 import FOL (toTPTP,simplify)
 import ThmProver
 
+import Control.Exception (assert)
+import Control.Applicative
 import Control.Monad (when,unless)
-import Data.List (tails,intersperse,intercalate)
+import Data.List (tails,intersperse,intercalate,nub,intersect)
 import System.Environment (getArgs)
 import System.IO (hFlush,stdout)
 import System.Exit (exitWith,ExitCode (ExitFailure))
@@ -16,7 +18,6 @@ import System.Process (system,readProcess)
 import System.Directory (removeFile,doesFileExist)
 import System.FilePath (takeFileName,joinPath,(</>),(<.>))
 import System.Posix.Process (executeFile)
-import Control.Applicative
 
 data Conf = Conf { printTPTP :: Bool
                  , toCheck   :: [String] 
@@ -34,7 +35,11 @@ conf flags = go flags defaults
         -- the end.  XXX: not sure what GHC does here ... but easy to
         -- check.
         go ("-i":idir:flags)    cfg = go flags (cfg {idirs = idirs cfg ++ [idir]})
-        go ("-c":f:flags)       cfg = go flags (cfg {toCheck=f:(toCheck cfg)})
+        -- To reenable this "check a single function" functionality:
+        -- find the '(checks,defs)' s.t. 'f' in 'checks', then run
+        -- checker on '[(f, defs++checks - [f])]'.
+        go ("-c":f:flags)       cfg = error "-c FUN is not supported currently :("
+                                   -- go flags (cfg {toCheck=f:(toCheck cfg)})
         go ("--dry-run":flags)  cfg = go flags (cfg {dryRun=True})
         go ("--engine":e:flags) cfg = go flags (cfg {engine=e})
         go ("-q":flags)         cfg = go flags (cfg {quiet=True})
@@ -88,7 +93,7 @@ main = do
   when ("-h" `elem` ffs || "--help" `elem` ffs) usageAndExit
   let cfg = conf flags
   when (typeCheck cfg) $ runGHCi f cfg
-  res <- checkFile f cfg
+  res <- checkFile cfg f
   if res
     then unless (dryRun cfg || quiet cfg) $ putStrLn $ f ++ ": all the contracts hold."
     else do
@@ -106,8 +111,8 @@ main = do
          idirs' = "-i"++intercalate ":" (idirs cfg)
 
 -- | Load a source file, recursively loading imports.
-loadFile :: FilePath -> Conf -> IO Program
-loadFile f cfg = do
+loadFile :: Conf -> FilePath -> IO Program
+loadFile cfg f = do
   s <- readFile f
   let p = haskell $ lexer s
   concat <$> mapM recLoadFile p
@@ -127,47 +132,51 @@ loadFile f cfg = do
   findAndLoad mod (i:is) = do
                    cond <- doesFileExist f'
                    if cond
-                   then loadFile f' cfg
+                   then loadFile cfg f'
                    else findAndLoad mod is
    where f' = i </> joinPath mod <.> "hs"
 
-checkFile :: String -> Conf -> IO Bool  
-checkFile f cfg = do
-  prog <- loadFile f cfg
-  let order = checkOrder prog
-      cfg' = if toCheck cfg == [] then cfg {toCheck = concat order} else cfg
-  res <- sequence $ go prog [] cfg' order
-  return $ and res
-    where go prog checkedDefs cfg [] = []
-          go prog checkedDefs cfg (fs:fss) = if (any (`elem` (toCheck cfg)) fs) 
-                                             then check f prog fs cfg checkedDefs : go prog (fs++checkedDefs) cfg fss
-                                             else go prog (fs++checkedDefs) cfg fss
+checkFile :: Conf -> FilePath -> IO Bool
+checkFile cfg f = do
+  prog <- loadFile cfg f
+  -- XXX: Appification is an optional optimization, so we could add a
+  -- switch to control it.  However, to turn it off we also need to
+  -- change how most formulas are generated, since most formulas are
+  -- generated using full application where possible. If appification
+  -- were disabled, the formulas relating full and partial application
+  -- could be elided (e.g. 'dPtr').
+  let prog' = appify (arities prog) prog
+  and <$> mapM (check cfg f prog') (orderedChecks prog')
 
+getContracts :: [DefGeneral] -> DefGeneral -> [DefGeneral]
+getContracts prog d = [c | c@(ContSat (Satisfies g _)) <- prog, g == def2Name d]
 
-hasBeenChecked :: [Variable] -> DefGeneral -> Bool
-hasBeenChecked checkedDefs (Def (Let f _ _)) = f `elem` checkedDefs
-hasBeenChecked checkedDefs (Def (LetCase f _ _ _)) = f `elem` checkedDefs
-hasBeenChecked checkedDefs (ContSat (Satisfies f _)) = f `elem` checkedDefs
-hasBeenChecked _ _  = True
-
-hasNoContract :: Variable -> [DefGeneral] -> Bool
-hasNoContract f prog = not $ f `elem` [g | ContSat (Satisfies g _) <- prog]
-
-check :: FilePath -> Program -> [Variable] -> Conf -> [Variable] -> IO Bool
-check f prog [] cfg _ = error "There should be at least one definition!"
-check f prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
-                                | otherwise = do
-  let safeSubset prog checkedDefs = filter (hasBeenChecked (fs++checkedDefs)) prog
-
+check :: Conf -> FilePath -> Program
+      -> (Program,Program) -- ^ '(checks, deps)': assume 'deps' and check 'checks'
+      -> IO Bool
+check cfg f prog (checks,deps) | all null contracts = return True
+                               | otherwise          = do
+  let
+      defs = filter defOrType (checks++deps) where
+        defOrType (Def _)      = True
+        defOrType (DataType _) = True
+        defOfType _            = False
       (enginePath,engineOpts,engineUnsat,thy) =
         case lookup (engine cfg) provers of
           Nothing -> error "Engine not recognized. Try -h."
           Just x  -> (path x,opts x,unsat x,theory x)
-
-      defs = safeSubset prog checkedDefs
-      out = trans defs fs
+      -- Add contracts to the 'checks' and 'deps'.
+      checks' = checks ++ (getContracts prog =<< checks)
+      deps' = deps ++ (getContracts prog =<< deps)
+      -- Check the minimality of 'checks' and 'deps'.
+      out = assert (checks' == nub checks')
+          $ assert (deps' == nub deps')
+          $ assert (null (checks' `intersect` deps'))
+          $ trans checks' deps'
             >>= simplify >>= showFormula thy
-      tmpFile = takeFileName f ++ "." ++ head fs ++ "." ++ fileExtension thy
+      tmpFile = takeFileName f ++
+                "." ++ intercalate "-" fs ++
+                "." ++ fileExtension thy
   unless (quiet cfg) $ do
     putStrLn $ "Writing " ++ tmpFile
     putStrLn $ show fs ++ " are mutually recursive. Checking them altogether..."
@@ -185,3 +194,7 @@ check f prog fs cfg checkedDefs | all (`hasNoContract` prog) fs = return True
   unless (printTPTP cfg) $
     removeFile tmpFile
   return res
+ where
+  fs = [def2Name d | d@(Def _) <- checks]
+  contracts         = map (getContracts prog) checks
+  multipleContracts = filter ((>1) . length) contracts

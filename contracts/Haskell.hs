@@ -44,6 +44,12 @@ getName (Con v) = v
 getName (Rec v) = v
 getName (Proj _ v) = v
 
+def2Name :: DefGeneral -> Name
+def2Name (Def (Let f _ _))         = f
+def2Name (Def (LetCase f _ _ _))   = f
+def2Name (DataType (Data t _))     = t
+def2Name (ContSat (Satisfies f _)) = f
+
 data MetaExpression v = Named v
                       -- Regular application: f x y => f @ x @ y
                       | (MetaExpression v) :@: (MetaExpression v)
@@ -90,10 +96,8 @@ arities ds = concatMap go ds
         go (DataType (Data _ vacs)) = [(v,a) | (v,a,_) <- vacs]
         go _ = []
 
-
-appify :: Program -> Program
-appify p = map (fmap $ appifyExpr a) p 
-  where a = arities p
+appify :: [Arity] -> Program -> Program
+appify a p = map (fmap $ appifyExpr a) p
 
 -- XXX, TODO: rename
 -- | Return the arity of a name
