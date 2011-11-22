@@ -442,7 +442,7 @@ happyReduction_6 ((HappyAbsSyn15  happy_var_4) `HappyStk`
 	(HappyTerminal (TokenVar happy_var_1)) `HappyStk`
 	happyRest)
 	 = HappyAbsSyn8
-		 (Def $ Let happy_var_1 happy_var_2 happy_var_4
+		 (Def $ Let happy_var_1 happy_var_2 (Base happy_var_4)
 	) `HappyStk` happyRest
 
 happyReduce_7 = happyReduce 7 8 happyReduction_7
@@ -455,7 +455,7 @@ happyReduction_7 ((HappyAbsSyn11  happy_var_7) `HappyStk`
 	(HappyTerminal (TokenVar happy_var_1)) `HappyStk`
 	happyRest)
 	 = HappyAbsSyn8
-		 (Def $ LetCase happy_var_1 happy_var_2 happy_var_5 happy_var_7
+		 (Def $ Let happy_var_1 happy_var_2 (Case happy_var_5 happy_var_7)
 	) `HappyStk` happyRest
 
 happyReduce_8 = happyReduce 5 8 happyReduction_8
@@ -503,7 +503,7 @@ happyReduction_12 ((HappyAbsSyn15  happy_var_4) `HappyStk`
 	_ `HappyStk`
 	happyRest)
 	 = HappyAbsSyn10
-		 ((happy_var_2,happy_var_4)
+		 ((happy_var_2,Base happy_var_4)
 	) `HappyStk` happyRest
 
 happyReduce_13 = happySpecReduce_1  11 happyReduction_13

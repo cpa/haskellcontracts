@@ -36,6 +36,7 @@ data MetaFormula a = Forall [Name] (MetaFormula a)
                    deriving (Show,Eq,Functor)
 -- cf = Pred "cf"
 -- min = Pred "min"
+exists xs phi = Not $ Forall xs $ Not phi
 
 -- forall a . x && y --> (forall a . x) && (forall a . y)
 

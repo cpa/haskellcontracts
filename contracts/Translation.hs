@@ -11,6 +11,7 @@ import Data.List (partition, intercalate)
 import Data.Char (toUpper)
 import Control.Applicative
 import Control.Exception (assert)
+import Control.Arrow (second)
 
 --import Debug.Trace (traceShow)
 
@@ -99,75 +100,78 @@ dPtr f vs = if null vs then Top else F.And [eq1Min]--,eq2Min]
 -- | Same as dPtr, but for recursive occurances of f.
 dPtrRec f@(Var v) = dPtr $ Rec v
 
+-- | Shorthand for a common idiom.
+nv = Named . Var
+-- | Return a fresh variable name, based on 'v', which does not occur
+-- in 'fvs'.
+makeFV fvs v = v' where
+  v' = head $ filter (`notElem` fvs) (v:[v++show i | i <- [0..]])
+
+-- | Make a list of fresh variables names.
+makeFVs fvs vs = foldr go [] vs where
+  --  We need to 'fold', not 'map', because each name generated is
+  --  free when generating subsequent names.
+  v `go` vs' = makeFV (vs'++fvs) v : vs'
+
+-- | Translate a case expression.
+--ceTrans :: H.Case -> Fresh [H.Case]
+ceTrans (H.Base e) = H.Base <$> eTrans e
+ceTrans (H.Case e pces) = H.Case <$> eTrans e <*> mapM pceTrans pces where
+  pceTrans (p,ce) = do ceT <- ceTrans ce
+                       return (p, ceT)
+
+-- | Translate a definition.
 dTrans :: H.Definition -> Fresh [F.LabeledFormula]
-dTrans (H.Let f vs e) = do
-  eT <- eTrans e
-  let vsN = map (Named . Var) vs
-      fV = Var f
-      full = F.FullApp fV vsN
-
-      eq    = F.Forall vs $ full :=: eT
-      eqMin = F.Forall vs $ F.Min full :=>: (full :=: eT)
-
+dTrans (H.Let f vs ce) = do
+  rhs <- go vs ce
+  let eq = F.Forall vs $ F.Min full :=>: rhs
   return $ map (F.LabeledFormula f)
-             [eqMin ,dPtr fV vs, dPtrRec fV vs]
+               [eq, dPtr fV vs, dPtrRec fV vs]
+ where
+  vsN = map nv vs
+  fV = Var f
+  full = F.FullApp fV vsN
 
-
--- Recall that the patterns 'pes' has the form [([Variable],Expression)].
-dTrans (H.LetCase f vs e pes) = do
-  eT <- eTrans e
-  -- A Pattern is a [Var], e.g. 'Cons x xs' ==> ['Cons','x','xs'], so
-  -- the 'tail' of a pattern is the variables.  The 'arities' below would
-  -- be simpler if Pattern were (Var,[Var]), e.g. 'Cons x xs' ==> ('Cons',['x','xs']).
-  let -- e.g. [('Cons',2),('Nil',0)]
-      arities = [(c, length xs) | ((c,xs),_) <- pes] :: [(String,Int)]
-      -- A list of "fresh" variables. Length chosen to be large enough
-      -- to substitute for any constructors pattern variables.  We use
-      -- fresh variables here since pattern variables could shadow
-      -- arguments: e.g. 'f x = case x of K x -> x'. We translate this
-      -- to 'f x = case x of K z -> z'.  The problem is that we
-      -- generate an equation 'x = K z' for when the scrutinee 'x' is
-      -- equal to 'K _'.
-      --
-      -- XXX: the free vars could be avoided by using the projections
-      -- here: e.g. instead we make an equation 'x = K(pi^K_1 x)'. I
-      -- have no idea if Equinox would be better or worse for it.
-      --
-      -- XXX, TODO: try the above alternate translation in terms of
-      -- projections.
-      --
-      -- XXX, TODO: use better "fresh" variables.
-      zs = makeVars (maximum $ map snd arities) "Zdef"
-      -- Variables wrapped in Haskell constructors.
-      zsN = map (Named . Var) zs
-      -- NB: must substitute pattern variables before definition variables,
-      -- because definition variables bind in an enclosing scope.
-      patternSub ((_,xs),ei) = H.substs (zip zsN xs) ei
-
-      vsN = map (Named . Var) vs
-      fV = Var f
-  pesT <- sequence $ map (eTrans . patternSub) pes
-      -- e = Ki x1 ... xni -> f(xs) = ei
-  let full = F.FullApp (Var f) vsN
-
-      eq1 = [(eT :=: F.FullApp (Con c) (take (length xs) zsN))
-             :=>: (full :=: peT)
-            | (((c,xs),_),peT) <- zip pes pesT]
-      -- XXX: this equation is not in the paper, altho it looks reasonable.
-      eq2 = (eT :=: bad) :=>: (full :=: bad)
-      -- XXX: this equation is not in the paper, altho it's implied by
-      -- the equations in the paper.
-      eq3 = (F.And $ (eT :/=: bad):bigAndSel ) :=>: eq4
-      eq4 = (full :=: unr)
-      bigAndSel = [eT :/=: (F.FullApp (Con c) [F.FullApp (Proj i c) [eT] | i <- [1..a]])
-                  | (c,a) <- arities]
-      -- The main equations.
-      -- XXX: in the paper, the eqs are conjoined under a single 'forall'.
-      eqs = (eq1++[eq2,eq3])
-      eqs'    = map (F.Forall (vs++zs)) eqs
-      eqs'Min = map (\eq -> F.Forall (vs++zs) $ F.Min full :=>: F.And [F.Min eT,eq]) eqs
-
-  return $ map (F.LabeledFormula f) $ dPtr fV vs : dPtrRec fV vs : eqs'Min
+  -- Recursively translate case expressions, tracking free variables
+  -- in 'fvs'.
+  go fvs (H.Base e) = do
+    eT <- eTrans e
+    return $ full :=: e
+  go fvs (H.Case e pces) = do
+    eT <- eTrans e
+    -- We use fresh variables here since pattern variables could
+    -- shadow arguments: e.g. 'f x = case x of K x -> x'. We
+    -- translate this to 'f x = case x of K z -> z'.  The problem is
+    -- that we generate an equation 'x = K z' for when the scrutinee
+    -- 'x' is equal to 'K _'.
+    --
+    -- XXX: the free vars could be avoided by using the projections
+    -- here: e.g. instead we make an equation 'x = K(pi^K_1 x)'. I
+    -- have no idea if Equinox would be better or worse for it.
+    --
+    -- XXX, TODO: try the above alternate translation in terms of
+    -- projections.
+    --
+    -- Below we translate 'case e of [ci xsi -> ei]' to
+    -- 
+    --   min e /\ (
+    --         (e = bad /\ f xs = bad) \/
+    --         (f xs = unr) \/
+    --         \/_i (exists xsi. ci xsi = pi /\ f xs = [[ ei ]]))
+    --
+    -- where '[[ ei ]]' is a recursive occurrence of our self.  We
+    -- freshen the 'xsi' to avoid capturing the 'xs'.
+    let badCase = F.And [eT :=: bad, full :=: bad]
+        unrCase = full :=: unr
+        conCase ((c,vs),ce) = do
+          let vs' = makeFVs fvs vs
+              vs'N = map nv vs'
+              fullC = F.FullApp (Con c) vs'N
+          -- substitute the fresh pattern variables before recursing.
+          ceT <- go (vs'++fvs) $ H.substsCE (zip vs'N vs) ce
+          return $ F.exists vs' $ F.And [eT :=: fullC, ceT]
+    conCases <- mapM conCase pces
+    return $ F.And [F.Min eT, F.Or (badCase : unrCase : conCases)]
 
 -- Contract translation
 -----------------------
@@ -337,14 +341,13 @@ trans checks deps = evalState result startState
         -- breaking it up into two phases is probably easier to
         -- understand.
         fs = map H.def2Name checks
-        recSubst  = H.substs  recVars
-        recSubstC = H.substsC recVars
+        recSubst   = H.substs   recVars
+        recSubstC  = H.substsC  recVars
+        recSubstCE = H.substsCE recVars
         recVars = zip (map recVar fs) fs
         recVar = H.Named . H.Rec
 
-        recursifyDef (H.Let f xs e)         = H.Let     f xs (recSubst e)
-        recursifyDef (H.LetCase f xs e pes) = H.LetCase f xs (recSubst e)
-                                              [(p,(recSubst e)) | (p,e) <- pes]
+        recursifyDef (H.Let f xs pces) = H.Let f xs (recSubstCE pces)
 
     -- Translate all the defs.  We treat 'checks' different than
     -- 'deps', e.g. we assume contracts in 'deps', but break contracts

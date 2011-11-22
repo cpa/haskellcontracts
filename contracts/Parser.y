@@ -57,15 +57,16 @@ Vars : list(var) {$1}
 Named : con {Con $1} | var {Var $1} -- constructor | constant.
 Module : sep1(con,'.') { $1 }
 
-General : var Vars '=' Expr                    { Def $ Let $1 $2 $4 }
-        | var Vars '=' case Expr of PatExprs   { Def $ LetCase $1 $2 $5 $7 }
+General : var Vars '=' Expr                    { Def $ Let $1 $2 (Base $4) }
+        | var Vars '=' case Expr of PatExprs   { Def $ Let $1 $2 (Case $5 $7) }
         | '{-# CONTRACT' var ':::' Contr '#-}' { ContSat $ Satisfies $2 $4 }
 -- XXX: do we actually support parameterized types?
         | data con Vars '=' ConDecls           { DataType $ Data $2 $5 }
         | import Module                        { Import $2 }
 
 Pattern  : con Vars              { ($1,$2) }
-PatExpr  : ';' Pattern '->' Expr { ($2,$4) } -- Leading ';' resembles '|' and is haskell.
+-- Leading ';' resembles '|' and is haskell.
+PatExpr  : ';' Pattern '->' Expr { ($2,Base $4) }
 PatExprs : list(PatExpr)         { $1 }
 
 -- 'Any' here is the constructor contract.  Not currently used, but

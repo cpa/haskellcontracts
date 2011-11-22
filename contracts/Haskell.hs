@@ -15,6 +15,7 @@ type Program = [DefGeneral]
 type Pattern = (Name, [Name])
 type Contract = MetaContract Expression
 type Definition = MetaDefinition Expression
+data Case = MetaCase Expression
 
 type Name = String
 -- | Things with names.  We don't include function "pointers" here
@@ -46,9 +47,18 @@ getName (Proj _ v) = v
 
 def2Name :: DefGeneral -> Name
 def2Name (Def (Let f _ _))         = f
-def2Name (Def (LetCase f _ _ _))   = f
 def2Name (DataType (Data t _))     = t
 def2Name (ContSat (Satisfies f _)) = f
+
+-- | Expressions that might include 'case' matching.
+data MetaCase a
+    = Base a
+    -- ^ 
+    -- Case e pces@[(p1,ce1),...,(pk,cek)]
+    -- ==> 
+    -- case e of p1 -> ce1 ; ... ; pk -> cek
+    | Case a [(Pattern,MetaCase a)]
+    deriving (Show,Eq,Functor,Ord)
 
 data MetaExpression v = Named v
                       -- Regular application: f x y => f @ x @ y
@@ -67,9 +77,7 @@ data MetaDefGeneral a = ContSat (MetaContSat a)
 data MetaContSat a = Satisfies Name (MetaContract a)
                    deriving (Show,Eq,Functor,Ord)
                
-data MetaDefinition a = Let Name [Name] a
-                      -- LetCase f xs e [(p_i,e_i)]_i ~ f xs = case e of [p_i -> e_i]_i
-                      | LetCase Name [Name] a [(Pattern,a)]
+data MetaDefinition a = Let Name [Name] (MetaCase a)
                       deriving (Show,Eq,Functor,Ord)
                   
 data MetaDataType a = Data Variable [(Variable,Int,MetaContract a)] -- Data constructors + arity + contract
@@ -92,7 +100,6 @@ apps xs = foldl1 (:@:) xs
 arities :: Program -> [Arity]
 arities ds = concatMap go ds
   where go (Def (Let f vs _))       = [(f,length vs)]
-        go (Def (LetCase f vs _ _)) = [(f,length vs)]
         go (DataType (Data _ vacs)) = [(v,a) | (v,a,_) <- vacs]
         go _ = []
 
@@ -127,7 +134,9 @@ appifyExpr a e = go e []
 
 -- | Perform many substitutions, rightmost first.
 substs :: [(Expression, Name)] -> Expression -> Expression
-substs subs e = foldr (uncurry subst) e subs
+substs subs e    = foldr (uncurry subst) e subs
+substsC subs c   = foldr (uncurry substC) c subs
+substsCE subs ce = foldr (uncurry substCE) ce subs
 
 -- | 'subst e1 y e2' = e2[e1/y]
 --
@@ -142,9 +151,6 @@ subst e y (e1 :@: e2)        = (subst e y e1) :@: (subst e y e2)
 subst e y (FullApp f es)     = let Named f' = (subst e y (Named f))
                                in FullApp f' $ map (subst e y) es
 
-substsC :: [(Expression,Variable)] -> Contract -> Contract
-substsC subs c = foldr (uncurry substC) c subs
-
 substC :: Expression -> Variable -> Contract -> Contract
 substC x y (Arr u c1 c2) = Arr u (substC x y c1) (substC x y c2) -- TODO and if u==y the semantics aren't very clear.
 substC x y (Pred u e)     = if u/=y then Pred u (subst x y e) else (Pred u e)
@@ -152,3 +158,12 @@ substC x y (And c1 c2)    = And (substC x y c1) (substC x y c2)
 substC x y (Or c1 c2)     = Or (substC x y c1) (substC x y c2)
 substC x y CF             = CF 
 substC _ _ Any            = Any
+
+-- | 'subst' for case expressions.
+substCE e y (Base e') = Base $ subst e y e'
+substCE e y (Case e' pces) = Case (subst e y e') (map substP pces) where
+  -- Substitute into a case branch.  We stop if the pattern binds the
+  -- variables we our substituting.
+  substP pce@((c,vs),ce) = if y `elem` vs
+                           then pce
+                           else ((c,vs), substCE e y ce)
