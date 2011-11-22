@@ -127,7 +127,7 @@ toTPTP (LabeledFormula l f) = header ++ "\n" ++ go [] f ++ "\n" ++ footer
         go qs (t1 :=: t2) = "("++goTerm qs t1 ++ " = " ++ goTerm qs t2++")"
         go qs (t1 :/=: t2) = "("++goTerm qs t1 ++ " != " ++ goTerm qs t2++")"
         go qs (CF t) = "cf(" ++ goTerm qs t ++ ")"
-        go qs (Min t) = "min("++goTerm qs t++")"
+        go qs (Min t) = "$min("++goTerm qs t++")"
 
         goTerm qs (Named n) = goNamed qs n
         goTerm qs (e1 :@: e2) = "app(" ++ goTerm qs e1 ++ "," ++ goTerm qs e2 ++ ")"
@@ -136,7 +136,7 @@ toTPTP (LabeledFormula l f) = header ++ "\n" ++ go [] f ++ "\n" ++ footer
                                    ++ (intercalate "," $ map (goTerm qs) as) ++ ")"
 
         goNamed qs (Var v) = goVar qs v
-        goNamed qs (Con v) = "'" ++ v ++ "'"
+        goNamed qs (Con v) = "c_" ++ v -- "'" ++ v ++ "'"
         goNamed qs (Rec v) = v ++ "__R"
         goNamed qs (Proj i v) = "'"++v++"__"++show i++"'"
 
