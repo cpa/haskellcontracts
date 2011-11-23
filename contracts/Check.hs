@@ -4,6 +4,7 @@ import Control.Exception (assert)
 import Control.Applicative
 import Control.Monad (when,unless)
 import Data.List (tails,intersperse,intercalate,nub,intersect)
+import Data.Maybe (fromJust)
 import System.Environment (getArgs)
 import System.IO (hFlush,stdout)
 import System.Exit (exitWith,ExitCode (ExitFailure))
@@ -94,10 +95,8 @@ check cfg f prog (checks,deps) | all null contracts = return True
         defOrType (Def _)      = True
         defOrType (DataType _) = True
         defOfType _            = False
-      (enginePath,engineOpts,engineUnsat,thy) =
-        case lookup (engine cfg) provers of
-          Nothing -> error "Engine not recognized. Try -h."
-          Just x  -> (path x,opts x,unsat x,theory x)
+      prover = fromJust $ lookup (engine cfg) provers
+      thy = theory prover
       -- Add contracts to the 'checks' and 'deps'.
       checks' = checks ++ (getContracts prog =<< checks)
       deps' = deps ++ (getContracts prog =<< deps)
@@ -117,8 +116,8 @@ check cfg f prog (checks,deps) | all null contracts = return True
   hFlush stdout
   res <- if not $ dry_run cfg
     then do 
-    out <- readProcess enginePath (engineOpts ++ [tmpFile]) ""
-    let res = engineUnsat out
+    out <- readProcess (path prover) (opts prover ++ [tmpFile]) ""
+    let res = unsat prover out
     whenNormal $ do
       whenLoud $ putStrLn out
       putStrLn $ if res then "OK :)" else "Not OK :("

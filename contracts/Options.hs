@@ -40,6 +40,8 @@ getOpts = cmdArgs $ Conf
   , dry_run = def
     &= help "Print the order in which contracts would be checked, but don't actually check them. If used in conjunction with '-p', the .tptp files will still be created."
 
+    -- Interesting: The lower case versions of the names still work
+    -- ??? E.g. you can say '--engine equinox'.
   , engine = Equinox -- The default option.
     &= typ "PROVER"
     &= help ("Use the specified theorem prover. The default is Equinox. The available provers are "++(intercalate ", " $ map show [(minBound::ThmProver)..maxBound])
