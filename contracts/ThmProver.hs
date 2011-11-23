@@ -1,26 +1,10 @@
-{-# LANGUAGE DeriveDataTypeable, NamedFieldPuns #-}
-module ThmProver where
+module ThmProver (module ThmProver, module ThmProverTypes) where
 
-import Data.Typeable
-import Data.Data
 import Data.List (isInfixOf)
 
-import Haskell as H
+--import Haskell as H
 import FOL as F
-
-data ThmProverConf = ThmProverConf
-  { path :: FilePath
-  , opts :: [String]
-  , unsat  :: String -> Bool
-  , theory :: Theory
-  }
-
-data Theory = Theory
-  { showFormula :: F.LabeledFormula -> String
-  , header :: [H.DefGeneral] -> String
-  , fileExtension :: String
-  , footer :: String
-  }
+import ThmProverTypes
 
 fof :: Theory
 fof = Theory {
@@ -37,16 +21,7 @@ smt2 = Theory {
          , footer = "(check-sat)"
          }
 
-unlabel (LabeledFormula _ e) = e
-
-data ThmProver
-  = Equinox
-  | SPASS
-  | Vampire32
-  | Vampire64
-  | E
-  | Z3
-  deriving (Show, Data, Typeable, Bounded, Enum, Eq)
+unlabel (F.LabeledFormula _ e) = e
 
 provers :: [(ThmProver, ThmProverConf)]
 provers = [ (Equinox, ThmProverConf

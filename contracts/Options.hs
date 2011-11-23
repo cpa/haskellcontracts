@@ -6,7 +6,7 @@ module Options where
 import System.Console.CmdArgs
 import Data.List (intercalate)
 
-import ThmProver
+import ThmProverTypes
 
 data Conf = Conf { print_TPTP   :: Bool
                  , only_check   :: [String] 
@@ -14,6 +14,7 @@ data Conf = Conf { print_TPTP   :: Bool
                  , engine       :: ThmProver
                  , idirs        :: [FilePath] -- "Include" directories
                  , type_check   :: Bool -- 'True' if we just want to run ghci
+                 , no_min       :: Bool
                  , file         :: FilePath
                  } deriving (Show, Data, Typeable)
 
@@ -55,6 +56,9 @@ getOpts = cmdArgs $ Conf
 
   , type_check = def
     &= help "Load FILE into GHCi, instead of checking its contracts. Useful to typecheck and to run functions. If you only want to typecheck, than add support for 'ghc -e <dummy>'."
+
+  , no_min = def
+    &= help "Don't use the 'min' predicate in the translation. This should degrade performance, but makes the resulting theory file much easier to read, and can be used to debug changes to 'min' placement, e.g. to check if they are too restrictive."
 
   , file = def
     &= argPos 0

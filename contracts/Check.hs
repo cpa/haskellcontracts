@@ -105,7 +105,7 @@ check cfg f prog (checks,deps) | all null contracts = return True
           $ assert (deps' == nub deps')
           $ assert (null (checks' `intersect` deps'))
           $ trans checks' deps'
-            >>= simplify >>= showFormula thy
+            >>= simplify cfg >>= showFormula thy
       tmpFile = takeFileName f ++
                 "." ++ intercalate "-" fs ++
                 "." ++ fileExtension thy
