@@ -1,12 +1,5 @@
 module Main where
 
-import Analysis (orderedChecks)
-import Parser hiding (main)
-import Translation (trans)
-import Haskell
-import FOL (toTPTP,simplify)
-import ThmProver
-
 import Control.Exception (assert)
 import Control.Applicative
 import Control.Monad (when,unless)
@@ -18,92 +11,32 @@ import System.Process (system,readProcess)
 import System.Directory (removeFile,doesFileExist)
 import System.FilePath (takeFileName,joinPath,(</>),(<.>))
 import System.Posix.Process (executeFile)
+import System.Console.CmdArgs.Verbosity
 
-data Conf = Conf { printTPTP :: Bool
-                 , toCheck   :: [String] 
-                 , dryRun    :: Bool 
-                 , engine    :: String
-                 , quiet     :: Bool
-                 , verbose   :: Bool
-                 , idirs     :: [FilePath] -- include directories
-                 , typeCheck :: Bool -- True is we just want to run ghci
-                 }
+import Analysis (orderedChecks)
+import Parser hiding (main)
+import Translation (trans)
+import Haskell
+import FOL (toTPTP,simplify)
+import ThmProver
+import Options (Conf(..),getOpts)
 
-conf flags = go flags defaults
-  where go ("-p":flags)         cfg = go flags (cfg {printTPTP=True})
-        -- Assuming we search earlier idirs first, we add new dirs at
-        -- the end.  XXX: not sure what GHC does here ... but easy to
-        -- check.
-        go ("-i":idir:flags)    cfg = go flags (cfg {idirs = idirs cfg ++ [idir]})
-        -- To reenable this "check a single function" functionality:
-        -- find the '(checks,defs)' s.t. 'f' in 'checks', then run
-        -- checker on '[(f, defs++checks - [f])]'.
-        go ("-c":f:flags)       cfg = error "-c FUN is not supported currently :("
-                                   -- go flags (cfg {toCheck=f:(toCheck cfg)})
-        go ("--dry-run":flags)  cfg = go flags (cfg {dryRun=True})
-        go ("--engine":e:flags) cfg = go flags (cfg {engine=e})
-        go ("-q":flags)         cfg = go flags (cfg {quiet=True})
-        go ("-v":flags)         cfg = go flags (cfg {verbose=True})
-        go ("-t":flags)         cfg = go flags (cfg {typeCheck = True})
-        go (f:flags)            cfg = error $ f ++": unrecognized option"
-        go []                   cfg = cfg
-
-        defaults = Conf { printTPTP=False, toCheck=[], dryRun=False
-                        , engine="equinox", quiet=False, verbose=False
-                        , idirs=["."], typeCheck=False
-                        }
-usage = unlines
-  [ "usage: ./Check FILE [-t] [-p] [-q] [-c FUN] [i DIR] [--dry-run] [--engine (equinox|vampire32|vampire64|SPASS|E|z3]"
-  , ""
-  , " * -t"
-  , "        run 'ghci' on the FILE. Useful to typecheck and to run functions."
-  , "        If you only want to typecheck, than add support for 'ghc -e <dummy>'."
-  , " * -p"
-  , "        write the first-order TPTP theory is written in files for each"
-  , "        contract proof (the name of the file is outputed on stdout)"
-  , " * -i DIR"
-  , "        add DIR to paths searched for imports. Import dirs are searched"
-  , "        in the order specified, with an implicit \".\" (current dir) first."
-  , " * -q"
-  , "        output nothing, not even the result (I use it to make time measurements"
-  , "        less painful)"
-  , " * -c FUN"
-  , "        check only the contract for FUN (and the contracts of functions"
-  , "        that are mutually recursive with FUN, if any), assuming"
-  , "        every other contract. If there is no -c option, all the contracts in"
-  , "        the file will be checked."
-  , " * --dry-run"
-  , "        prints the order in which contracts would be checked but doesn't"
-  , "        check anything. If used in conjunction with -p it'll still write"
-  , "        then tptp files."
-  , " * --engine (equinox|vampire32|vampire64|SPASS|E|z3)"
-  , "        choose the automated theorem prover to use as backend. More provers can"
-  , "        be easily added in ThmProver.hs"
-  , ""
-  -- XXX, MAYBE TODO: support module names on command line, in addition to paths.
-  , "NB: most options must come *after* the file name :P"
-  , ""
-  , "Default behaviour is '--engine equinox'.  The FILE should be a path,"
-  , "e.g. Foo/Bar/Baz.hs, not a module name, e.g. Foo.Bar.Baz.  GHC accepts"
-  , "both, so maybe we should too?"
-  ]
+conf = undefined
 
 main = do
-  ffs@(f:flags) <- getArgs
-  when ("-h" `elem` ffs || "--help" `elem` ffs) usageAndExit
-  let cfg = conf flags
-  when (typeCheck cfg) $ runGHCi f cfg
+  cfg <- getOpts
+  let f = file cfg
+  when (type_check cfg) $ runGHCi f cfg
   res <- checkFile cfg f
   if res
-    then unless (dryRun cfg || quiet cfg) $ putStrLn $ f ++ ": all the contracts hold."
+    then do
+    whenNormal $ unless (dry_run cfg) $
+      putStrLn $ f ++ ": all the contracts hold."
     else do
-    unless (quiet cfg) $ 
+    whenNormal $ 
       putStrLn $ "There's at least one contract in " ++ f ++ " that doesn't hold."
     exitWith $ ExitFailure 1
  where
-  usageAndExit = do
-    putStrLn usage
-    exitWith $ ExitFailure 1
   runGHCi f cfg = executeFile "ghci" usePATH args env
    where usePATH = True
          env = Nothing
@@ -177,21 +110,21 @@ check cfg f prog (checks,deps) | all null contracts = return True
       tmpFile = takeFileName f ++
                 "." ++ intercalate "-" fs ++
                 "." ++ fileExtension thy
-  unless (quiet cfg) $ do
+  whenNormal $ do
     putStrLn $ "Writing " ++ tmpFile
     putStrLn $ show fs ++ " are mutually recursive. Checking them altogether..."
   writeFile tmpFile (unlines [header thy defs,out,footer thy])
   hFlush stdout
-  res <- if not $ dryRun cfg
+  res <- if not $ dry_run cfg
     then do 
     out <- readProcess enginePath (engineOpts ++ [tmpFile]) ""
     let res = engineUnsat out
-    unless (quiet cfg) $ do
-      when (verbose cfg) $ putStrLn out
+    whenNormal $ do
+      whenLoud $ putStrLn out
       putStrLn $ if res then "OK :)" else "Not OK :("
     return res
     else return True
-  unless (printTPTP cfg) $
+  unless (print_TPTP cfg) $
     removeFile tmpFile
   return res
  where
