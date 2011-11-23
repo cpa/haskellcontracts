@@ -155,23 +155,44 @@ dTrans (H.Let f vs ce) = do
     -- Below we translate 'case e of [ci xsi -> ei]' to
     -- 
     --   min e /\ (
+    --         -- case BAD of ... ==> BAD
     --         (e = bad /\ f xs = bad) \/
-    --         (f xs = unr) \/
-    --         \/_i (exists xsi. ci xsi = pi /\ f xs = [[ ei ]]))
+    --         -- case ci xsi of ... c1 xsi -> ei ... ==> ei
+    --         (\/_i (exists xsi. ci xsi = e /\ f xs = [[ ei ]])) \/
+    --         -- if e /= bad /\ e /= ci xsi for any i then unr
+    --         (e /= bad /\
+    --          (/\_i (forall xsi. ci xsi /= e)) /\
+    --          f xs = unr))
     --
     -- where '[[ ei ]]' is a recursive occurrence of our self.  We
     -- freshen the 'xsi' to avoid capturing the 'xs'.
-    let badCase = F.And [eT :=: bad, full :=: bad]
-        unrCase = full :=: unr
-        conCase ((c,vs),ce) = do
+    --
+    -- NB: It's *not* OK to simplify the UNR case to 'f xs = unr'.  I
+    -- don't understand why it matters in proofs, but it does (I
+    -- implemented the simpler version first, and tests started
+    -- failing), and logically it's easy to see that the above is
+    -- stronger:
+    --
+    --   (A /\ B) \/ (~A /\ C) -> (A /\ B) \/ C
+    --
+    -- but the converse implication does not hold.  For us we have,
+    -- e.g., A := (e = BAD), B := (f xs = BAD), C := (f xs = UNR).
+
+        -- 'conCase (p,ce)' returns '(e /= p, e = p /\ f xs = ce)',
+        -- with the necessary translations and quantifications.
+    let conCase ((c,vs),ce) = do
           let vs' = makeFVs fvs vs
               vs'N = map nv vs'
               fullC = F.FullApp (Con c) vs'N
           -- substitute the fresh pattern variables before recursing.
           ceT <- go (vs'++fvs) $ H.substsCE (zip vs'N vs) ce
-          return $ F.exists vs' $ F.And [eT :=: fullC, ceT]
-    conCases <- mapM conCase pces
-    return $ F.And [F.Min eT, F.Or (badCase : unrCase : conCases)]
+          return (F.Forall vs' $        eT :/=: fullC
+                 ,F.exists vs' $ F.And [eT :=: fullC, ceT])
+    (nonConCases,conCases) <- unzip <$> mapM conCase pces
+    let conCaseIneqs = [ F.Not eq | F.And (eq:_) <- conCases ]
+        badCase = F.And [eT :=: bad, full :=: bad]
+        unrCase = F.And [eT :/=: bad, F.And nonConCases, full :=: unr]
+    return $ F.And [F.Min eT, F.Or $ [badCase] ++ conCases ++ [unrCase]]
 
 -- Contract translation
 -----------------------
