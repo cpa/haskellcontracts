@@ -15,7 +15,6 @@ getName (Proj _ v) = v
 
 def2Name :: DefGeneral -> Name
 def2Name (Def (Let f _ _))         = f
-def2Name (Def (LetCase f _ _ _))   = f
 def2Name (DataType (Data t _))     = t
 def2Name (ContSat (Satisfies f _)) = f
 
@@ -25,7 +24,6 @@ apps xs = foldl1 (:@:) xs
 arities :: Program -> [Arity]
 arities ds = concatMap go ds
   where go (Def (Let f vs _))       = [(f,length vs)]
-        go (Def (LetCase f vs _ _)) = [(f,length vs)]
         go (DataType (Data _ vacs)) = [(v,a) | (v,a,_) <- vacs]
         go _ = []
 
@@ -60,7 +58,9 @@ appifyExpr a e = go e []
 
 -- | Perform many substitutions, rightmost first.
 substs :: [(Expression, Name)] -> Expression -> Expression
-substs subs e = foldr (uncurry subst) e subs
+substs subs e    = foldr (uncurry subst) e subs
+substsC subs c   = foldr (uncurry substC) c subs
+substsCE subs ce = foldr (uncurry substCE) ce subs
 
 -- | 'subst e1 y e2' = e2[e1/y]
 --
@@ -75,13 +75,27 @@ subst e y (e1 :@: e2)        = (subst e y e1) :@: (subst e y e2)
 subst e y (FullApp f es)     = let Named f' = (subst e y (Named f))
                                in FullApp f' $ map (subst e y) es
 
-substsC :: [(Expression,Name)] -> Contract -> Contract
-substsC subs c = foldr (uncurry substC) c subs
-
 substC :: Expression -> Name -> Contract -> Contract
-substC x y (Arr u c1 c2) = Arr u (substC x y c1) (substC x y c2) -- TODO and if u==y the semantics aren't very clear.
+-- The choice to treat 'u' as bound in 'c1' here is motivated by the
+-- desire to simplify the predicate syntax: we currently write
+-- 'x:{x:p} -> c2' to bind 'x' in 'c2' and constrain it by 'p'.  It
+-- would be nicer to write 'x:{p} -> c2'.  Currently, it might make
+-- more sense to treat 'u' as bound in 'c2' only.
+substC x y a@(Arr mu c1 c2)
+  | Just u <- mu
+  , u == y                = a
+  | otherwise             = Arr mu (substC x y c1) (substC x y c2)
 substC x y (Pred u e)     = if u/=y then Pred u (subst x y e) else (Pred u e)
 substC x y (And c1 c2)    = And (substC x y c1) (substC x y c2)
 substC x y (Or c1 c2)     = Or (substC x y c1) (substC x y c2)
 substC x y CF             = CF 
 substC _ _ Any            = Any
+
+-- | 'subst' for case expressions.
+substCE e y (Base e') = Base $ subst e y e'
+substCE e y (Case e' pces) = Case (subst e y e') (map substP pces) where
+  -- Substitute into a case branch.  We stop if the pattern binds the
+  -- variables we our substituting.
+  substP pce@((c,vs),ce) = if y `elem` vs
+                           then pce
+                           else ((c,vs), substCE e y ce)

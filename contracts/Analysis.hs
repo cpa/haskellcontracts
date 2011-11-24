@@ -57,20 +57,13 @@ adjacencies defs = funAdjs ++ typeAdjs
  where
   -- Adjacency of a single function, but with term constructors still
   -- to be substituted.
-  adj d@(Def d') = (d,f,deps) where
-    (f,xs,e,mpes) = case d' of
-      Let     f xs e     -> (f,xs,e,Nothing)
-      LetCase f xs e pes -> (f,xs,e,Just pes)
-    -- Body/scrutinee and contract dependencies.
-    eDeps = freeVars xs e ++ allContFreeVars f where
-      allContFreeVars f = contFreeVars =<<
-                          [c | ContSat (Satisfies f' c) <- defs, f' == f]
+  adj d@(Def (Let f xs ce)) = (d,f,deps) where
+    -- Contract dependencies.
+    cDeps = freeVarsC =<<
+              [c | ContSat (Satisfies f' c) <- defs, f' == f]
     -- Pattern dependencies.
-    pDeps = case mpes of
-      Nothing -> []
-      -- Need the term constructors 'c' too, to get data type deps.
-      Just pes -> concat [c:freeVars (xs++ysi) ei | ((c,ysi),ei) <- pes]
-    deps = eDeps ++ pDeps
+    ceDeps = freeVarsCE xs ce
+    deps = cDeps ++ ceDeps
 
   funAdjsWithCons = map adj [d | d@(Def _) <- defs]
   -- Term constructor types.
@@ -132,7 +125,7 @@ orderedChecks defs = checkDeps where
                    . fstOf3 . qVertex2Adj       -- recover q nodes
 
 -- returns the variables used in a contract
-contFreeVars c = go [] c where
+freeVarsC c = go [] c where
   go xs (Arr mx c1 c2) = go xs' c1 ++ go xs' c2 where xs' = maybe xs (:xs) mx
   go xs (Pred x e)    = "Bool":freeVars (x:xs) e -- All preds depend on 'Bool'
   go xs (And c1 c2)   = go xs c1 ++ go xs c2
@@ -153,3 +146,9 @@ freeVars :: [Name] -> Expression -> [Name]
 freeVars xs (Named v) = if (getName v) `elem` xs then [] else [getName v]
 freeVars xs (e1 :@: e2) = freeVars xs e1 ++ freeVars xs e2
 freeVars xs (FullApp g es) = (getName g) : ((freeVars xs) =<< es)
+
+
+freeVarsCE bvs (Base e) = freeVars bvs e
+freeVarsCE bvs (Case e pces) =
+  freeVars bvs e ++ concat [ c : freeVarsCE (vs++bvs) ce
+                           | ((c,vs),ce) <- pces ]

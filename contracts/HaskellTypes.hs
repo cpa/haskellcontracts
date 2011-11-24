@@ -14,6 +14,7 @@ type Program = [DefGeneral]
 type Pattern = (Name, [Name])
 type Contract = MetaContract Expression
 type Definition = MetaDefinition Expression
+data Case = MetaCase Expression
 
 type Name = String
 -- | Things with names.  We don't include function "pointers" here
@@ -53,9 +54,17 @@ data MetaDefGeneral a = ContSat (MetaContSat a)
 data MetaContSat a = Satisfies Name (MetaContract a)
                    deriving (Show,Eq,Functor,Ord)
                
-data MetaDefinition a = Let Name [Name] a
-                      -- LetCase f xs e [(p_i,e_i)]_i ~ f xs = case e of [p_i -> e_i]_i
-                      | LetCase Name [Name] a [(Pattern,a)]
+-- | Expressions that might include 'case' matching.
+data MetaCase a
+    = Base a
+    -- ^ 
+    -- Case e pces@[(p1,ce1),...,(pk,cek)]
+    -- ==> 
+    -- case e of p1 -> ce1 ; ... ; pk -> cek
+    | Case a [(Pattern,MetaCase a)]
+    deriving (Show,Eq,Functor,Ord)
+
+data MetaDefinition a = Let Name [Name] (MetaCase a)
                       deriving (Show,Eq,Functor,Ord)
                   
 data MetaDataType a = Data Name [(Name,Int,MetaContract a)] -- Data constructors + arity + contract
