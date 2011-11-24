@@ -1,45 +1,15 @@
-{-# LANGUAGE DeriveFunctor #-}
+module FOL (module FOL, module FOLTypes) where
 
-module FOL (module FOL, module Haskell) where
-
-import qualified Haskell as H
-import Haskell (Name,Named,MetaNamed(..),Expression,MetaExpression(..),Arity,appifyExpr,getName)
 import Debug.Trace
 import Data.Char (toUpper)
 import Data.List (intercalate)
 
-type Term = Expression
-type Formula = MetaFormula Term
-type LabeledFormula = MetaLabeledFormula Formula
-data MetaLabeledFormula a = LabeledFormula { getLabel :: Label, getFormula :: a }
-                            deriving (Show, Eq, Functor)
-type Label = String
-
-infix 7 :<=>:
-infix 7 :=>:
-data MetaFormula a = Forall [Name] (MetaFormula a)
-                   | (MetaFormula a) :=>: (MetaFormula a)
-                   | (MetaFormula a) :<=>: (MetaFormula a)
-                   | Not (MetaFormula a)
-                   -- XXX: binary ':\/:' and ':/\:' would be more like
-                   -- TPTP
-                   | Or [MetaFormula a]
-                   | And [MetaFormula a]
-                   -- XXX: do we have any need for Top and Bottom?
-                   | Top
-                   | Bottom
-                   | a :=: a
-                   | a :/=: a
---                 | Pred Name a -- ^ Unary predicate. XXX: could unify CF and Min as Pred.
-                   | CF a
-                   | Min a
-                   deriving (Show,Eq,Functor)
--- cf = Pred "cf"
--- min = Pred "min"
-exists xs phi = Not $ Forall xs $ Not phi
+import qualified Haskell as H
+import Haskell (appifyExpr,getName)
+import Options (Conf(no_min))
+import FOLTypes
 
 -- forall a . x && y --> (forall a . x) && (forall a . y)
-
 splitOnAndLabeled :: LabeledFormula -> [LabeledFormula]
 splitOnAndLabeled (LabeledFormula lbl f)
   = [LabeledFormula (lbl++show i) f' | (i,f') <- zip [1..] (splitOnAnd f)]
@@ -93,10 +63,10 @@ removeConstants (And fs) = if any (==Bottom) fs' then Bottom else f
 removeConstants f = f
 
 
-
-
-simplify :: LabeledFormula -> [LabeledFormula]
-simplify = splitOnAndLabeled . fmap removeConstants -- . trivializeMin
+simplify :: Conf -> LabeledFormula -> [LabeledFormula]
+simplify cfg = splitOnAndLabeled . fmap removeConstants . maybeTrivializeMin
+ where
+  maybeTrivializeMin = if no_min cfg then fmap trivializeMin else id
 
 
 toTPTP :: LabeledFormula -> String

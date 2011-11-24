@@ -1,24 +1,10 @@
-module ThmProver where
+module ThmProver (module ThmProver, module ThmProverTypes) where
 
 import Data.List (isInfixOf)
 
-import Haskell as H
+--import Haskell as H
 import FOL as F
-
-data ThmProverOpt = T { path :: FilePath
-                      , opts :: [String]
-                      , unsat  :: String -> Bool
-                      , theory :: Theory
-                      }
-
-data Theory = Theory { 
-      showFormula :: F.LabeledFormula -> String
-    , header :: [H.DefGeneral] -> String
-    , fileExtension :: String
-    , footer :: String
-    }
-
-type ThmProver = (String,ThmProverOpt)
+import ThmProverTypes
 
 fof :: Theory
 fof = Theory {
@@ -35,42 +21,48 @@ smt2 = Theory {
          , footer = "(check-sat)"
          }
 
-unlabel (LabeledFormula _ e) = e
+unlabel (F.LabeledFormula _ e) = e
 
-provers :: [ThmProver]
-provers = [ ("equinox", T "equinox"
-                          []
-                          ("Unsatisfiable" `isInfixOf`)
-                          fof
-            )
-          , ("SPASS", T "SPASS"
-                        ["-PProblem=0","-PGiven=0","-TPTP"]
-                        ("Proof found" `isInfixOf`)
+provers :: [(ThmProver, ThmProverConf)]
+provers = [ (Equinox, ThmProverConf
+                        "equinox"
+                        []
+                        ("Unsatisfiable" `isInfixOf`)
                         fof
+            )
+          , (SPASS, ThmProverConf
+                      "SPASS"
+                      ["-PProblem=0","-PGiven=0","-TPTP"]
+                      ("Proof found" `isInfixOf`)
+                      fof
             )
           -- I can't locate any vampire usage docs, and '-h' and
           -- '--help' don't work :P From the CASC competition page I
           -- found that '-t <time>' can be used to time limit vampire.
           -- Experience shows that, by default, vampire has a 60
           -- second time limit.
-          , ("vampire32", T "vampire_lin32"
+          , (Vampire32, ThmProverConf
+                          "vampire_lin32"
                           ["--mode", "casc" ,"--input_file"]
                           ("SZS status Unsatisfiable" `isInfixOf`)
                           fof
             )
-          , ("vampire64", T "vampire_lin64"
+          , (Vampire64, ThmProverConf
+                          "vampire_lin64"
                           ["--mode", "casc" ,"--input_file"]
                           ("SZS status Unsatisfiable" `isInfixOf`)
                           fof
             )
-          , ("E", T "eprover"
-                    ["--tstp-format","-s"]
-                    ("Unsatisfiable" `isInfixOf`)
-                    fof
+          , (E, ThmProverConf
+                  "eprover"
+                  ["--tstp-format","-s"]
+                  ("Unsatisfiable" `isInfixOf`)
+                  fof
             )
-          , ("z3", T "z3"
-                     ["-nw","-smt2"]
-                     ("unsat" `isInfixOf`)
-                     smt2
+          , (Z3, ThmProverConf
+                   "z3"
+                   ["-nw","-smt2"]
+                   ("unsat" `isInfixOf`)
+                   smt2
             )
           ]
