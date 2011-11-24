@@ -1,3 +1,4 @@
+{-# LANGUAGE ParallelListComp #-}
 module Main where
 
 import Control.Exception (assert)
@@ -8,10 +9,10 @@ import Data.Maybe (fromJust)
 import System.Environment (getArgs)
 import System.IO (hFlush,stdout)
 import System.Exit (exitWith,ExitCode (ExitFailure))
-import System.Process (system,readProcess)
+import System.Process (system,readProcess,rawSystem,readProcessWithExitCode)
 import System.Directory (removeFile,doesFileExist)
 import System.FilePath (takeFileName,joinPath,(</>),(<.>))
-import System.Posix.Process (executeFile)
+import System.Posix.Process (exitImmediately)
 import System.Console.CmdArgs.Verbosity
 
 import Analysis (orderedChecks)
@@ -22,12 +23,12 @@ import FOL (toTPTP,simplify)
 import ThmProver
 import Options (Conf(..),getOpts)
 
-conf = undefined
-
+-- XXX: Might want to put 'cfg' in a 'State'.
 main = do
   cfg <- getOpts
   let f = file cfg
-  when (type_check cfg) $ runGHCi f cfg
+  when (ghci cfg) $ runGHCi cfg f
+  when (type_check cfg) $ tc cfg f
   res <- checkFile cfg f
   if res
     then do
@@ -38,18 +39,50 @@ main = do
       putStrLn $ "There's at least one contract in " ++ f ++ " that doesn't hold."
     exitWith $ ExitFailure 1
  where
-  runGHCi f cfg = executeFile "ghci" usePATH args env
-   where usePATH = True
-         env = Nothing
-         args = ["-XNoImplicitPrelude", idirs', f]
-         idirs' = "-i"++intercalate ":" (idirs cfg)
+  args cfg file = ["-XNoImplicitPrelude", idirs' cfg, file]
+  idirs' cfg = "-i"++intercalate ":" (idirs cfg)
+
+  run cmd args = exitImmediately =<< rawSystem cmd args
+
+  runGHCi cfg f = run "ghci" (args cfg f)
+  -- Pretty hackish: concatenate the "compiled" contracts to the end
+  -- of the source file containing the "raw" contracts, and then ask
+  -- GHC to typecheck the result.
+  tc cfg f = do
+    haskell <- readFile f
+    let defs = parse haskell
+    let contracts = [ c | ContSat (Satisfies _ c) <- defs ]
+    let contracts' = map contract2Haskell contracts
+    let haskell' = unlines [ "__contract__"++show i++" = "++s
+                           | s <- contracts'
+                           | i <- [(1::Int)..] ]
+    let tempFile = f++".tc.hs" -- GHC complains if the input file doesn't end in ".hs" :P
+    writeFile tempFile $
+      unlines [ haskell
+              , ""
+              , "{- ##### CONTRACTS ##### -}"
+              , ""
+              , haskell'
+              -- GHC wants a 'main' when I don't use '-c', and '-c'
+              -- caused other problems.
+              , "main = main"]
+    let args' = "-fno-code" : args cfg tempFile
+    whenLoud $
+      putStrLn $ "Running:\n  ghc "++intercalate " " args'
+    (code,out,err) <- readProcessWithExitCode "ghc" args' ""
+    whenLoud $
+      putStr $ out
+    whenNormal $
+      putStr $ err
+    unless (keep_tmps cfg) $
+      removeFile tempFile
+    exitImmediately code
 
 -- | Load a source file, recursively loading imports.
 loadFile :: Conf -> FilePath -> IO Program
 loadFile cfg f = do
-  s <- readFile f
-  let p = haskell $ lexer s
-  concat <$> mapM recLoadFile p
+  defs <- parse <$> readFile f
+  concat <$> mapM recLoadFile defs
  where
   -- Expand imports to a list of their declarations.
   --
@@ -123,7 +156,7 @@ check cfg f prog (checks,deps) | all null contracts = return True
       putStrLn $ if res then "OK :)" else "Not OK :("
     return res
     else return True
-  unless (print_TPTP cfg) $
+  unless (keep_tmps cfg) $
     removeFile tmpFile
   return res
  where

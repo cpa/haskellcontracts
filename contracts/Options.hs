@@ -8,19 +8,22 @@ import Data.List (intercalate)
 
 import ThmProverTypes
 
-data Conf = Conf { print_TPTP   :: Bool
+data Conf = Conf { keep_tmps    :: Bool
                  , only_check   :: [String] 
                  , dry_run      :: Bool 
                  , engine       :: ThmProver
                  , idirs        :: [FilePath] -- "Include" directories
-                 , type_check   :: Bool -- 'True' if we just want to run ghci
+
+                 , ghci         :: Bool
+                 , type_check   :: Bool
+
                  , no_min       :: Bool
                  , file         :: FilePath
                  } deriving (Show, Data, Typeable)
 
 getOpts = cmdArgs $ Conf 
-  { print_TPTP = def
-    &= help "Write first-order theories to FILE.<f1>-...-<fn>.tptp for each mutually dependent set {<f1>,...<fn>} of functions in FILE. These are the files given as input to the theorem prover (E.g. Equinox)."
+  { keep_tmps = def
+    &= help "Keep temporary files. For contract checking, this means write first-order theories to FILE.<f1>-...-<fn>.tptp for each mutually dependent set {<f1>,...<fn>} of functions in FILE. These are the files given as input to the theorem prover (E.g. Equinox).  For type checking, this means write FILE.tc.hs containing FILE and the compiled versions of FILE's contracts."
 
   -- XXX: this mode is disabled.
   --
@@ -54,8 +57,11 @@ getOpts = cmdArgs $ Conf
     &= typDir
     &= help "Add DIR to the paths searched for imports. This option may be specified multiple times. Import dirs are searched in the order specified, with an implicit \".\" (current dir) first."
 
+  , ghci = def
+    &= help "Load FILE into GHCi, instead of checking its contracts. Useful to typecheck and to run functions."
+
   , type_check = def
-    &= help "Load FILE into GHCi, instead of checking its contracts. Useful to typecheck and to run functions. If you only want to typecheck, than add support for 'ghc -e <dummy>'."
+    &= help "Type check FILE using GHC. This includes typechecking the contracts."
 
   , no_min = def
     &= help "Don't use the 'min' predicate in the translation. This should degrade performance, but makes the resulting theory file much easier to read, and can be used to debug changes to 'min' placement, e.g. to check if they are too restrictive."

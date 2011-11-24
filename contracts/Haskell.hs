@@ -99,3 +99,23 @@ substCE e y (Case e' pces) = Case (subst e y e') (map substP pces) where
   substP pce@((c,vs),ce) = if y `elem` vs
                            then pce
                            else ((c,vs), substCE e y ce)
+
+
+
+-- | Generate a Haskell function 'f' from a contract 'c', s.t. if 'f'
+-- type checks then 'c' would too.
+--
+-- This is a simple hack.  We compile binders in contracts to lambda
+-- binders, ignore CF and Any, and compile predicates to themselves.
+contract2Haskell = go where
+  go CF             = "()"
+  go Any            = "()"
+  go (Or c1 c2)     = "("++go c1++", "++go c2++")"
+  go (And c1 c2)    = go (Or c1 c2)
+  go (Pred x e)     = "(\\"++x++" -> "++goE e++")"
+  go (Arr mx c1 c2) = "(\\"++maybe "_" id mx++" -> "++go (Or c1 c2)++")"
+
+  -- haskell2Haskell :P
+  goE (Named v)      = getName v
+  goE (e1 :@: e2)    = "("++goE e1++" "++goE e2++")"
+  goE (FullApp v es) = goE $ foldl (:@:) (Named v) es
