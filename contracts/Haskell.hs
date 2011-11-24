@@ -76,7 +76,15 @@ subst e y (FullApp f es)     = let Named f' = (subst e y (Named f))
                                in FullApp f' $ map (subst e y) es
 
 substC :: Expression -> Name -> Contract -> Contract
-substC x y (Arr u c1 c2) = Arr u (substC x y c1) (substC x y c2) -- TODO and if u==y the semantics aren't very clear.
+-- The choice to treat 'u' as bound in 'c1' here is motivated by the
+-- desire to simplify the predicate syntax: we currently write
+-- 'x:{x:p} -> c2' to bind 'x' in 'c2' and constrain it by 'p'.  It
+-- would be nicer to write 'x:{p} -> c2'.  Currently, it might make
+-- more sense to treat 'u' as bound in 'c2' only.
+substC x y a@(Arr mu c1 c2)
+  | Just u <- mu
+  , u == y                = a
+  | otherwise             = Arr mu (substC x y c1) (substC x y c2)
 substC x y (Pred u e)     = if u/=y then Pred u (subst x y e) else (Pred u e)
 substC x y (And c1 c2)    = And (substC x y c1) (substC x y c2)
 substC x y (Or c1 c2)     = Or (substC x y c1) (substC x y c2)
