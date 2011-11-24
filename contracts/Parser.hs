@@ -2,6 +2,7 @@
 module Parser where
 import Data.Char
 import Haskell
+import Prelude hiding (lex)
 
 -- parser produced by Happy Version 1.18.6
 
@@ -862,54 +863,54 @@ data Token = TokenCase
            | TokenPragmaC
            deriving (Eq,Show)
 
-lexer :: String -> [Token]
-lexer [] = []
+lex :: String -> [Token]
+lex [] = []
 -- Skip lines we don't care about.
 --
 -- XXX: this is pretty ad-hoc.  Maybe better to use CPP?  Can't use
 -- '{-# SKIP #-}' because GHC complains about 'Unrecognized pragma'.
-lexer ('{':'-':' ':'S':'K':'I':'P':' ':'-':'}':cs) = lexer . skip $ skip cs
+lex ('{':'-':' ':'S':'K':'I':'P':' ':'-':'}':cs) = lex . skip $ skip cs
 -- We don't use '{- SKIP -}' here since we may want to support module
 -- names later and it would annoying to remove all the {- SKIP -}'s.
-lexer ('m':'o':'d':'u':'l':'e':cs) = lexer $ skip cs
-lexer ('=':cs) = TokenEquals : lexer cs
-lexer (':':':':':':cs) = TokenSatisfies : lexer cs
-lexer (':':cs) = TokenColon : lexer cs
-lexer ('|':'|':cs) = TokenOr : lexer cs
-lexer ('&':'&':cs) = TokenAnd : lexer cs
-lexer ('-':'>':cs) = TokenArrow : lexer cs
+lex ('m':'o':'d':'u':'l':'e':cs) = lex $ skip cs
+lex ('=':cs) = TokenEquals : lex cs
+lex (':':':':':':cs) = TokenSatisfies : lex cs
+lex (':':cs) = TokenColon : lex cs
+lex ('|':'|':cs) = TokenOr : lex cs
+lex ('&':'&':cs) = TokenAnd : lex cs
+lex ('-':'>':cs) = TokenArrow : lex cs
 -- The POPL 09 syntax.
-lexer ('{':'-':'#':' ':'C':'O':'N':'T':'R':'A':'C':'T':cs)
-  = TokenContractPragmaO : lexer cs
-lexer ('#':'-':'}':cs) = TokenPragmaC : lexer cs
-lexer ('{':cs) = TokenCurlyO : lexer cs
-lexer ('}':cs) = TokenCurlyC : lexer cs
-lexer ('(':cs) = TokenParenO : lexer cs
-lexer (')':cs) = TokenParenC : lexer cs
-lexer (';':';':cs) = TokenDoubleSep : lexer cs
-lexer (';':cs) = TokenSingleSep : lexer cs
-lexer ('|':cs) = TokenPipe : lexer cs
-lexer (',':cs) = TokenComma : lexer cs
-lexer ('.':cs) = TokenDot : lexer cs
-lexer ('\'':_) = error "Single quotes (\"'\") are not allowed in source files :P"
+lex ('{':'-':'#':' ':'C':'O':'N':'T':'R':'A':'C':'T':cs)
+  = TokenContractPragmaO : lex cs
+lex ('#':'-':'}':cs) = TokenPragmaC : lex cs
+lex ('{':cs) = TokenCurlyO : lex cs
+lex ('}':cs) = TokenCurlyC : lex cs
+lex ('(':cs) = TokenParenO : lex cs
+lex (')':cs) = TokenParenC : lex cs
+lex (';':';':cs) = TokenDoubleSep : lex cs
+lex (';':cs) = TokenSingleSep : lex cs
+lex ('|':cs) = TokenPipe : lex cs
+lex (',':cs) = TokenComma : lex cs
+lex ('.':cs) = TokenDot : lex cs
+lex ('\'':_) = error "Single quotes (\"'\") are not allowed in source files :P"
 -- Discard comments.
-lexer ('-':'-':cs) = lexer $ skip cs
-lexer (c:cs) 
-      | isSpace c = lexer cs
+lex ('-':'-':cs) = lex $ skip cs
+lex (c:cs) 
+      | isSpace c = lex cs
       | isAlpha c = lexVar (c:cs)
       | isDigit c = error "We don't lex numbers currently!" -- lexInt (c:cs)
 {-
-lexInt cs = TokenInt (read num) : lexer rest
+lexInt cs = TokenInt (read num) : lex rest
       where (num,rest) = span isDigit cs
 -}
-lexer cs = error $ "Don't know how to lex: "++(head . lines $ cs)
+lex cs = error $ "Don't know how to lex: "++(head . lines $ cs)
 
 skip cs = let cs' = dropWhile (/= '\n') cs
           in if not (null cs')
              then tail cs' -- Drop the newline, if any.
              else ""
 
-lexVar (c:cs) = token : lexer rest where
+lexVar (c:cs) = token : lex rest where
   (var,rest) = span (\x -> isAlpha x || x == '_' || isDigit x) (c:cs)
   token = case var of
     "data"   -> TokenData
@@ -920,7 +921,9 @@ lexVar (c:cs) = token : lexer rest where
     "import" -> TokenImport
     _        -> (if isUpper c then TokenCon else TokenVar) var
 
-main = getContents >>= print . haskell . lexer
+parse = haskell . lex
+
+main = getContents >>= print . parse
 {-# LINE 1 "templates/GenericTemplate.hs" #-}
 {-# LINE 1 "templates/GenericTemplate.hs" #-}
 {-# LINE 1 "<built-in>" #-}
