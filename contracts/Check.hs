@@ -39,7 +39,7 @@ main = do
       putStrLn $ "There's at least one contract in " ++ f ++ " that doesn't hold."
     exitWith $ ExitFailure 1
  where
-  args cfg file = [ "-fno-warn-unrecognized-pragma"
+  args cfg file = [ "-fno-warn-unrecognised-pragmas"
                   , "-XNoImplicitPrelude"
                   , idirs' cfg
                   , file ]
