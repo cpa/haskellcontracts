@@ -3,11 +3,13 @@ module FOL (module FOL, module FOLTypes) where
 import Debug.Trace
 import Data.Char (toUpper)
 import Data.List (intercalate)
+import Control.Monad.State (gets)
 
 import qualified Haskell as H
 import Haskell (appifyExpr,getName)
 import Options (Conf(no_min))
 import FOLTypes
+import TranslationTypes
 
 unlabel (LabeledFormula _ e) = e
 
@@ -194,3 +196,8 @@ showDefsSMTLIB defs = unlines $ cf:app:unr:bad:map showDef arities where
 -- and returns those formulas using "full application" wherever possible
 appify :: [Arity] -> LabeledFormula -> LabeledFormula
 appify a = fmap (fmap $ appifyExpr a)
+
+appifyF :: Formula -> Fresh Formula
+appifyF f = do
+  a <- gets arities
+  return $ fmap (appifyExpr a) f

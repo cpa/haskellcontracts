@@ -4,7 +4,7 @@
 -- dependencies.
 module FOLTypes (module FOLTypes, module HaskellTypes) where
 
-import HaskellTypes (Name,Named,MetaNamed(..),Expression,MetaExpression(..),Arity)
+import HaskellTypes (Name,Named,MetaNamed(..),Expression,MetaExpression(..))
 
 type Term = Expression
 type Formula = MetaFormula Term

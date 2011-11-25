@@ -5,6 +5,7 @@ module Haskell (module Haskell, module HaskellTypes) where
 import Data.Maybe (isJust)
 
 import HaskellTypes
+import TranslationTypes (Arity)
 
 -- | Projector for Named
 getName :: Named -> Name

@@ -4,8 +4,6 @@
 -- dependencies.
 module HaskellTypes where
 
-type Arity = (Name,Int)
-
 -- All this meta stuff is just here to allow me to derive functors for free.
 type DataType = MetaDataType Expression
 type Expression = MetaExpression Named

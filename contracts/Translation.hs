@@ -3,9 +3,12 @@ module Translation where
 -- XXX: nc did not do a very good job of imposing a fake distinction
 -- between FOL and Haskell by e.g. using F.Var vs H.Var.
 import qualified Haskell as H
-import Haskell (Name,Named,MetaNamed(..),Expression,MetaExpression(..),Arity)
+import Haskell (Name,Named,MetaNamed(..),Expression,MetaExpression(..))
 import qualified FOL as F
 import FOL (MetaFormula(..))
+--import HaskellTypes
+import TranslationTypes
+
 import Control.Monad.State
 import Data.List (partition, intercalate)
 import Data.Char (toUpper)
@@ -14,17 +17,6 @@ import Control.Exception (assert)
 import Control.Arrow (second)
 
 --import Debug.Trace (traceShow)
-
-type Fresh = State TransState
-data TransState = S { prefix  :: String -- the prefix of our fresh variables
-                    , count   :: Int    -- a counter for the suffix of our fresh variables
-                    , arities :: [Arity] -- The arities of functions/data constructors in the program, which should be read-only
-                      -- We save this up during processing because we
-                      -- need to conjoin all at the end.  An
-                      -- alternative would be tag formulas with their
-                      -- Plus / Minus status.
-                    , getGoals :: [F.LabeledFormula] -- ^ translated goal contracts
-                    }
 
 -- Utilities
 ------------
@@ -205,6 +197,7 @@ dual Minus = Plus
 cTrans :: Variance -> H.Expression -> H.Contract -> Fresh F.LabeledFormula
 cTrans v e c = appify =<< (F.LabeledFormula "cTrans" <$> cTrans' v e c)
 
+cTrans' :: Variance -> H.Expression -> H.Contract -> Fresh F.Formula
 cTrans' _ e H.Any = return Top
 
 cTrans' v e (H.Pred x p) =  do
@@ -301,7 +294,7 @@ phi_disjoint (H.Data _ dns) = map f $ zip dns (tail dns) where
 
 -- Axiom: Term constructors are CF (Phi_3 in paper).
 phi_cf (H.Data _ dns) = concat <$> mapM f dns where
-  f (c,a,_) =
+  f (c,a,_) = do
     let xs = makeVars a "X"
         xsN = map (Named . Var) xs
         full = F.FullApp (Con c) xsN
@@ -310,12 +303,12 @@ phi_cf (H.Data _ dns) = concat <$> mapM f dns where
         cfs = replicate (a+1) H.CF
         -- CF^a -> CF
         contract = foldr1 (H.Arr Nothing) cfs
-    in do
-       cfc <- cTrans' Minus cN contract
-       let phi = F.Forall xs $ F.Min full :=>:
+       -- DESIGN CHOICE: appification.
+    cfc <- F.appifyF =<< cTrans' Minus cN contract
+    let phi = F.Forall xs $ F.Min full :=>:
                        (F.CF full
                        :=>: (F.And [F.CF x | x <- xsN]))
-       return [phi,cfc]
+    return [phi,cfc]
 -- Axiom: Term constructors are total/lazy (Phi_4 in paper).
 phi_total (H.Data _ dns) = map f dns where
   f (c,a,_) =
