@@ -15,13 +15,11 @@ fof = Theory {
       }
 smt2 :: Theory
 smt2 = Theory {
-           showFormula = F.toSMTLIB . unlabel
+           showFormula = F.toSMTLIB . F.unlabel
          , header = F.showDefsSMTLIB
          , fileExtension = "smt2"
          , footer = "(check-sat)"
          }
-
-unlabel (F.LabeledFormula _ e) = e
 
 provers :: [(ThmProver, ThmProverConf)]
 provers = [ (Equinox, ThmProverConf

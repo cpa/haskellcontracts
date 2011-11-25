@@ -78,4 +78,3 @@ data MetaContract a = Arr (Maybe Name) (MetaContract a) (MetaContract a)
                     | CF
                     | Any -- XXX: 'Any' is just '{x:True}', yeah?
                     deriving (Show,Eq,Functor,Ord)
-

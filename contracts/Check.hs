@@ -39,7 +39,10 @@ main = do
       putStrLn $ "There's at least one contract in " ++ f ++ " that doesn't hold."
     exitWith $ ExitFailure 1
  where
-  args cfg file = ["-XNoImplicitPrelude", idirs' cfg, file]
+  args cfg file = [ "-fno-warn-unrecognized-pragma"
+                  , "-XNoImplicitPrelude"
+                  , idirs' cfg
+                  , file ]
   idirs' cfg = "-i"++intercalate ":" (idirs cfg)
 
   run cmd args = exitImmediately =<< rawSystem cmd args

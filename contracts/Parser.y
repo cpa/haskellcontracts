@@ -139,11 +139,11 @@ lex :: String -> [Token]
 lex [] = []
 -- Skip lines we don't care about.
 --
--- XXX: this is pretty ad-hoc.  Maybe better to use CPP?  Can't use
--- '{-# SKIP #-}' because GHC complains about 'Unrecognized pragma'.
-lex ('{':'-':' ':'S':'K':'I':'P':' ':'-':'}':cs) = lex . skip $ skip cs
--- We don't use '{- SKIP -}' here since we may want to support module
--- names later and it would annoying to remove all the {- SKIP -}'s.
+-- XXX: this is pretty ad-hoc.  Maybe better to use CPP?  Use
+-- '-fno-warn-unrecognized-pragmas' to avoid GHC's whining.
+lex ('{':'-':'#':' ':'S':'K':'I':'P':' ':'#':'-':'}':cs) = lex . skip $ skip cs
+-- We don't use '{-# SKIP #-}' here since we may want to support module
+-- names later and it would annoying to remove all the '{-# SKIP #-}'s.
 lex ('m':'o':'d':'u':'l':'e':cs) = lex $ skip cs
 lex ('=':cs) = TokenEquals : lex cs
 lex (':':':':':':cs) = TokenSatisfies : lex cs

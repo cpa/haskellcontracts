@@ -9,6 +9,8 @@ import Haskell (appifyExpr,getName)
 import Options (Conf(no_min))
 import FOLTypes
 
+unlabel (LabeledFormula _ e) = e
+
 -- forall a . x && y --> (forall a . x) && (forall a . y)
 splitOnAndLabeled :: LabeledFormula -> [LabeledFormula]
 splitOnAndLabeled (LabeledFormula lbl f)
