@@ -1,3 +1,9 @@
+# Links
+
+Mailing list: http://groups.google.com/group/haskellcontracts
+
+Wiki: https://github.com/cpa/haskellcontracts/wiki
+
 # Install
 
 1. Install dependencies:
