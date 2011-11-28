@@ -261,11 +261,17 @@ phi_project (H.Data _ dns) = map f dns where
   f (c,a,_) =
     let xs = makeVars a "X"
         xsN = map (Named . Var) xs
+        fullC = F.FullApp (Con c) xsN
         fullProj i e = F.FullApp (Proj i c) e
-        fullProjK i = fullProj i [F.FullApp (Con c) xsN]
+        fullProjK i = fullProj i [fullC]
     -- XXX: the paper has 'min(c(xs))', but that can't be right ?
-        projectCorrect = F.Forall xs $ F.And [F.Min (fullProjK i) :=>: (fullProjK i :=: x)
-                                             | (x,i) <- zip xsN [1..a]]
+
+    -- UPDATE: actually, it is :P interest in the constructor
+    -- application lets you invert!
+        projectCorrect = F.Forall xs $
+          F.And [ F.Or[F.Min (fullProjK i),F.Min(fullC)] 
+                  :=>: (fullProjK i :=: x)
+                | (x,i) <- zip xsN [1..a]]
         -- XXX,DESIGN CHOICE: no mins. This axiom slowed down Equinox,
         -- do we really want it?
         --
