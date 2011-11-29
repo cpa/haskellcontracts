@@ -648,7 +648,7 @@ $$\ktrans{\mbox{data } T = K_1 ~a_1, \dots, K_n ~a_n} = \phi_\text{projection} \
  \hspace{5.6cm}where
   \begin{center}
     \[  \begin{array}{rcl}
-      \phi_\text{projection} &=& \bigwedge_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = \full{K}_i(\vec{x})) \to \bigwedge_{1 \leq j \leq a_i} x_j = sel_{j,K_i}(a) \text{\note[nc]{??? $\min{a}$ or $\min{sel_{j,K_i}{a}}$? UPDATE: now using "either".}}\\
+      \phi_\text{projection} &=& \bigwedge_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = \full{K}_i(\vec{x})) \to \bigwedge_{1 \leq j \leq a_i} x_j = sel_{j,K_i}(a) \text{\note[nc]{??? $\min{a}$ or $\min{sel_{j,K_i}(a)}$? UPDATE: either!}}\\
       \phi_\text{disjoint} &=& \bigwedge_{1 \leq i < j \leq n}~\forall \vec{x},\vec{y},a.~ \lnot (\min{a} \land a = \full{K}_i(\vec{x}) \land a = \full{K}_j(\vec{y})) \\
       \phi_\text{cf} &=& 
         \bigwedge_{1 \leq i \leq n}~\ctrans{K_i \in \cfc^{a_i} \to \cfc}^- 
@@ -657,7 +657,13 @@ $$\ktrans{\mbox{data } T = K_1 ~a_1, \dots, K_n ~a_n} = \phi_\text{projection} \
       \phi_\text{lazy} &=& \bigwedge_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = \full{K}_i(\vec{x})) \to a \neq \unr \land a \neq \bad 
     \end{array} \]
   \end{center}
-  \caption{$\ktrans{}$ -- Data type translation\note[nc]{Need $\min{a}$ to be sufficient for unfolding in $\phi_\text{projection}$ to get invertability of constructors!}}
+  \caption{$\ktrans{}$ -- Data type translation\note[nc]{Need
+      $\min{a}$ to be sufficient for unfolding in
+      $\phi_\text{projection}$ to get invertability of constructors!
+      On the other hand, in a translation of case expressions based on
+      projectors, we probably need $\min{sel_{j,K_i}(a)}$ to be
+      sufficient for unfolding.  So, we make both sufficient in the
+      implementation: $\min{a} \lor \min{sel_{j,K_i}(a)}$.}}
   \label{ktrans}
 \end{figure*}
 
