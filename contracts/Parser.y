@@ -32,6 +32,7 @@ import Prelude hiding (lex)
         '('   {TokenParenO}
         ')'   {TokenParenC}
 --        ','   {TokenComma}
+        '`'   {TokenBackTick}
         cf    {TokenCF}
         '||'  {TokenOr}
         '&&'  {TokenAnd}
@@ -59,6 +60,7 @@ Named : con {Con $1} | var {Var $1} -- constructor | constant.
 Module : sep1(con,'.') { $1 }
 
 General : var Vars '=' CaseExpr                { Def $ Let $1 $2 $4 }
+        | var '`' var '`' Vars '=' CaseExpr    { Def $ Let $3 ($1:$5) $7 }
         | '{-# CONTRACT' var ':::' Contr '#-}' { ContSat $ Satisfies $2 $4 }
 -- XXX: do we actually support parameterized types?
         | data con Vars '=' ConDecls           { DataType $ Data $2 $5 }
@@ -77,7 +79,7 @@ Pattern  : con Vars                           { ($1, $2) }
 PatExpr  : Pattern '->' CaseExpr              { ($1, $3) }
 CaseExpr : Expr                               { Base $1 }
          | case Expr of
-          '{' list(snd(';', PatExpr)) '}'           { Case $2 $5 }
+          '{' list(snd(';', PatExpr)) '}'     { Case $2 $5 }
 
 -- 'Any' here is the constructor contract.  Not currently used, but
 -- some 'assert's compare terms for equality, which looks at this
@@ -87,8 +89,16 @@ ConDecls : sep(ConDecl,'|') { $1 }
 
 Atom : Named        { Named $1 }
      | '(' Expr ')' { $2 }
-Expr : Expr Atom    { $1 :@: $2 }
-     | Atom         { $1 }
+-- Apply expression
+AExpr : AExpr Atom  { $1 :@: $2 }
+      | Atom        { $1 }
+-- Infix expression.
+--
+-- No associativity for `infix` application: use parens to
+-- disambiguate.
+Expr : AExpr '`' Named '`' AExpr { (Named $3 :@: $1) :@: $5 }
+     | AExpr                     { $1 }
+
 -- Q: there was a commented out FullApp rule.  Might be better to
 -- only allow FullApp, until we add support for the "function pointer"
 -- translation?
@@ -129,6 +139,7 @@ data Token = TokenCase
            | TokenCurlyO
            | TokenCurlyC
            | TokenComma
+           | TokenBackTick
            | TokenOr
            | TokenAnd
            | TokenContractPragmaO
@@ -161,6 +172,7 @@ lex (';':cs) = TokenSingleSep : lex cs
 lex ('|':cs) = TokenPipe : lex cs
 lex (',':cs) = TokenComma : lex cs
 lex ('.':cs) = TokenDot : lex cs
+lex ('`':cs) = TokenBackTick : lex cs
 lex ('\'':_) = error "Single quotes (\"'\") are not allowed in source files :P"
 -- Discard comments.
 lex ('-':'-':cs) = lex $ skip cs
