@@ -18,7 +18,7 @@ data ThmProverConf = ThmProverConf
   }
 
 data Theory = Theory
-  { showFormula :: F.LabeledFormula -> String
+  { showFormula :: [F.LabeledFormula] -> String
   , header :: [H.DefGeneral] -> String
   , fileExtension :: String
   , footer :: String

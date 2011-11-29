@@ -4,6 +4,7 @@ import Debug.Trace
 import Data.Char (toUpper)
 import Data.List (intercalate)
 import Control.Monad.State (gets)
+import Text.PrettyPrint.HughesPJ
 
 import qualified Haskell as H
 import Haskell (appifyExpr,getName)
@@ -73,8 +74,8 @@ simplify cfg = splitOnAndLabeled . fmap removeConstants . maybeTrivializeMin
   maybeTrivializeMin = if no_min cfg then fmap trivializeMin else id
 
 
-toTPTP :: LabeledFormula -> String
-toTPTP (LabeledFormula l f) = header ++ "\n" ++ go [] f ++ "\n" ++ footer
+toTPTP :: LabeledFormula -> Doc
+toTPTP (LabeledFormula l f) = fof
   -- XXX, MAYBE TODO: add better header or comments. Right now the first "axiom"
   -- below is the name of the axiom.  The TPTP format also allows optional 4th and
   -- 5th fields for comments.  Would be nice to see each formula labeled with its
@@ -85,44 +86,63 @@ toTPTP (LabeledFormula l f) = header ++ "\n" ++ go [] f ++ "\n" ++ footer
   -- light on documentation, but the source might be worth a look.  It
   -- handles comments/annotations.  Curious to see if it handles
   -- quoting and case conversion automatically.
-  where header = "fof("++l++",axiom,"
-        footer = ").\n"
+  where fof = text "fof"
+              <> (parens $ vcat $ punctuate comma [text l,text "axiom",body]) 
+              <> text "."
+        body = go [] f
+
+        -- n-ary infix operator 'op' with recursive pretty printer
+        -- 'rec' and arguments 'fs'.  'n = length fs'.
+        nary rec qs op fs = parens $ sep $ prepunctuate op (map (rec qs) fs)
+        -- specialized to textual operators
+        naryText rec qs t fs = nary rec qs (text t) fs
+        naryF = naryText go
+        naryT = naryText goTerm
+        -- n-ary function application
+        fun qs f args = f <> nary goTerm qs comma args
+
+        prepunctuate sep [d] = [d]
+        prepunctuate sep (d:ds) = d : map (sep <+>) ds
         -- 'go qs f' converts formula 'f' to TPTP syntax, assuming
         -- 'qs' are the names of the quantified variables in 'f'.
-        go qs (Forall xs f) = "(! " ++ goQList xs
-                              ++ " : "++go (xs++qs) f ++ ")"
-        go qs (f1 :=>: f2) = "(" ++ go qs f1 ++ " => " ++ go qs f2 ++ ")"
-        go qs (f1 :<=>: f2) = "(" ++ go qs f1 ++ " <=> " ++ go qs f2 ++ ")"
-        go qs (Not (t1 :=: t2)) =  "("++goTerm qs t1 ++ " != " ++ goTerm qs t2++")"
-        go qs (Not f) = "~(" ++ go qs f ++ ")"
-        go qs (Or fs) = "(" ++ (intercalate " | " (map (go qs) fs)) ++ ")"
-        go qs (And fs) = "(" ++ (intercalate " & " (map (go qs) fs)) ++ ")"
-        go qs Top = "$true"
-        go qs Bottom = "$false"
-        go qs (t1 :=: t2) = "("++goTerm qs t1 ++ " = " ++ goTerm qs t2++")"
-        go qs (t1 :/=: t2) = "("++goTerm qs t1 ++ " != " ++ goTerm qs t2++")"
-        go qs (CF t) = "cf(" ++ goTerm qs t ++ ")"
-        go qs (Min t) = "$min("++goTerm qs t++")"
+        go qs (Forall xs f) = parens $ (text "!" <+> goQList xs <+> text ":")
+                              $$ nest 2 (go (xs++qs) f)
+
+        go qs (f1 :=>: f2) = naryF qs "=>" [f1,f2]
+        go qs (f1 :<=>: f2) = naryF qs "<=>" [f1,f2]
+        go qs (Not (t1 :=: t2)) = go qs (t1 :/=: t2)
+        go qs (t1 :=: t2) = naryT qs "=" [t1,t2]
+        go qs (t1 :/=: t2) = naryT qs "!=" [t1,t2]
+
+        go qs (Not f) = text "~" <> parens (go qs f)
+
+        go qs (Or fs) = naryF qs "|" fs
+        go qs (And fs) = naryF qs "&" fs
+
+        go qs Top = text "$true"
+        go qs Bottom = text "$false"
+
+        go qs (CF t) = fun qs (text "cf") [t]
+        go qs (Min t) = fun qs (text "$min") [t]
 
         goTerm qs (Named n) = goNamed qs n
-        goTerm qs (e1 :@: e2) = "app(" ++ goTerm qs e1 ++ "," ++ goTerm qs e2 ++ ")"
+        goTerm qs (e1 :@: e2) = fun qs (text "app") [e1,e2]
         goTerm qs (FullApp f []) = goNamed qs f
-        goTerm qs (FullApp f as) = goFull f ++ "("
-                                   ++ (intercalate "," $ map (goTerm qs) as) ++ ")"
+        goTerm qs (FullApp f as) = fun qs (goFull f) as
 
         goNamed qs (Var v) = goVar qs v
-        goNamed qs (Con v) = "c_" ++ v -- "'" ++ v ++ "'"
-        goNamed qs (Rec v) = v ++ "__R"
-        goNamed qs (Proj i v) = "'"++v++"__"++show i++"'"
+        goNamed qs (Con v) = text $ "c_" ++ v -- "'" ++ v ++ "'"
+        goNamed qs (Rec v) = text $ v ++ "__R"
+        goNamed qs (Proj i v) = text $ "'"++v++"__"++show i++"'"
 
         -- Uppercase a list of quantified variables.
-        goQList xs = "["++intercalate "," (map uppercase xs)++"]"
+        goQList xs = brackets $ hsep $ punctuate comma $ map (text . uppercase) xs
         -- Annotate a full application.  We only fully applied defined
         -- functions, and defined functions are never quantified over,
         -- so no 'qs' here.
         goFull = goNamed [] . fmap ("f__"++)
         -- Uppercase a variable if quantified.
-        goVar qs v = if v `elem` qs then uppercase v else v
+        goVar qs v = text $ if v `elem` qs then uppercase v else v
         uppercase = map toUpper
 
 toSMTLIB :: Formula -> String

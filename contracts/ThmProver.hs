@@ -1,6 +1,7 @@
 module ThmProver (module ThmProver, module ThmProverTypes) where
 
 import Data.List (isInfixOf)
+import Text.PrettyPrint.HughesPJ (render, vcat)
 
 --import Haskell as H
 import FOL as F
@@ -8,14 +9,14 @@ import ThmProverTypes
 
 fof :: Theory
 fof = Theory {
-        showFormula = F.toTPTP
+        showFormula = render . vcat . map F.toTPTP
       , header = const ""
       , fileExtension = "tptp"
       , footer = ""
       }
 smt2 :: Theory
 smt2 = Theory {
-           showFormula = F.toSMTLIB . F.unlabel
+           showFormula = concatMap (F.toSMTLIB . F.unlabel)
          , header = F.showDefsSMTLIB
          , fileExtension = "smt2"
          , footer = "(check-sat)"
