@@ -8,7 +8,10 @@ Wiki: https://github.com/cpa/haskellcontracts/wiki
 
 1. Install dependencies:
 
-      cabal install graphscc
+      cabal install graphscc cmdargs mtl
+
+   The 'mtl' dependency is really anything providing
+   'Control.Monad.State'.
 
 1. Get the code:
 
