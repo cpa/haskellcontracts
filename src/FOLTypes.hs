@@ -1,8 +1,10 @@
-{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFunctor, DeriveDataTypeable #-}
 
 -- Types used in the FOL module.  Moved here to avoid cyclic
 -- dependencies.
 module FOLTypes (module FOLTypes, module HaskellTypes) where
+
+import Data.Data
 
 import HaskellTypes (Name,Named,MetaNamed(..),Expression,MetaExpression(..))
 
@@ -10,7 +12,7 @@ type Term = Expression
 type Formula = MetaFormula Term
 type LabeledFormula = MetaLabeledFormula Formula
 data MetaLabeledFormula a = LabeledFormula { getLabel :: Label, getFormula :: a }
-                            deriving (Show, Eq, Functor)
+                            deriving (Show,Eq,Functor,Data,Typeable)
 type Label = String
 
 infix 7 :<=>:
@@ -32,6 +34,6 @@ data MetaFormula a = Forall [Name] (MetaFormula a)
 --                 | Pred Name a -- ^ Unary predicate. XXX: could unify CF and Min as Pred.
                    | CF a
                    | Min a
-                   deriving (Show,Eq,Functor)
+                   deriving (Show,Eq,Functor,Data,Typeable)
 -- cf = Pred "cf"
 -- min = Pred "min"

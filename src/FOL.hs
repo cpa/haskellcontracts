@@ -5,6 +5,7 @@ import Data.Char (toUpper)
 import Data.List (intercalate)
 import Control.Monad.State (gets)
 import Text.PrettyPrint.HughesPJ
+import Data.Generics (mkT,everywhere)
 
 import qualified Haskell as H
 import Haskell (appifyExpr,getName)
@@ -26,89 +27,61 @@ splitOnAnd (And fs) = concatMap splitOnAnd fs
 splitOnAnd Top = []
 splitOnAnd f = [f]
 
-trivializeMin :: Formula -> Formula
-trivializeMin = t where
-  t f = case f of
-    Forall xs f -> Forall xs (t f)
-    Exists xs f -> Exists xs (t f)
-    f1 :=>: f2  -> t f1 :=>: t f2
-    f1 :<=>: f2 -> t f1 :<=>: t f2
-    Not f       -> Not $ t f
-    Or fs       -> Or $ map t fs
-    And fs      -> And $ map t fs
-    Min t       -> Top
-    f           -> f
+--trivializeMin :: Formula -> Formula
+trivializeMin = everywhere (mkT unMin) where
+-- t where
+  unMin :: Formula -> Formula -- XXX: unnec with single level type?
+  unMin (Min t) = Top
+  unMin f       = f
 
 -- | Replace e.g. 'And(fs1++[And fs]++fs2)' with 'And(fs1++fs++fs2)'.
-flattenNAryOps :: Formula -> Formula
-flattenNAryOps = goAnd . goOr where
-  me = flattenNAryOps
-  -- XXX: can constructor-generic programming be used here? And what
-  -- about a generic map over recursive subcomponents to effect the
-  -- "boring" cases?
-  goAnd (And fs) = And $ concat $ map (go . me) fs where
-    go (And fs) = fs
-    go f        = [f]
-  goAnd (Or fs) = Or $ map me fs
-  goAnd (Not f) = Not $ me f
-  goAnd (Forall xs f) = Forall xs $ me f
-  goAnd (Exists xs f) = Exists xs $ me f
-  goAnd (f1 :=>: f2)  = me f1 :=>: me f2
-  goAnd (f1 :<=>: f2) = me f1 :<=>: me f2
-  goAnd f             = f
+--flattenNAryOps :: Formula -> Formula
+flattenNAryOps = everywhere (mkT go) where
+  go :: Formula -> Formula -- XXX: unnec with single level type?
+  go (And fs) = And $ concat $ map go' fs where
+    go' (And fs) = fs
+    go' f        = [f]
+  go (Or  fs) = Or  $ concat $ map go' fs where
+    go' (Or  fs) = fs
+    go' f        = [f]
+  go f = f
 
-  goOr  (Or  fs) = Or  $ concat $ map (go . me) fs where
-    go (Or  fs) = fs
-    go f        = [f]
-  goOr  (And fs) = And $ map me fs
-  goOr  (Not f)  = Not $ me f
-  goOr  (Forall xs f) = Forall xs $ me f
-  goOr  (Exists xs f) = Exists xs $ me f
-  goOr  (f1 :=>: f2)  = me f1 :=>: me f2
-  goOr  (f1 :<=>: f2) = me f1 :<=>: me f2
-  goOr  f             = f
-
-removeConstants :: Formula -> Formula
--- Assuming a non-empty domain here.
-removeConstants (Forall [] f) = removeConstants f
-removeConstants (Exists [] f) = removeConstants f
-removeConstants (Forall xs f) = if f' == Top then Top else Forall xs f'
-  where f' = removeConstants f
-removeConstants (Exists xs f) = if f' == Top then Top else Exists xs f'
-  where f' = removeConstants f
-removeConstants (f1 :=>: f2) = case (removeConstants f1, removeConstants f2) of
-                                 (Top, f)    -> f
-                                 (Bottom, f) -> Top
-                                 (f, Top)    -> Top
-                                 (f, Bottom) -> Bottom
-                                 (f1', f2')  -> f1' :=>: f2'
-removeConstants (f1 :<=>: f2) = case (removeConstants f1, removeConstants f2) of
-                                  (Top, f)    -> f
-                                  (f, Top)    -> f
-                                  (Bottom, f) -> Not f
-                                  (f, Bottom) -> Not f
-                                  (f1', f2')  -> f1' :<=>: f2'
-removeConstants (Not f) = Not $ removeConstants f
-removeConstants (Or []) = Bottom
-removeConstants (And []) = Top
-removeConstants (Or fs) = if any (==Top) fs' then Top else f
-    where fs' = map removeConstants fs
-          fs'' = filter (/=Bottom) fs'
-          f = if null fs'' then Bottom else Or fs''
-removeConstants (And fs) = if any (==Bottom) fs' then Bottom else f
-    where fs' = map removeConstants fs
-          fs'' = filter (/=Top) fs'
-          f = if null fs'' then Top else And fs''
-removeConstants f = f
+--removeConstants :: Formula -> Formula
+removeConstants = everywhere (mkT go) where
+  go :: Formula -> Formula -- XXX: unnec with single level type?
+  go (Forall [] f) = f
+  go (Exists [] f) = f
+  -- assuming a non-empty domain here.
+  go fm@(Forall xs f) = if f `elem` [Top,Bottom] then f else fm
+  go fm@(Exists xs f) = if f `elem` [Top,Bottom] then f else fm
+  go fm@(f1 :=>: f2)  = case (f1,f2) of
+                       (Top, f)    -> f
+                       (f, Top)    -> Top
+                       (Bottom, f) -> Top
+                       (f, Bottom) -> Not f
+                       _           -> fm
+  go fm@(f1 :<=>: f2) = case (f1,f2) of
+                       (Top, f)    -> f
+                       (f, Top)    -> f
+                       (Bottom, f) -> Not f
+                       (f, Bottom) -> Not f
+                       _           -> fm
+  go (Or fs) = if any (==Top) fs then Top else f
+    where fs' = filter (/=Bottom) fs
+          f = if null fs' then Bottom else Or fs'
+  go (And fs) = if any (==Bottom) fs then Bottom else f
+    where fs' = filter (/=Top) fs
+          f = if null fs' then Top else And fs'
+  go f = f
 
 
 simplify :: Conf -> LabeledFormula -> [LabeledFormula]
 simplify cfg = splitOnAndLabeled
-             . fmap flattenNAryOps
-             . fmap removeConstants
+             . flattenNAryOps
+             . removeConstants
              . maybeTrivializeMin
  where
-  maybeTrivializeMin = if no_min cfg then fmap trivializeMin else id
+  maybeTrivializeMin = if no_min cfg then trivializeMin else id
 
 
 toTPTP :: LabeledFormula -> Doc
