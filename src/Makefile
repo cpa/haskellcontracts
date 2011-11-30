@@ -14,18 +14,3 @@ Parser.hs: Parser.y
 # Make TAGS for emacs.
 etags:
 	find ./ -name '*.hs' -exec hasktags --etags {} +
-
-# Get the examples.
-egs:
-	git clone git@github.com:cpa/haskellcontracts-examples.git egs
-
-# Get Equinox.
-#
-# You need GHC6 to build it, but there is (well, last I checked) a
-# precompiled up-to-date version in the tarball.
-equinox:
-	wget http://www.cse.chalmers.se/~koen/code/folkung.tar.gz	
-	tar xf folkung.tar.gz
-	@echo
-	@echo
-	@echo "ADD '`readlink -f Folkung/Haskell/equinox`' TO YOUR PATH"

@@ -19,7 +19,7 @@ Wiki: https://github.com/cpa/haskellcontracts/wiki
 
 1. Build the checker and pull in the examples:
 
-      cd contracts; make; make egs
+      make; make egs
 
 1. Get Equinox.
 
@@ -38,7 +38,7 @@ in your $PATH.
 
 See output of
 
-  ./contracts/hcc -h
+  ./src/hcc -h
 
 # Optional: build Equinox.
 

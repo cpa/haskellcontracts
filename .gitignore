@@ -4,5 +4,11 @@
 *.log
 *.aux
 *~
-**/*.tptp
-**/*.smt2
+**.tptp
+**.smt2
+**.tc.hs
+Folkung
+paper/paper.*
+!paper/paper.tex
+egs
+src/hcc
