@@ -15,7 +15,7 @@ paper:
 	make -C paper
 
 # Get the examples.
-egs: egs
+egs:
 	git clone git@github.com:cpa/haskellcontracts-examples.git egs
 
 # Get equinox
