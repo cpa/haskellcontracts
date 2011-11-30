@@ -39,6 +39,35 @@ trivializeMin = t where
     Min t       -> Top
     f           -> f
 
+-- | Replace e.g. 'And(fs1++[And fs]++fs2)' with 'And(fs1++fs++fs2)'.
+flattenNAryOps :: Formula -> Formula
+flattenNAryOps = goAnd . goOr where
+  me = flattenNAryOps
+  -- XXX: can constructor-generic programming be used here? And what
+  -- about a generic map over recursive subcomponents to effect the
+  -- "boring" cases?
+  goAnd (And fs) = And $ concat $ map (go . me) fs where
+    go (And fs) = fs
+    go f        = [f]
+  goAnd (Or fs) = Or $ map me fs
+  goAnd (Not f) = Not $ me f
+  goAnd (Forall xs f) = Forall xs $ me f
+  goAnd (Exists xs f) = Exists xs $ me f
+  goAnd (f1 :=>: f2)  = me f1 :=>: me f2
+  goAnd (f1 :<=>: f2) = me f1 :<=>: me f2
+  goAnd f             = f
+
+  goOr  (Or  fs) = Or  $ concat $ map (go . me) fs where
+    go (Or  fs) = fs
+    go f        = [f]
+  goOr  (And fs) = And $ map me fs
+  goOr  (Not f)  = Not $ me f
+  goOr  (Forall xs f) = Forall xs $ me f
+  goOr  (Exists xs f) = Exists xs $ me f
+  goOr  (f1 :=>: f2)  = me f1 :=>: me f2
+  goOr  (f1 :<=>: f2) = me f1 :<=>: me f2
+  goOr  f             = f
+
 removeConstants :: Formula -> Formula
 -- Assuming a non-empty domain here.
 removeConstants (Forall [] f) = removeConstants f
@@ -74,7 +103,10 @@ removeConstants f = f
 
 
 simplify :: Conf -> LabeledFormula -> [LabeledFormula]
-simplify cfg = splitOnAndLabeled . fmap removeConstants . maybeTrivializeMin
+simplify cfg = splitOnAndLabeled
+             . fmap flattenNAryOps
+             . fmap removeConstants
+             . maybeTrivializeMin
  where
   maybeTrivializeMin = if no_min cfg then fmap trivializeMin else id
 
