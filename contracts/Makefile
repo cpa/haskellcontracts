@@ -2,11 +2,11 @@
 #
 # The example looks for 'equinox' in your $PATH.  See below to get
 # 'equinox'.
-Check: *.hs Parser.hs
+hcc: *.hs Parser.hs
     # Save the intermediate .o and .hi files in a separate dir (./tmp)
     # so that location information in inferior ghci in emacs will work
     # (C-c M-.).
-	ghc --make Check.hs -hidir tmp -odir tmp
+	ghc --make Main.hs -o hcc -hidir tmp -odir tmp
 
 Parser.hs: Parser.y
 	happy Parser.y

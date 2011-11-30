@@ -38,7 +38,7 @@ in your $PATH.
 
 See output of
 
-  ./contracts/Check -h
+  ./contracts/hcc -h
 
 # Optional: build Equinox.
 

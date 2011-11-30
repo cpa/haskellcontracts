@@ -52,7 +52,7 @@ getOpts = cmdArgs $ Conf
 ++". The prover configurations are in ThmProver.hs.")
 
   , idirs = ["."] -- Always check current dir first.
-    &= explicit -- Don't guess names for this option
+    &= explicit -- Don't guess switch names for this option
     &= name "idir" &= name "i"
     &= typDir
     &= help "Add DIR to the paths searched for imports. This option may be specified multiple times. Import dirs are searched in the order specified, with an implicit \".\" (current dir) first."
@@ -71,8 +71,8 @@ getOpts = cmdArgs $ Conf
     &= typFile
   } &= 
   verbosity &=
-  program "Check" &=
-  helpArg [explicit, name "h", name "help"] &= -- Avoid stupid '-?' default.
+  program "hcc" &=
+  helpArg [explicit, name "h", name "help"] &= -- Avoid stupid '-?' default switch.
   summary "Haskell Contract Checker, V 1/0" &=
   details
   -- XXX, MAYBE TODO: support module names on command line, in addition to paths.
