@@ -179,7 +179,7 @@ dTrans (H.Let f vs ce) = do
           -- substitute the fresh pattern variables before recursing.
           ceT <- go (vs'++fvs) $ H.substsCE (zip vs'N vs) ce
           return (F.Forall vs' $        eT :/=: fullC
-                 ,F.exists vs' $ F.And [eT :=: fullC, ceT])
+                 ,F.Exists vs' $ F.And [eT :=: fullC, ceT])
     (nonConCases,conCases) <- unzip <$> mapM conCase pces
     let conCaseIneqs = [ F.Not eq | F.And (eq:_) <- conCases ]
         badCase = F.And [eT :=: bad, full :=: bad]

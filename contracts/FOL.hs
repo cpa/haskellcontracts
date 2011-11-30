@@ -30,6 +30,7 @@ trivializeMin :: Formula -> Formula
 trivializeMin = t where
   t f = case f of
     Forall xs f -> Forall xs (t f)
+    Exists xs f -> Exists xs (t f)
     f1 :=>: f2  -> t f1 :=>: t f2
     f1 :<=>: f2 -> t f1 :<=>: t f2
     Not f       -> Not $ t f
@@ -39,8 +40,12 @@ trivializeMin = t where
     f           -> f
 
 removeConstants :: Formula -> Formula
+-- Assuming a non-empty domain here.
 removeConstants (Forall [] f) = removeConstants f
+removeConstants (Exists [] f) = removeConstants f
 removeConstants (Forall xs f) = if f' == Top then Top else Forall xs f'
+  where f' = removeConstants f
+removeConstants (Exists xs f) = if f' == Top then Top else Exists xs f'
   where f' = removeConstants f
 removeConstants (f1 :=>: f2) = case (removeConstants f1, removeConstants f2) of
                                  (Top, f)    -> f
@@ -101,12 +106,15 @@ toTPTP (LabeledFormula l f) = fof
         -- n-ary function application
         fun qs f args = f <> nary goTerm qs comma args
 
+        quantifier qs q xs f = parens $ hang (text q <+> goQList xs <+> text ":")
+                                             2 (go (xs++qs) f)
+
         prepunctuate sep [d] = [d]
         prepunctuate sep (d:ds) = d : map (sep <+>) ds
         -- 'go qs f' converts formula 'f' to TPTP syntax, assuming
         -- 'qs' are the names of the quantified variables in 'f'.
-        go qs (Forall xs f) = parens $ (text "!" <+> goQList xs <+> text ":")
-                              $$ nest 2 (go (xs++qs) f)
+        go qs (Forall xs f) = quantifier qs "!" xs f
+        go qs (Exists xs f) = quantifier qs "?" xs f
 
         go qs (f1 :=>: f2) = naryF qs "=>" [f1,f2]
         go qs (f1 :<=>: f2) = naryF qs "<=>" [f1,f2]

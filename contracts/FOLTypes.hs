@@ -16,6 +16,7 @@ type Label = String
 infix 7 :<=>:
 infix 7 :=>:
 data MetaFormula a = Forall [Name] (MetaFormula a)
+                   | Exists [Name] (MetaFormula a)
                    | (MetaFormula a) :=>: (MetaFormula a)
                    | (MetaFormula a) :<=>: (MetaFormula a)
                    | Not (MetaFormula a)
@@ -34,4 +35,3 @@ data MetaFormula a = Forall [Name] (MetaFormula a)
                    deriving (Show,Eq,Functor)
 -- cf = Pred "cf"
 -- min = Pred "min"
-exists xs phi = Not $ Forall xs $ Not phi
