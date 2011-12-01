@@ -101,9 +101,9 @@ loadFile cfg f = do
                        ++" when loading file "++f
   findAndLoad mod (i:is) = do
                    cond <- doesFileExist f'
-                   if cond
-                   then loadFile cfg f'
-                   else findAndLoad mod is
+                   if cond 
+                    then loadFile cfg f'
+                    else findAndLoad mod is
    where f' = i </> joinPath mod <.> "hs"
 
 checkFile :: Conf -> FilePath -> IO Bool
