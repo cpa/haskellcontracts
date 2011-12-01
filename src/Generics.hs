@@ -19,28 +19,29 @@ import Data.Generics
 --
 --   == ([3,2,1],[6,5,4])
 --
--- which you might want.  On the other hand, 'deepOnce' gives the
+-- which you might want.  On the other hand, 'everywhereMaximalThat' gives the
 -- latter behaviour:
 --
---   deepOnce (mkQ False (const True::[Int]->Bool))
+--   everywhereMaximalThat (mkQ False (const True::[Int]->Bool))
 --            (mkT (reverse::[Int]->[Int]))
 --            (([1,2,3],[4,5,6])::([Int],[Int]))
 --   == ([3,2,1],[6,5,4])
 --
 -- of course, all those annotations are a little painful, so see
 -- 'gfmap'.
-deepOnce :: GenericQ Bool -> GenericT -> GenericT
-deepOnce q f x
+everywhereMaximalThat :: GenericQ Bool -> GenericT -> GenericT
+-- This function is very similar to 'Data.Generics.Schemes.everywhereBut'.
+everywhereMaximalThat q f x
     | q x       = f x
-    | otherwise = gmapT (deepOnce q f) x
+    | otherwise = gmapT (everywhereMaximalThat q f) x
 
 -- | Deeply apply a transformation 't :: a -> a' to the "maximal"
--- subterms of type 'a'.  A more convenient way to use 'deepOnce'.
+-- subterms of type 'a'.  A more convenient way to use 'everywhereMaximalThat'.
 --
 -- This can replace all the two-level types with 'type T = MetaT E'
 -- and 'data MetaT e = C e | ... deriving Functor' stuff.
 gfmap :: forall a. Typeable a => (a -> a) -> GenericT
-gfmap t = deepOnce q (mkT t) where
+gfmap t = everywhereMaximalThat q (mkT t) where
   -- Use 'ScopedTypeVariables' to make 'a' here refer to 'a' in sig
   -- for 'gfmap'.  An alternative that doesn't need the extension is
   --
@@ -115,7 +116,7 @@ isLI = const True
 isLIQ = mkQ False isLI
 
 eg3 :: TreeLI
-eg3 = deepOnce isLIQ revLIT t2
+eg3 = everywhereMaximalThat isLIQ revLIT t2
 
 eg4 :: TreeLI
 eg4 = gfmap revLI t2
@@ -153,11 +154,11 @@ eg9,eg10,eg11 :: CarefulRTLI
 eg9 = gfmap revLI c1
 
 -- can't handle the 'AB' case properly.
-eg10 = deepOnce (mkQ False isA) (gfmap revLI) c1 where
+eg10 = everywhereMaximalThat (mkQ False isA) (gfmap revLI) c1 where
   isA :: CarefulRTLI -> Bool
   isA (A _) = True
   isA _     = False
-eg11 = deepOnce (mkQ False isB) (gfmap revLI) c1 where
+eg11 = everywhereMaximalThat (mkQ False isB) (gfmap revLI) c1 where
   isB :: CarefulRTLI -> Bool
   isB (B _) = True
   isB _     = False
