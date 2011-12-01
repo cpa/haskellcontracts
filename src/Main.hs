@@ -118,7 +118,7 @@ checkFile cfg f = do
   let prog' = appify (arities prog) prog
   and <$> mapM (check cfg f prog') (orderedChecks prog')
 
-getContracts :: [DefGeneral] -> DefGeneral -> [DefGeneral]
+getContracts :: [TopLevelStatement] -> TopLevelStatement -> [TopLevelStatement]
 getContracts prog d = [c | c@(ContSat (Satisfies g _)) <- prog, g == def2Name d]
 
 check :: Conf -> FilePath -> Program

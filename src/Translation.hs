@@ -3,9 +3,9 @@ module Translation where
 -- XXX: nc did not do a very good job of imposing a fake distinction
 -- between FOL and Haskell by e.g. using F.Var vs H.Var.
 import qualified Haskell as H
-import Haskell (Name,Named,MetaNamed(..),Expression,MetaExpression(..))
+import Haskell (Name,Named(..),Expression(..))
 import qualified FOL as F
-import FOL (MetaFormula(..))
+import FOL (Formula(..))
 --import HaskellTypes
 import TranslationTypes
 

@@ -4,18 +4,10 @@
 -- dependencies.
 module HaskellTypes where
 
-import Data.Generics
+import Data.Generics (Data,Typeable)
 
--- All this meta stuff is just here to allow me to derive functors for free.
-type DataType = MetaDataType Expression
-type Expression = MetaExpression Named
-type DefGeneral = MetaDefGeneral Expression
-type Program = [DefGeneral]
 type Pattern = (Name, [Name])
-type Contract = MetaContract Expression
-type Definition = MetaDefinition Expression
-data Case = MetaCase Expression
-
+type Program = [TopLevelStatement]
 type Name = String
 -- | Things with names.  We don't include function "pointers" here
 -- because pointerness is determined by use: regular application ':@:'
@@ -24,57 +16,57 @@ type Name = String
 --
 -- Key difference from old design: fullapplication, not regular
 -- application, is the special case.
-data MetaNamed a =
-             Var a -- ^ Regular variable, including functions.
-           | Con a -- ^ Constructor
-           -- The rest are only relevant to FOL? Could use GADT tricks
-           -- to enforce this.
-           | Rec a -- ^ Recursive version of a function
-           | Proj Int a -- ^ Projector for a term constructor.
-           -- There is no 'Full' because full application is
-           -- determined by context.
-           deriving (Eq,Ord,Show,Functor,Data,Typeable)
+data Named
+   = Var Name -- ^ Regular variable, including functions.
+   | Con Name -- ^ Constructor
+   -- The rest are only relevant to FOL? Could use GADT tricks
+   -- to enforce this.
+   | Rec Name -- ^ Recursive version of a function
+   | Proj Int Name -- ^ Projector for a term constructor.
+   -- There is no 'Full' because full application is
+   -- determined by context.
+   deriving (Eq,Ord,Show,Data,Typeable)
 
-type Named = MetaNamed Name
+data Expression
+   = Named Named
+   -- Regular application: f x y => f @ x @ y
+   | Expression :@: Expression
+   -- Full application: f x y => f(x,y).
+   | FullApp Named [Expression]
+   deriving (Show,Eq,Ord,Data,Typeable)
 
-data MetaExpression v = Named v
-                      -- Regular application: f x y => f @ x @ y
-                      | (MetaExpression v) :@: (MetaExpression v)
-                      -- Full application: f x y => f(x,y).
-                      | FullApp v [MetaExpression v]
-                      deriving (Show,Eq,Functor,Ord,Data,Typeable)
-
-data MetaDefGeneral a = ContSat (MetaContSat a)
-                      | Def (MetaDefinition a)
-                      | DataType (MetaDataType a)
-                      | Import [String]
-                      deriving (Eq,Show,Functor,Ord,Data,Typeable)
+data TopLevelStatement
+   = ContSat ContSat
+   | Def Definition
+   | DataType DataType
+   | Import [String]
+   deriving (Eq,Show,Ord,Data,Typeable)
 
 -- No contracts for constructors! So, Name, not Named here.
-data MetaContSat a = Satisfies Name (MetaContract a)
-                   deriving (Show,Eq,Functor,Ord,Data,Typeable)
+data ContSat = Satisfies Name Contract
+               deriving (Show,Eq,Ord,Data,Typeable)
                
 -- | Expressions that might include 'case' matching.
-data MetaCase a
-    = Base a
-    -- ^ 
-    -- Case e pces@[(p1,ce1),...,(pk,cek)]
-    -- ==> 
-    -- case e of p1 -> ce1 ; ... ; pk -> cek
-    | Case a [(Pattern,MetaCase a)]
-    deriving (Show,Eq,Functor,Ord,Data,Typeable)
+data Case
+   = Base Expression
+   -- ^ 
+   -- Case e pces@[(p1,ce1),...,(pk,cek)]
+   -- ==> 
+   -- case e of p1 -> ce1 ; ... ; pk -> cek
+   | Case Expression [(Pattern,Case)]
+   deriving (Show,Eq,Ord,Data,Typeable)
 
-data MetaDefinition a = Let Name [Name] (MetaCase a)
-                      deriving (Show,Eq,Functor,Ord,Data,Typeable)
+data Definition = Let Name [Name] Case
+                  deriving (Show,Eq,Ord,Data,Typeable)
                   
-data MetaDataType a = Data Name [(Name,Int,MetaContract a)] -- Data constructors + arity + contract
-                    deriving (Eq,Show,Functor,Ord,Data,Typeable)
+data DataType = Data Name [(Name,Int,Contract)] -- Data constructors + arity + contract
+                deriving (Eq,Show,Ord,Data,Typeable)
 
-data MetaContract a = Arr (Maybe Name) (MetaContract a) (MetaContract a)
+data Contract = Arr (Maybe Name) Contract Contract
                     -- ^ 'x : c1 -> c2', with 'x' optional.
-                    | Pred Name a  -- {x:e}
-                    | And (MetaContract a) (MetaContract a)
-                    | Or  (MetaContract a) (MetaContract a)
+                    | Pred Name Expression  -- {x:e}
+                    | And Contract Contract
+                    | Or  Contract Contract
                     | CF
                     | Any -- XXX: 'Any' is just '{x:True}', yeah?
-                    deriving (Show,Eq,Functor,Ord,Data,Typeable)
+                    deriving (Show,Eq,Ord,Data,Typeable)

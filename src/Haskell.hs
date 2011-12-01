@@ -6,6 +6,7 @@ import Data.Maybe (isJust)
 
 import HaskellTypes
 import TranslationTypes (Arity)
+import Generics (gfmap)
 
 -- | Projector for Named
 getName :: Named -> Name
@@ -14,7 +15,7 @@ getName (Con v) = v
 getName (Rec v) = v
 getName (Proj _ v) = v
 
-def2Name :: DefGeneral -> Name
+def2Name :: TopLevelStatement -> Name
 def2Name (Def (Let f _ _))         = f
 def2Name (DataType (Data t _))     = t
 def2Name (ContSat (Satisfies f _)) = f
@@ -29,7 +30,7 @@ arities ds = concatMap go ds
         go _ = []
 
 appify :: [Arity] -> Program -> Program
-appify a p = map (fmap $ appifyExpr a) p
+appify a p = map (gfmap $ appifyExpr a) p
 
 -- XXX, TODO: rename
 -- | Return the arity of a name

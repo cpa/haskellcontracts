@@ -12,6 +12,7 @@ import Haskell (appifyExpr,getName)
 import Options (Conf(no_min))
 import FOLTypes
 import TranslationTypes
+import Generics (gfmap)
 
 unlabel (LabeledFormula _ e) = e
 
@@ -153,7 +154,7 @@ toTPTP (LabeledFormula l f) = fof
         -- Annotate a full application.  We only fully applied defined
         -- functions, and defined functions are never quantified over,
         -- so no 'qs' here.
-        goFull = goNamed [] . fmap ("f__"++)
+        goFull = goNamed [] . gfmap ("f__"++)
         -- Uppercase a variable if quantified.
         goVar qs v = text $ if v `elem` qs then uppercase v else v
         uppercase = map toUpper
@@ -193,7 +194,7 @@ toSMTLIB f = header ++ "\n" ++ go f ++ "\n" ++ footer
         -- Annotate a full application.  We only fully applied defined
         -- functions, and defined functions are never quantified over,
         -- so no 'qs' here.
-        goFull = goNamed . fmap ("f__"++)
+        goFull = goNamed . gfmap ("f__"++)
         annote x = "("++x++" Real)"
 
 showDefsSMTLIB defs = unlines $ cf:app:unr:bad:map showDef arities where
@@ -225,12 +226,14 @@ showDefsSMTLIB defs = unlines $ cf:app:unr:bad:map showDef arities where
     then "(declare-const "++v++" Real)"
     else "(declare-fun "++v++" ("++intercalate " " (replicate k "Real")++") Real)"
 
+-- XXX: these two functions can be unified ...
+
 -- takes formulas and a list of arities for each definition
 -- and returns those formulas using "full application" wherever possible
-appify :: [Arity] -> LabeledFormula -> LabeledFormula
-appify a = fmap (fmap $ appifyExpr a)
+--appify :: [Arity] -> LabeledFormula -> LabeledFormula
+appify a = gfmap (appifyExpr a)
 
 appifyF :: Formula -> Fresh Formula
 appifyF f = do
   a <- gets arities
-  return $ fmap (appifyExpr a) f
+  return $ appify a f

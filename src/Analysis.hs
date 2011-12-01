@@ -84,7 +84,7 @@ adjacencies defs = funAdjs ++ typeAdjs
     -- All dependencies, still with term constructors.
     deps = nub $ concat $ [ds | (_,_,ds) <- funAdjsWithCons]
     -- Types of all term constructors in deps.
-    typeDeps :: [DefGeneral]
+    typeDeps :: [TopLevelStatement]
     typeDeps = nub $ catMaybes $ map (`lookup` con2Type) deps
 
 -- (2)
@@ -93,7 +93,7 @@ adjacencies defs = funAdjs ++ typeAdjs
 -- 'checks's, where 'depends' are the dependencies of the 'checks'.
 -- The 'checks' are a strongly connected component in the dependency
 -- graph.
-orderedChecks :: Program -> [([DefGeneral],[DefGeneral])]
+orderedChecks :: Program -> [([TopLevelStatement],[TopLevelStatement])]
 orderedChecks defs = checkDeps where
   -- Dependency graph 'g'.
   gAdjs = adjacencies defs
@@ -107,7 +107,7 @@ orderedChecks defs = checkDeps where
   qAdjs = reverse . sccGraph $ g
   (q,qVertex2Adj,qKey2MaybeVertex) = G.graphFromEdges qAdjs
 
-  checkDeps :: [([DefGeneral],[DefGeneral])]
+  checkDeps :: [([TopLevelStatement],[TopLevelStatement])]
   checkDeps = [ (sccVertex2Defs v, sccVertex2Defs =<< ds)
               | (v,ds) <- sccCheckDeps
               ]
@@ -119,7 +119,7 @@ orderedChecks defs = checkDeps where
     -- Recover the definitions from an SCC vertex.  There are two levels
     -- of indirection here, because each graph abtracts nodes via keys.
     -- Here we follow the keys backwards to their nodes.
-    sccVertex2Defs :: G.Vertex -> [DefGeneral]
+    sccVertex2Defs :: G.Vertex -> [TopLevelStatement]
     sccVertex2Defs = map (fstOf3 . gVertex2Adj) -- recover g nodes
                    . G.flattenSCC               -- get list from SCC
                    . fstOf3 . qVertex2Adj       -- recover q nodes

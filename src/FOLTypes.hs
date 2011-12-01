@@ -6,34 +6,34 @@ module FOLTypes (module FOLTypes, module HaskellTypes) where
 
 import Data.Data
 
-import HaskellTypes (Name,Named,MetaNamed(..),Expression,MetaExpression(..))
+import HaskellTypes (Name,Named(..),Expression(..))
 
 type Term = Expression
-type Formula = MetaFormula Term
-type LabeledFormula = MetaLabeledFormula Formula
-data MetaLabeledFormula a = LabeledFormula { getLabel :: Label, getFormula :: a }
-                            deriving (Show,Eq,Functor,Data,Typeable)
+
 type Label = String
+data LabeledFormula = LabeledFormula { getLabel :: Label, getFormula :: Formula }
+                      deriving (Show,Eq,Data,Typeable)
 
 infix 7 :<=>:
 infix 7 :=>:
-data MetaFormula a = Forall [Name] (MetaFormula a)
-                   | Exists [Name] (MetaFormula a)
-                   | (MetaFormula a) :=>: (MetaFormula a)
-                   | (MetaFormula a) :<=>: (MetaFormula a)
-                   | Not (MetaFormula a)
-                   -- XXX: binary ':\/:' and ':/\:' would be more like
-                   -- TPTP
-                   | Or [MetaFormula a]
-                   | And [MetaFormula a]
-                   -- XXX: do we have any need for Top and Bottom?
-                   | Top
-                   | Bottom
-                   | a :=: a
-                   | a :/=: a
---                 | Pred Name a -- ^ Unary predicate. XXX: could unify CF and Min as Pred.
-                   | CF a
-                   | Min a
-                   deriving (Show,Eq,Functor,Data,Typeable)
+data Formula 
+   = Forall [Name] Formula
+   | Exists [Name] Formula
+   | Formula :=>: Formula
+   | Formula :<=>: Formula
+   | Not Formula
+   -- XXX: binary ':\/:' and ':/\:' would be more like
+   -- TPTP
+   | Or  [Formula]
+   | And [Formula]
+   -- XXX: do we have any need for Top and Bottom?
+   | Top
+   | Bottom
+   | Term :=:  Term
+   | Term :/=: Term
+-- | Pred Name Term -- ^ Unary predicate. XXX: could unify CF and Min as Pred.
+   | CF Term
+   | Min Term
+   deriving (Show,Eq,Data,Typeable)
 -- cf = Pred "cf"
 -- min = Pred "min"
