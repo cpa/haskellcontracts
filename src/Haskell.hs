@@ -6,7 +6,7 @@ import Data.Maybe (isJust)
 
 import HaskellTypes
 import TranslationTypes (Arity)
-import Generics (gfmap)
+import Generics (gfmap,GenericT)
 
 -- | Projector for Named
 getName :: Named -> Name
@@ -29,8 +29,8 @@ arities ds = concatMap go ds
         go (DataType (Data _ vacs)) = [(v,a) | (v,a,_) <- vacs]
         go _ = []
 
-appify :: [Arity] -> Program -> Program
-appify a p = map (gfmap $ appifyExpr a) p
+appify :: [Arity] -> GenericT
+appify = gfmap . appifyExpr
 
 -- XXX, TODO: rename
 -- | Return the arity of a name

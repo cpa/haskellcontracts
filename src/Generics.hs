@@ -4,7 +4,7 @@
     RankNTypes, 
     ImpredicativeTypes,
     ScopedTypeVariables #-}
-module Generics(gfmap) where
+module Generics (gfmap,GenericT) where
 import Data.Generics
 
 -- | Apply a generic transform 'f' at the head of each "maximal"

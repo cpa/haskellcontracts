@@ -1,4 +1,4 @@
-module FOL (module FOL, module FOLTypes) where
+module FOL (module FOL, module FOLTypes, appify) where
 
 import Debug.Trace
 import Data.Char (toUpper)
@@ -8,7 +8,7 @@ import Text.PrettyPrint.HughesPJ
 import Data.Generics (mkT,everywhere)
 
 import qualified Haskell as H
-import Haskell (appifyExpr,getName)
+import Haskell (appify,getName)
 import Options (Conf(no_min))
 import FOLTypes
 import TranslationTypes
@@ -39,10 +39,10 @@ trivializeMin = everywhere (mkT unMin) where
 --flattenNAryOps :: Formula -> Formula
 flattenNAryOps = everywhere (mkT go) where
   go :: Formula -> Formula -- XXX: unnec with single level type?
-  go (And fs) = And $ concat $ map go' fs where
+  go (And fs) = And $ concatMap go' fs where
     go' (And fs) = fs
     go' f        = [f]
-  go (Or  fs) = Or  $ concat $ map go' fs where
+  go (Or  fs) = Or  $ concatMap go' fs where
     go' (Or  fs) = fs
     go' f        = [f]
   go f = f
@@ -225,13 +225,6 @@ showDefsSMTLIB defs = unlines $ cf:app:unr:bad:map showDef arities where
     if k == 0
     then "(declare-const "++v++" Real)"
     else "(declare-fun "++v++" ("++intercalate " " (replicate k "Real")++") Real)"
-
--- XXX: these two functions can be unified ...
-
--- takes formulas and a list of arities for each definition
--- and returns those formulas using "full application" wherever possible
---appify :: [Arity] -> LabeledFormula -> LabeledFormula
-appify a = gfmap (appifyExpr a)
 
 appifyF :: Formula -> Fresh Formula
 appifyF f = do
