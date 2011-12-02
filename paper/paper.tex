@@ -1176,8 +1176,10 @@ iff $$\trans{M} \vdash \ctrans{f \in c}$$
 If the function $f=e$ is recursive, then we ask the theorem prover the
 following:
 
-$$\trans{M - f}, \dtrans{f=e[f/\rec{f}]}, \ctrans{\rec{f} \in c} \vdash \ctrans{f \in c}$$
-
+$$\trans{M - f}, \dtrans{f=e[f/\rec{f}]}, \ctrans{\rec{f} \in c[\rec{f}/f]}^- \vdash \ctrans{f \in c}^+$$
+\note[nc]{The LHS used to have $\ctrans{\rec{f} \in c}^-$, 
+not $\ctrans{\rec{f} \in c[\rec{f}/f]}^-$, 
+but the code has always implemented the latter. Which is preferable???}
 Where $M - f $ means the content of the module $M$ without $f$'s
 definition and $f$'s contract. However, this translation is not
 complete: some proofs need to unroll the definition more than
@@ -1227,6 +1229,23 @@ once!\note[nc]{For a simple example, consider a contract that is
   $c$ is contradictory when $\rec{f}$ is fully defined, by
   e.g. reducing $\rec{f}~Z = \true$.
  }
+
+ So, we provide an option to control the number, $N$, of unrollings.
+ First, note that recursive anonymous functions, and hence unrolling,
+ only apply to checked functions in the SCC; the dependencies of the
+ SCC being checked are not anonymized.  If $fs$ are the functions
+ being checked, then for each $f xs = e \in fs$ we generate
+ \[
+   \bigwedge_{i=0,N+1} \dtrans{f_i ~xs = e[g_{i+1}/g]_{g \in fs}},
+ \]
+ where $g_0 = g$, $g_{N+1} = \rec{g}$, and $\{g_i\}_{i = 1 \text{ to } N }$ 
+are new symbols, for each $g \in fs$.  Note that all functions
+in $fs$ receive the same amount, $N$ levels, of unrolling.  We could
+provide a per function unrolling value, but that would complicate
+things, and it's not clear there would be any benefit.  The only
+concern with the uniform unrolling is the complexity of the generated
+theory.
+
 \subsection{Module checking}
 A module is a collection of function definitions, data definitions and
 contracts. What we want to do is to check that functions satisfy their
