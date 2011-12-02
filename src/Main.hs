@@ -116,10 +116,21 @@ checkFile cfg f = do
   -- were disabled, the formulas relating full and partial application
   -- could be elided (e.g. 'dPtr').
   let prog' = appify (arities prog) prog
-  and <$> mapM (check cfg f prog') (orderedChecks prog')
+      sccs = orderedChecks prog'
+      -- If the set of functions to check is restricted, then check
+      -- only the SCCs containing one of the specified functions.
+      fs = only_check cfg
+      sccs' = if null fs
+              then sccs
+              -- The SCCs are '(checks,defs)', so we look for 'fs' in
+              -- the 'checks'.
+              else filter (any (`elem` fs) . map tls2Name . fst) sccs
+  whenNormal $ unless (null fs) $
+    putStrLn $ "Only checkings SCCs for "++show fs
+  and <$> mapM (check cfg f prog') sccs'
 
 getContracts :: [TopLevelStatement] -> TopLevelStatement -> [TopLevelStatement]
-getContracts prog d = [c | c@(ContSat (Satisfies g _)) <- prog, g == def2Name d]
+getContracts prog d = [c | c@(ContSat (Satisfies g _)) <- prog, g == tls2Name d]
 
 check :: Conf -> FilePath -> Program
       -> (Program,Program) -- ^ '(checks, deps)': assume 'deps' and check 'checks'
@@ -163,6 +174,6 @@ check cfg f prog (checks,deps) | all null contracts = return True
     removeFile tmpFile
   return res
  where
-  fs = [def2Name d | d@(Def _) <- checks]
+  fs = [tls2Name d | d@(Def _) <- checks]
   contracts         = map (getContracts prog) checks
   multipleContracts = filter ((>1) . length) contracts

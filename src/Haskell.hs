@@ -15,10 +15,10 @@ getName (Con v) = v
 getName (Rec v) = v
 getName (Proj _ v) = v
 
-def2Name :: TopLevelStatement -> Name
-def2Name (Def (Let f _ _))         = f
-def2Name (DataType (Data t _))     = t
-def2Name (ContSat (Satisfies f _)) = f
+tls2Name :: TopLevelStatement -> Name
+tls2Name (Def (Let f _ _))         = f
+tls2Name (DataType (Data t _))     = t
+tls2Name (ContSat (Satisfies f _)) = f
 
 apps xs = foldl1 (:@:) xs
 

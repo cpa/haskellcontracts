@@ -25,21 +25,20 @@ getOpts = cmdArgs $ Conf
   { keep_tmps = def
     &= help "Keep temporary files. For contract checking, this means write first-order theories to FILE.<f1>-...-<fn>.tptp for each mutually dependent set {<f1>,...<fn>} of functions in FILE. These are the files given as input to the theorem prover (E.g. Equinox).  For type checking, this means write FILE.tc.hs containing FILE and the compiled versions of FILE's contracts."
 
-  -- XXX: this mode is disabled.
-  --
-  -- To reenable this "check a single function" functionality, find
-  -- the '(checks,defs)' s.t. 'f' in 'checks', and then either:
+  -- There are at least two ways to define the "check a single
+  -- function 'f'" functionality. First, find the '(checks,defs)'
+  -- s.t. 'f' in 'checks', and then either:
   --
   -- 1. run the checker on that pair, '(checks, defs)'.  This is the
-  -- behavior described below.
+  -- implemented behaviour.
   --
   -- 2. run checker on '[(f, defs++checks - [f])]'. This is an even
   -- less-sound version, where even contracts on mutually defined
   -- functions are assumed.
   , only_check = def
-    &= ignore -- Don't actually display this option.
+--    &= ignore -- Don't actually display this option.
     &= typ "FUN"
-    &= help "Limit checking to the functions FUN specified. This includes the contract for FUN, and the contracts of all functions that are mutually recursive with FUN. All other relevant, but non-mutual, contracts are assumed.  The default is to check all contracts in FILE."
+    &= help "Limit checking to the functions FUN specified. This includes the contract for FUN, and the contracts of all functions that are mutually recursive with FUN. All other relevant, but non-mutual, contracts are assumed.  The default, when no FUNs are specified this way, is to check all contracts in FILE.  This option may be given more than once, to specify multiple functions to check."
 
   , dry_run = def
     &= help "Print the order in which contracts would be checked, but don't actually check them. If used in conjunction with '-p', the .tptp files will still be created."

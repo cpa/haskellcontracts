@@ -360,7 +360,7 @@ trans checks deps = evalState result startState
         -- to list of all recursive goal functions.  However,
         -- breaking it up into two phases is probably easier to
         -- understand.
-        fs = map H.def2Name checks
+        fs = map H.tls2Name checks
         recSubst   = H.substs   recVars
         recSubstC  = H.substsC  recVars
         recSubstCE = H.substsCE recVars
