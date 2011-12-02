@@ -6,7 +6,7 @@ module Options where
 import System.Console.CmdArgs
 import Data.List (intercalate)
 
-import ThmProverTypes
+import Types.ThmProver
 
 data Conf = Conf { keep_tmps    :: Bool
                  , only_check   :: [String] 

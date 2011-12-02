@@ -2,7 +2,7 @@
 
 -- Types used in the Haskell module.  Moved here to avoid cyclic
 -- dependencies.
-module HaskellTypes where
+module Types.Haskell where
 
 import Data.Generics (Data,Typeable)
 

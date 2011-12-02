@@ -2,13 +2,13 @@
 
 -- Types used in the ThmProver module.  Moved here to avoid cyclic
 -- dependencies.
-module ThmProverTypes where
+module Types.ThmProver where
 
 import Data.Typeable
 import Data.Data
 
-import HaskellTypes as H
-import FOLTypes as F
+import Types.Haskell as H
+import Types.FOL as F
 
 data ThmProverConf = ThmProverConf
   { path :: FilePath

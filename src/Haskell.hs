@@ -1,11 +1,11 @@
 {-# LANGUAGE DeriveFunctor  #-}
 
-module Haskell (module Haskell, module HaskellTypes) where
+module Haskell (module Haskell, module Types.Haskell) where
 
 import Data.Maybe (isJust)
 
-import HaskellTypes
-import TranslationTypes (Arity)
+import Types.Haskell
+import Types.Translation (Arity)
 import Generics (gfmap,GenericT)
 
 -- | Projector for Named

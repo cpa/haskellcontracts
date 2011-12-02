@@ -1,8 +1,8 @@
-module TranslationTypes (module TranslationTypes, module FOLTypes) where
+module Types.Translation (module Types.Translation, module Types.FOL) where
 
 import Control.Monad.State
 
-import FOLTypes (LabeledFormula,Name)
+import Types.FOL (LabeledFormula,Name)
 
 type Arity = (Name,Int)
 

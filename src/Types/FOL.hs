@@ -2,11 +2,11 @@
 
 -- Types used in the FOL module.  Moved here to avoid cyclic
 -- dependencies.
-module FOLTypes (module FOLTypes, module HaskellTypes) where
+module Types.FOL (module Types.FOL, module Types.Haskell) where
 
 import Data.Data
 
-import HaskellTypes (Name,Named(..),Expression(..))
+import Types.Haskell (Name,Named(..),Expression(..))
 
 type Term = Expression
 

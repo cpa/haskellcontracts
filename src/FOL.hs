@@ -1,4 +1,4 @@
-module FOL (module FOL, module FOLTypes, appify) where
+module FOL (module FOL, module Types.FOL, appify) where
 
 import Debug.Trace
 import Data.Char (toUpper)
@@ -10,8 +10,8 @@ import Data.Generics (mkT,everywhere)
 import qualified Haskell as H
 import Haskell (appify,getName)
 import Options (Conf(no_min))
-import FOLTypes
-import TranslationTypes
+import Types.FOL
+import Types.Translation
 import Generics (gfmap)
 
 unlabel (LabeledFormula _ e) = e

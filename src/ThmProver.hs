@@ -1,11 +1,11 @@
-module ThmProver (module ThmProver, module ThmProverTypes) where
+module ThmProver (module ThmProver, module Types.ThmProver) where
 
 import Data.List (isInfixOf)
 import Text.PrettyPrint.HughesPJ (render, vcat)
 
 --import Haskell as H
 import FOL as F
-import ThmProverTypes
+import Types.ThmProver
 
 fof :: Theory
 fof = Theory {

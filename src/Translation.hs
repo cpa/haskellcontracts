@@ -6,8 +6,8 @@ import qualified Haskell as H
 import Haskell (Name,Named(..),Expression(..))
 import qualified FOL as F
 import FOL (Formula(..))
---import HaskellTypes
-import TranslationTypes
+--import Types.Haskell
+import Types.Translation
 
 import Control.Monad.State
 import Data.List (partition, intercalate)
