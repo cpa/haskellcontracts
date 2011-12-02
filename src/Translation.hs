@@ -56,7 +56,9 @@ eTrans = return
 -- forall [x1, ..., xn]. f(x1, ..., xn) = f@x1@...@xn
 --
 -- NB: appification breaks this, so don't 'appify' it!
-dPtr f vs = if null vs then Top else F.And [eq1Min]--,eq2Min]
+ptrAxiom vs f = F.LabeledFormula 
+  ("ptrAxiom__"++F.named2TPTP f)
+  (if null vs then Top else F.And [eq1Min]) --,eq2Min]
   -- 'null' check above to avoid pointless 'f = f'.
   where vsN = map (Named . Var) vs
         fN = Named f
@@ -89,9 +91,6 @@ dPtr f vs = if null vs then Top else F.And [eq1Min]--,eq2Min]
         fullCFMin = F.Forall vs $ allCF :=>: (F.Min full :=>: F.CF full)
         eq2Min = F.Min fN :=>: (fullCFMin :<=>: F.CF fN) -- XXX, ???: is this min right?
 
--- | Same as dPtr, but for recursive occurances of f.
-dPtrRec f@(Var v) = dPtr $ Rec v
-
 -- | Shorthand for a common idiom.
 nv = Named . Var
 -- | Return a fresh variable name, based on 'v', which does not occur
@@ -112,16 +111,25 @@ ceTrans (H.Case e pces) = H.Case <$> eTrans e <*> mapM pceTrans pces where
   pceTrans (p,ce) = do ceT <- ceTrans ce
                        return (p, ceT)
 
--- | Translate a definition.
-dTrans :: H.Definition -> Fresh [F.LabeledFormula]
-dTrans (H.Let f vs ce) = do
+
+
+-- | Translate a definition 'Let _ vs ce', using the given 'Named'
+-- 'fV' to name it.  The actual 'Let' is not passed, just the
+-- components.
+--
+-- You supply 'fV' because in the case of multiple unrollings we need
+-- to give the function a different name.
+--
+-- For a non-unrolled 'dTrans' you pass 'Var f' for 'fV', assuming
+-- the 'Definition' is 'Let f vs ce'.
+dTrans :: H.Named -> [Name] -> H.Case -> Fresh [F.LabeledFormula]
+dTrans fV vs ce = do
   rhs <- go vs ce
   let eq = F.Forall vs $ F.Min full :=>: rhs
-  return $ map (F.LabeledFormula f)
-               [eq, dPtr fV vs, dPtrRec fV vs]
+  return $ [F.LabeledFormula ("dTrans__"++F.named2TPTP fV) eq]
  where
   vsN = map nv vs
-  fV = Var f
+  --fV = Var f
   full = F.FullApp fV vsN
 
   -- Recursively translate case expressions, tracking free variables
@@ -247,17 +255,16 @@ tTrans d@(H.Data nm _) = do
            phi_cfd <- phi_cf d
            let phis = concat [phi_project d
                              ,phi_disjoint d
-                             ,phi_total d
-                             ,tPtr d]
-                      ++ phi_cfd
-           return $ map (F.LabeledFormula nm) phis
-  where tPtr (H.Data _ cas) = [dPtr (Con c) (makeVars a "X") | (c,a,_) <- cas]
+                             ,phi_total d]
+                      ++ phi_cfd ++ ptr d
+           return $ phis
+  where ptr (H.Data _ cas) = [ptrAxiom (makeVars a "X") (Con c) | (c,a,_) <- cas]
 
 -- | Axiom: Term constructors are invertable (Phi_1 in paper).
 --
 -- XXX, DESIGN CHOICE: this axiom isn't used, although it could be
 -- used to eliminate some quantified variables in other axioms.
-phi_project (H.Data _ dns) = map f dns where
+phi_project (H.Data t dns) = map f dns where
   f (c,a,_) =
     let xs = makeVars a "X"
         xsN = map (Named . Var) xs
@@ -281,10 +288,11 @@ phi_project (H.Data _ dns) = map f dns where
         y = "ZDEF"
         yN = Named . Var $ y
         projectWrongs = F.And [projectWrong i | i <- [1..a]]
-    in projectCorrect --F.And [projectCorrect, projectWrongs]
+    in F.LabeledFormula ("phi_project__"++t++"__"++c) 
+         projectCorrect --F.And [projectCorrect, projectWrongs]
 
 -- Axiom: Term constructors have disjoint ranges (Phi_2 in paper).
-phi_disjoint (H.Data _ dns) = map f $ zip dns (tail dns) where
+phi_disjoint (H.Data t dns) = map f $ zip dns (tail dns) where
   f ((c1,a1,_),(c2,a2,_)) =
     let xs = makeVars a1 "X"
         xsN = map (Named . Var) xs
@@ -292,14 +300,15 @@ phi_disjoint (H.Data _ dns) = map f $ zip dns (tail dns) where
         ysN = map (Named . Var) ys
         fullC1 = F.FullApp (Con c1) xsN
         fullC2 = F.FullApp (Con c2) ysN
+        phi =  F.Forall (xs++ys) $ F.Or [F.Min fullC1, F.Min fullC2]
+                                   :=>: (fullC1 :/=: fullC2)
     -- XXX: are the 'min's right? Paper uses 'forall a.' here which
     -- means only one 'min'.
-    in F.Forall (xs++ys) $ F.Or [F.Min fullC1, F.Min fullC2]
-                           :=>: (fullC1 :/=: fullC2)
+    in F.LabeledFormula ("phi_disjoint__"++t++"__"++c1++"__"++c2) phi
     --in F.Forall (xs++ys) $ fullC1 :/=: full c2
 
 -- Axiom: Term constructors are CF (Phi_3 in paper).
-phi_cf (H.Data _ dns) = concat <$> mapM f dns where
+phi_cf (H.Data t dns) = mapM f dns where
   f (c,a,_) = do
     let xs = makeVars a "X"
         xsN = map (Named . Var) xs
@@ -310,21 +319,25 @@ phi_cf (H.Data _ dns) = concat <$> mapM f dns where
         -- CF^a -> CF
         contract = foldr1 (H.Arr Nothing) cfs
        -- DESIGN CHOICE: appification.
+       --
+       -- Also, one direction of the CF axiom is simply a contract
+       -- translation, by treating the constructor as a function
+       -- (which, of course, it is).
     cfc <- F.appifyF =<< cTrans' Minus cN contract
     let phi = F.Forall xs $ F.Min full :=>:
                        (F.CF full
                        :=>: (F.And [F.CF x | x <- xsN]))
-    return [phi,cfc]
+    return $ F.LabeledFormula ("phi_cf__"++t++"__"++c) $ F.And [phi,cfc]
 -- Axiom: Term constructors are total/lazy (Phi_4 in paper).
-phi_total (H.Data _ dns) = map f dns where
+phi_total (H.Data t dns) = map f dns where
   f (c,a,_) =
     let xs = makeVars a "X"
         xsN = map (Named . Var) xs
         full = F.FullApp (Con c) xsN
-    in
-    F.Forall xs $ F.Min full :=>:
-      F.And [full :/=: unr
-            ,full :/=: bad]
+    in F.LabeledFormula ("phi_total__"++t++"__"++c) $
+         F.Forall xs $ F.Min full :=>:
+           F.And [full :/=: unr
+                 ,full :/=: bad]
 
 -- Final translation
 --------------------
@@ -333,8 +346,8 @@ phi_total (H.Data _ dns) = map f dns where
 -- also makes the generated formulas simpler, but at the cost of
 -- complicating the generation code.  Would like to see how much if
 -- any it speeds up Equinox in practice.
-trans :: H.Program -> H.Program -> [F.LabeledFormula]
-trans checks deps = evalState result startState
+trans :: Int -> H.Program -> H.Program -> [F.LabeledFormula]
+trans unrolls checks deps = evalState result startState
  where
   startState = S { prefix = "Z"
                  , count = 0
@@ -343,7 +356,7 @@ trans checks deps = evalState result startState
                  }
   result = do
     let
-        -- Substitution functions for recursification.
+        -- Substitution functions for recursification and unrolling.
         --
         -- XXX: We could generate a slightly better theory by
         -- only recursifying functions that are actually
@@ -360,14 +373,21 @@ trans checks deps = evalState result startState
         -- to list of all recursive goal functions.  However,
         -- breaking it up into two phases is probably easier to
         -- understand.
-        fs = map H.tls2Name checks
-        recSubst   = H.substs   recVars
-        recSubstC  = H.substsC  recVars
-        recSubstCE = H.substsCE recVars
-        recVars = zip (map recVar fs) fs
-        recVar = H.Named . H.Rec
 
-        recursifyDef (H.Let f xs pces) = H.Let f xs (recSubstCE pces)
+        fs = map H.tls2Name checks
+        -- E.g. 'substPairs H.Rec' gives the recursification subst,
+        -- and 'substPairs (H.Unroll k)' gives the 'k'th unrolling
+        -- subst.
+        substitution c = zip (map (H.Named . c) fs) fs
+        -- Translations incorporating substitution by pairs 'ps'.  Use
+        -- 'substition' to get 'ps'.  Note that 'fV' is a 'Named', not
+        -- a 'Name'.
+        dTransSub :: [(Expression,Name)] -> Named -> [Name] -> H.Case
+                  -> Fresh [LabeledFormula]
+        cTransSub :: Variance -> [(Expression,Name)] -> Expression -> H.Contract
+                  -> Fresh LabeledFormula
+        dTransSub   ps fV xs ce = dTrans   fV xs (H.substsCE ps ce)
+        cTransSub v ps fV c     = cTrans v fV    (H.substsC  ps c)
 
     -- Translate all the defs.  We treat 'checks' different than
     -- 'deps', e.g. we assume contracts in 'deps', but break contracts
@@ -376,15 +396,42 @@ trans checks deps = evalState result startState
     depFormulae <- forM deps $ \d -> case d of
       H.DataType t                -> tTrans t
       -- assert: There shouldn't be any recursive occurrences of 'fs'
-      -- in 'deps', unless the '-c FUN' option is in use.
-      H.Def d                     -> assert (d' == d) $ dTrans d' where
-        d' = recursifyDef d
+      -- in 'deps', unless the '--only-check FUN' option is in use
+      -- (and then only depending on how '--only-check' is
+      -- implemented.  The more conservative version just restricts to
+      -- SCCs containing specified functions, and so this 'assert'
+      -- would still pass).
+      H.Def d@(H.Let f xs ce) -> assert (ce == ce') $
+         -- No 'Rec' or 'Unroll' for dependencies, since we assume
+         -- them correct.
+         (ptrAxiom xs fN:) <$> dTrans fN xs ce
+       where
+        ce' = H.substsCE (substitution H.Rec) ce
+        fN = Var f
       H.ContSat (H.Satisfies f c) -> (:[]) <$> cTrans Minus (H.Named $ H.Var f) c
     checkFormulae <- forM checks $ \d -> case d of
       H.DataType t                 -> tTrans t
-      H.Def d                      -> dTrans $ recursifyDef d
-      -- XXX, ???: should 'f' be allowed to occur in 'c' at all? The 'recSubstC' below
-      -- indicates this is expected.
+      H.Def d@(H.Let f xs ce) ->
+        ((ptrAxiomss++) . concat) <$> dTranss
+       where
+        -- The order here is important: if 'nameds = [...,c,c',...]',
+        -- then we will define 'c f' with 'c' f' in the body.  So, we
+        -- make the plain function call the first unrollings, the ith
+        -- unrolling call the i+1st, and the last unrolling call the
+        -- recursive anonymous.
+        nameds = [Var]++map Unroll [1..unrolls]++[Rec]
+        dTranss = mapM trans' neighbors where
+          neighbors = zip nameds (tail nameds)
+          -- Make a 'dTransSub' for 'c f = ce[c' g/g]_{g in gs}', where
+          -- 'gs' is the SCC of 'f'.
+          trans' (c,c') = dTransSub ps (c f) xs ce where
+            ps = substitution c'
+        ptrAxiomss = map (ptrAxiom xs . ($f)) nameds
+      -- XXX, ???: should 'f' be allowed to occur in 'c' at all? The
+      -- 'recSubstC' below indicates this is expected.  An example is
+      -- the symmetry of equality:
+      --
+      --   eqNat ::: x:CF -> y:CF -> {r: r `eqBool` (y `eqNat` x)}
       H.ContSat (H.Satisfies f c)  -> do
         -- XXX, ???: why not 'recSubstC c' instead of plain 'c'?
         -- XXX, ???: should the goal receive a different label? The TPTP
@@ -394,7 +441,7 @@ trans checks deps = evalState result startState
         goal <- cTrans Plus (H.Named $ H.Var f) c
         modify (\s -> s { getGoals = goal : getGoals s })
 
-        (:[]) <$> cTrans Minus (recVar f) (recSubstC c)
+        (:[]) <$> cTransSub Minus (substitution H.Rec) (H.Named $ H.Rec f) c
     -- The goal formula is the negated conjunction of all goals,
     -- because we do a refutation proof.
     goalFormula <- do

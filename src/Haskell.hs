@@ -14,6 +14,7 @@ getName (Var v) = v
 getName (Con v) = v
 getName (Rec v) = v
 getName (Proj _ v) = v
+getName (Unroll _ v) = v
 
 tls2Name :: TopLevelStatement -> Name
 tls2Name (Def (Let f _ _))         = f
@@ -29,20 +30,16 @@ arities ds = concatMap go ds
         go (DataType (Data _ vacs)) = [(v,a) | (v,a,_) <- vacs]
         go _ = []
 
+-- | "Appify" all 'Expression's in a term.
 appify :: [Arity] -> GenericT
 appify = gfmap . appifyExpr
-
--- XXX, TODO: rename
--- | Return the arity of a name
-lookupT :: Named -> [Arity] -> Maybe Int
-lookupT v as = (lookup . getName) v as where
 
 -- takes a program and a list of arities for each definition
 -- returns the same program but using full application wherever possible
 appifyExpr :: [Arity] -> Expression -> Expression
 appifyExpr a e = go e []
   -- 'a' is the arities, 'args' is the arguments to the enclosing applications.
-  where go (n@(Named v) :@: e) args = case lookupT v a of
+  where go (n@(Named v) :@: e) args = case lookup (getName v) a of
           Just k -> if length args' == k
                     then FullApp v args'
                     else apps (n : e' : args)

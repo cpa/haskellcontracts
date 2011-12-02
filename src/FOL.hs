@@ -19,8 +19,9 @@ unlabel (LabeledFormula _ e) = e
 -- forall a . x && y --> (forall a . x) && (forall a . y)
 splitOnAndLabeled :: LabeledFormula -> [LabeledFormula]
 splitOnAndLabeled (LabeledFormula lbl f)
-  = [LabeledFormula (lbl++show i) f' | (i,f') <- zip [1..] (splitOnAnd f)]
-
+  = [LabeledFormula (lbl++i) f' | (i,f') <- zip labelExtensions (splitOnAnd f)]
+ where
+  labelExtensions = "":map (("__splitOnAnd_"++) . show) [1..]
 splitOnAnd :: Formula -> [Formula]
 splitOnAnd (Forall xs (And fs)) = map (Forall xs) fs
 splitOnAnd (Forall xs f) = map (Forall xs) $ splitOnAnd f
@@ -84,6 +85,12 @@ simplify cfg = splitOnAndLabeled
  where
   maybeTrivializeMin = if no_min cfg then trivializeMin else id
 
+named2TPTP :: Named -> String
+named2TPTP (Var v) = v
+named2TPTP (Con v) = "c_"++v -- "'" ++ v ++ "'"
+named2TPTP (Rec v) = v++"__r"
+named2TPTP (Proj i v) = "'"++v++"__p"++show i++"'"
+named2TPTP (Unroll i v) = v++"__u"++show i
 
 toTPTP :: LabeledFormula -> Doc
 toTPTP (LabeledFormula l f) = fof
@@ -144,10 +151,8 @@ toTPTP (LabeledFormula l f) = fof
         goTerm qs (FullApp f []) = goNamed qs f
         goTerm qs (FullApp f as) = fun qs (goFull f) as
 
-        goNamed qs (Var v) = goVar qs v
-        goNamed qs (Con v) = text $ "c_" ++ v -- "'" ++ v ++ "'"
-        goNamed qs (Rec v) = text $ v ++ "__R"
-        goNamed qs (Proj i v) = text $ "'"++v++"__"++show i++"'"
+        goNamed qs (Var v) = text $ named2TPTP $ Var $ goVar qs v
+        goNamed _  vN      = text $ named2TPTP vN
 
         -- Uppercase a list of quantified variables.
         goQList xs = brackets $ hsep $ punctuate comma $ map (text . uppercase) xs
@@ -156,7 +161,7 @@ toTPTP (LabeledFormula l f) = fof
         -- so no 'qs' here.
         goFull = goNamed [] . gfmap ("f__"++)
         -- Uppercase a variable if quantified.
-        goVar qs v = text $ if v `elem` qs then uppercase v else v
+        goVar qs v = if v `elem` qs then uppercase v else v
         uppercase = map toUpper
 
 toSMTLIB :: Formula -> String

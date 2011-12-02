@@ -23,6 +23,8 @@ data Named
    -- to enforce this.
    | Rec Name -- ^ Recursive version of a function
    | Proj Int Name -- ^ Projector for a term constructor.
+   | Unroll Int Name -- ^ An unrolling of a function.  Used for
+                     -- multiple unrolling support.
    -- There is no 'Full' because full application is
    -- determined by context.
    deriving (Eq,Ord,Show,Data,Typeable)

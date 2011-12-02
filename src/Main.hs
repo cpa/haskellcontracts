@@ -114,7 +114,7 @@ checkFile cfg f = do
   -- change how most formulas are generated, since most formulas are
   -- generated using full application where possible. If appification
   -- were disabled, the formulas relating full and partial application
-  -- could be elided (e.g. 'dPtr').
+  -- could be elided (e.g. 'ptrAxiom').
   let prog' = appify (arities prog) prog
       sccs = orderedChecks prog'
       -- If the set of functions to check is restricted, then check
@@ -152,7 +152,7 @@ check cfg f prog (checks,deps) | all null contracts = return True
           $ assert (deps' == nub deps')
           $ assert (null (checks' `intersect` deps'))
           $ showFormula thy $ simplify cfg
-                              =<< trans checks' deps'
+                              =<< trans (unrolls cfg) checks' deps'
       tmpFile = takeFileName f ++
                 "." ++ intercalate "-" fs ++
                 "." ++ fileExtension thy

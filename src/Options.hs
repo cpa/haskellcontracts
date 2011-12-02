@@ -18,6 +18,7 @@ data Conf = Conf { keep_tmps    :: Bool
                  , type_check   :: Bool
 
                  , no_min       :: Bool
+                 , unrolls      :: Int
                  , file         :: FilePath
                  } deriving (Show, Data, Typeable)
 
@@ -64,6 +65,9 @@ getOpts = cmdArgs $ Conf
 
   , no_min = def
     &= help "Don't use the 'min' predicate in the translation. This should degrade performance, but makes the resulting theory file much easier to read, and can be used to debug changes to 'min' placement, e.g. to check if they are too restrictive."
+
+  , unrolls = def
+    &= help "Specify the number of additional unrollings to perform when translating function definitions."
 
   , file = def
     &= argPos 0
