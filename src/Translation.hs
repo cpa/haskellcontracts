@@ -202,8 +202,10 @@ dual :: Variance -> Variance
 dual Plus = Minus
 dual Minus = Plus
 
-cTrans :: Variance -> H.Expression -> H.Contract -> Fresh F.LabeledFormula
-cTrans v e c = appify =<< (F.LabeledFormula "cTrans" <$> cTrans' v e c)
+cTrans :: Name -- An identifier for this contract
+       -> Variance -> H.Expression -> H.Contract -> Fresh F.LabeledFormula
+cTrans cid v e c 
+  = appify =<< (F.LabeledFormula ("cTrans_" ++ cid) <$> cTrans' v e c)
 
 cTrans' :: Variance -> H.Expression -> H.Contract -> Fresh F.Formula
 cTrans' _ e H.Any = return Top
@@ -384,10 +386,11 @@ trans unrolls checks deps = evalState result startState
         -- a 'Name'.
         dTransSub :: [(Expression,Name)] -> Named -> [Name] -> H.Case
                   -> Fresh [LabeledFormula]
-        cTransSub :: Variance -> [(Expression,Name)] -> Expression -> H.Contract
+        cTransSub :: Name 
+                  -> Variance -> [(Expression,Name)] -> Expression -> H.Contract
                   -> Fresh LabeledFormula
         dTransSub   ps fV xs ce = dTrans   fV xs (H.substsCE ps ce)
-        cTransSub v ps fV c     = cTrans v fV    (H.substsC  ps c)
+        cTransSub cid v ps fV c     = cTrans cid v fV    (H.substsC  ps c)
 
     -- Translate all the defs.  We treat 'checks' different than
     -- 'deps', e.g. we assume contracts in 'deps', but break contracts
@@ -408,7 +411,8 @@ trans unrolls checks deps = evalState result startState
        where
         ce' = H.substsCE (substitution H.Rec) ce
         fN = Var f
-      H.ContSat (H.Satisfies f c) -> (:[]) <$> cTrans Minus (H.Named $ H.Var f) c
+      H.ContSat (H.Satisfies f c) -> (:[]) <$> do { cid <- fresh
+                                                  ; cTrans (f ++ "_" ++ cid) Minus (H.Named $ H.Var f) c }
     checkFormulae <- forM checks $ \d -> case d of
       H.DataType t                 -> tTrans t
       H.Def d@(H.Let f xs ce) ->
@@ -438,10 +442,11 @@ trans unrolls checks deps = evalState result startState
         -- format supports e.g. 'conjecture' for goals, vs 'axiom' for
         -- assumptions. Doe Equinox distinguish (nc vaguely remembers getting
         -- different output in an experiment)?
-        goal <- cTrans Plus (H.Named $ H.Var f) c
+        goal <- cTrans f Plus (H.Named $ H.Var f) c
         modify (\s -> s { getGoals = goal : getGoals s })
 
-        (:[]) <$> cTransSub Minus (substitution H.Rec) (H.Named $ H.Rec f) c
+        (:[]) <$> do { let cid = F.named2TPTP (H.Rec f)
+                     ; cTransSub cid Minus (substitution H.Rec) (H.Named $ H.Rec f) c }
     -- The goal formula is the negated conjunction of all goals,
     -- because we do a refutation proof.
     goalFormula <- do

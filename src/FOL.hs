@@ -21,7 +21,7 @@ splitOnAndLabeled :: LabeledFormula -> [LabeledFormula]
 splitOnAndLabeled (LabeledFormula lbl f)
   = [LabeledFormula (lbl++i) f' | (i,f') <- zip labelExtensions (splitOnAnd f)]
  where
-  labelExtensions = "":map (("__splitOnAnd_"++) . show) [1..]
+  labelExtensions = "":map (("_"++) . show) [1..] -- "__splitOnAnd_" was too lengthy
 splitOnAnd :: Formula -> [Formula]
 splitOnAnd (Forall xs (And fs)) = map (Forall xs) fs
 splitOnAnd (Forall xs f) = map (Forall xs) $ splitOnAnd f
