@@ -8,7 +8,7 @@ import qualified FOL as F
 import FOL (Formula(..))
 --import Types.Haskell
 import Types.Translation
-import Options (Conf(..))
+import Types.ThmProver (Conf(..))
 
 import Control.Monad.State
 import Data.List (partition, intercalate)
@@ -256,9 +256,9 @@ cTrans' v e (H.CF) = do
 tTrans :: H.DataType -> Fresh [F.LabeledFormula]
 tTrans d@(H.Data nm _) = do
            phi_cfd <- phi_cf d
-           let phis = concat [phi_project d
-                             ,phi_disjoint d
-                             ,phi_total d]
+           let phis = concat [ phi_project d
+                             , phi_disjoint d
+                             , phi_total d]
                       ++ phi_cfd ++ ptr d
            return $ phis
   where ptr (H.Data _ cas) = [ptrAxiom (makeVars a "X") (Con c) | (c,a,_) <- cas]

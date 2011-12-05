@@ -51,7 +51,11 @@ appifyExpr a e = go e []
 
         -- There should be no enclosing applications in these case, so no args.
         go (FullApp v es) [] = FullApp v $ map (\e -> go e []) es
-        go (n@(Named _)) [] = n
+        go (n@(Named v)) []
+            = case lookup (getName v) a of
+                Just 0  -> FullApp v []
+                _ -> n -- If Nothing means it's not a declared function
+                       -- If Just of non-zero means its a partially applied user-declared function
 
 -- Bunch of substitution utility
 
