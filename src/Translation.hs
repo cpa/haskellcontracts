@@ -1,3 +1,4 @@
+{-# LANGUAGE ParallelListComp #-}
 module Translation where
 
 -- XXX: nc did not do a very good job of imposing a fake distinction
@@ -127,7 +128,7 @@ dTrans :: H.Named -> [Name] -> H.Case -> Fresh [F.LabeledFormula]
 dTrans fV vs ce = do
   rhs <- go vs ce
   let eq = F.Forall vs $ F.Min full :=>: rhs
-  return $ [F.LabeledFormula ("dTrans__"++F.named2TPTP fV) eq]
+  mapM appify [F.LabeledFormula ("dTrans__"++F.named2TPTP fV) eq]
  where
   vsN = map nv vs
   --fV = Var f
@@ -145,13 +146,6 @@ dTrans fV vs ce = do
     -- translate this to 'f x = case x of K z -> z'.  The problem is
     -- that we generate an equation 'x = K z' for when the scrutinee
     -- 'x' is equal to 'K _'.
-    --
-    -- XXX: the free vars could be avoided by using the projections
-    -- here: e.g. instead we make an equation 'x = K(pi^K_1 x)'. I
-    -- have no idea if Equinox would be better or worse for it.
-    --
-    -- XXX, TODO: try the above alternate translation in terms of
-    -- projections.
     --
     -- Below we translate 'case e of [ci xsi -> ei]' to
     -- 
@@ -179,9 +173,11 @@ dTrans fV vs ce = do
     -- but the converse implication does not hold.  For us we have,
     -- e.g., A := (e = BAD), B := (f xs = BAD), C := (f xs = UNR).
 
+        -- Quantifier-based translation.
+        --
         -- 'conCase (p,ce)' returns '(e /= p, e = p /\ f xs = ce)',
         -- with the necessary translations and quantifications.
-    let conCase ((c,vs),ce) = do
+    let conCaseQuantify ((c,vs),ce) = do
           let vs' = makeFVs fvs vs
               vs'N = map nv vs'
               fullC = F.FullApp (Con c) vs'N
@@ -189,6 +185,25 @@ dTrans fV vs ce = do
           ceT <- go (vs'++fvs) $ H.substsCE (zip vs'N vs) ce
           return (F.Forall vs' $        eT :/=: fullC
                  ,F.Exists vs' $ F.And [eT :=: fullC, ceT])
+
+        -- Projection-based translation.
+        --
+        -- The quantifiers, and hence free vars, in the
+        -- quantifier-based translation implemented by conCaseQuantify
+        -- are avoided by using projections here: instead we make an
+        -- equation 'x = K(pi^K_1 x)'.
+        conCaseProject ((c,vs),ce) = do
+              -- [Pi^C_i e / v]_{(i,v) \in enumerate vs}
+          let sub = [ ((Named $ Proj i c) :@: eT, v)
+                    | v <- vs
+                    | i <- [1..] ]
+              -- C (Pi^C_1 e) ... (Pi^C_n e)
+              fullC = F.FullApp (Con c) (map fst sub)
+          ceT <- go fvs $ H.substsCE sub ce
+          return (eT :/=: fullC, F.And [eT :=: fullC, ceT])
+
+    cfg' <- gets cfg
+    let conCase = if use_qs cfg' then conCaseQuantify else conCaseProject
     (nonConCases,conCases) <- unzip <$> mapM conCase pces
     let conCaseIneqs = [ F.Not eq | F.And (eq:_) <- conCases ]
         badCase = F.And [eT :=: bad, full :=: bad]
@@ -216,7 +231,7 @@ cTrans' v e (H.Pred x p) =  do
   eT <- eTrans e
   p'T <- eTrans p'
   -- XXX, DESIGN CHOICE: could also do 'F.Or[p'T :=: unr, p'T :=: true]'
-  let plain = F.And [F.Or [(eT :=: unr), F.And [bad :/=: p'T, p'T :/=: false]]]
+  let plain = F.And [F.Or [(eT :=: unr), F.And [p'T :/=: bad, p'T :/=: false]]]
   case v of
     Plus  -> return $ F.And [F.Min(eT),            F.Min(p'T)] :=>: plain
     Minus -> return $        F.Min(eT)  :=>: F.And [F.Min(p'T),      plain]
@@ -350,12 +365,13 @@ phi_total (H.Data t dns) = map f dns where
 -- complicating the generation code.  Would like to see how much if
 -- any it speeds up Equinox in practice.
 trans :: Conf -> H.Program -> H.Program -> [F.LabeledFormula]
-trans cfg checks deps = evalState result startState
+trans cfg' checks deps = evalState result startState
  where
   startState = S { prefix = "Z"
                  , count = 0
                  , arities = H.arities (checks++deps)
                  , getGoals = []
+                 , cfg = cfg'
                  }
   result = do
     let
@@ -424,7 +440,7 @@ trans cfg checks deps = evalState result startState
         -- make the plain function call the first unrollings, the ith
         -- unrolling call the i+1st, and the last unrolling call the
         -- recursive anonymous.
-        nameds = [Var]++map Unroll [1..unrolls cfg]++[Rec]
+        nameds = [Var]++map Unroll [1..unrolls cfg']++[Rec]
         dTranss = mapM trans' neighbors where
           neighbors = zip nameds (tail nameds)
           -- Make a 'dTransSub' for 'c f = ce[c' g/g]_{g in gs}', where

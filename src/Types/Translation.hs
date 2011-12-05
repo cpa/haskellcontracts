@@ -3,6 +3,7 @@ module Types.Translation (module Types.Translation, module Types.FOL) where
 import Control.Monad.State
 
 import Types.FOL (LabeledFormula,Name)
+import Types.ThmProver (Conf)
 
 type Arity = (Name,Int)
 
@@ -15,4 +16,5 @@ data TransState = S { prefix  :: String -- the prefix of our fresh variables
                       -- alternative would be tag formulas with their
                       -- Plus / Minus status.
                     , getGoals :: [LabeledFormula] -- ^ translated goal contracts
+                    , cfg :: Conf
                     }

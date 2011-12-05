@@ -52,6 +52,11 @@ getOpts = cmdArgs $ Conf
   , no_min = def
     &= help "Don't use the 'min' predicate in the translation. This should degrade performance, but makes the resulting theory file much easier to read, and can be used to debug changes to 'min' placement, e.g. to check if they are too restrictive."
 
+  , use_qs = def
+    &= explicit
+    &= name "use-qs"
+    &= help "Use quantifiers to axiomatizing pattern matching in case expressions.  The default is to instead use projection."
+
   , unrolls = def
     &= help "Specify the number of additional unrollings to perform when translating function definitions."
 

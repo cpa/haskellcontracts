@@ -10,7 +10,7 @@ import Types.ThmProver
 fof :: Theory
 fof = Theory {
         showFormula = render . vcat . map F.toTPTP
-      , header = \_ -> const ""
+      , header = \_ _ -> ""
       , fileExtension = "tptp"
       , footer = ""
       }
