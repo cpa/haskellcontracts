@@ -452,17 +452,18 @@ trans unrolls checks deps = evalState result startState
           formula = F.Not $ F.And formulas
       return $ F.LabeledFormula label formula
 
-    return . concat
-           $ prelude : depFormulae ++ checkFormulae ++ [[goalFormula]]
+    return . concat $ 
+               [prelude] : depFormulae ++ checkFormulae ++ [[goalFormula]]
       -- XXX, TODO: add 'min's in prelude
-      where prelude = map (F.LabeledFormula "prelude") [
+      where prelude = F.LabeledFormula "prelude" $ 
+                      F.And [
 --                       cf1, cf2
 --                      ,min
-                       min
+                             min
 
-                      ,F.Not $ F.CF bad
-                      ,F.CF unr
-                      ]
+                           , F.Not $ F.CF bad
+                           , F.CF unr
+                           ]
             -- forall f,x. cf(f) /\ cf(x) -> cf(f x)
             cf1 = F.Forall [f,x]
                   $ F.And [F.CF fN, F.CF xN]
