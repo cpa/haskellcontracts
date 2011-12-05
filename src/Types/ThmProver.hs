@@ -47,4 +47,5 @@ data ThmProver
   | Vampire64
   | E
   | Z3
+  | Coq
   deriving (Show, Data, Typeable, Bounded, Enum, Eq)

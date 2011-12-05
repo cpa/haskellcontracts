@@ -22,8 +22,23 @@ smt2 = Theory {
          , footer = "(check-sat)"
          }
 
+coq :: Theory
+coq = Theory {
+        showFormula = render . vcat . map F.toCoqAxioms
+      , header = showDefsCoq
+      , fileExtension = "v"
+      , footer = ""
+      }
+
+
 provers :: [(ThmProver, ThmProverConf)]
-provers = [ (Equinox, ThmProverConf
+provers = [ (Coq, ThmProverConf
+                        ":"
+                        []
+                        (\msg -> True) -- Always succeed
+                        coq
+            )
+          , (Equinox, ThmProverConf
                         "equinox"
                         []
                         ("Unsatisfiable" `isInfixOf`)

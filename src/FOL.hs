@@ -4,7 +4,7 @@ import Debug.Trace
 import Data.Char (toUpper)
 import Data.List (intercalate)
 import Control.Monad.State (gets)
-import Text.PrettyPrint.HughesPJ
+import Text.PrettyPrint.HughesPJ 
 import Data.Generics (mkT,everywhere)
 
 import qualified Haskell as H
@@ -240,23 +240,37 @@ appifyF f = do
   a <- gets arities
   return $ appify a f
 
-showDefsCoq cfg defs
-  = unlines $ 
-     [ term_decl 
-     , cf_decl
-     , app_decl
-     , unr_decl
-     , bad_decl
-     ] ++ (concat $ map declare_def defs)
+{- Coq Output -}
+
+showDefsCoq cfg defs = unlines $ 
+                       preamble ++ 
+                         [ term_decl 
+                         , cf_decl
+                         , min_decl
+                         , app_decl
+                         , unr_decl
+                         , bad_decl
+                         ] ++ (concat $ map declare_def defs)
   where
+    preamble  = [ "Require Import Logic."
+                , "Require Import Classical."
+                , "Set Implicit Arguments."
+                , "Unset Strict Implicit."
+                , "Set Printing Implicit Defensive."
+                , "Set Transparent Obligations."
+                , ""
+                , ""
+                ]
     term_decl = "Variable Term : Set."
-    cf_decl   = "Variable CF   : Set -> Prop."
-    app_decl  = "Variable app  : (Term,Term) -> Term."
+    cf_decl   = "Variable cf   : Term -> Prop."
+    min_decl  = "Variable min  : Term -> Prop."
+    app_decl  = "Variable app  : (Term * Term) -> Term."
     unr_decl  = "Variable unr  : Term."
     bad_decl  = "Variable bad  : Term."
 
     mk_nary 0 = "Term"
-    mk_nary n = "Term -> " ++ mk_nary (n-1)
+    mk_nary 1 = "Term -> Term"
+    mk_nary n = "Term * " ++ mk_nary (n-1)
 
     mk_full_decl arity nm nmd 
       = "Variable " ++ full2TPTP (nmd nm) ++ ": " ++ mk_nary arity ++ "."
@@ -284,3 +298,68 @@ showDefsCoq cfg defs
             partials = map (mk_part_decl con_arity con_name) nameds
             fulls    = map (mk_full_decl con_arity con_name) nameds
         in partials ++ fulls
+
+toCoqAxioms :: LabeledFormula -> Doc
+toCoqAxioms (LabeledFormula l f) = coq
+  where coq = vcat [ text "Axiom" <+> text l <+> text ":" 
+                   , nest 2 $ body <> text "." ]
+        body = go [] f
+
+        -- 'go qs f' converts formula 'f' to TPTP syntax, assuming
+        -- 'qs' are the names of the quantified variables in 'f'.
+        go qs (Forall xs f) = quantifier qs "forall" xs f
+        go qs (Exists xs f) = mk_exists_list qs xs f
+          where mk_exists_list qs [] f     = go qs f
+                mk_exists_list qs (x:xs) f 
+                    = parens $ 
+                      vcat [ text "exists" <+> text x <> text ":" <> text "Term" <> text ","
+                           , nest 2 (mk_exists_list (x:qs) xs f) ]
+
+        go qs (f1 :=>: f2) = naryF qs "->" [f1,f2]
+        go qs (f1 :<=>: f2) = naryF qs "<->" [f1,f2]
+        go qs (Not (t1 :=: t2)) = go qs (t1 :/=: t2)
+        go qs (t1 :=: t2) = naryT qs "=" [t1,t2]
+        go qs (t1 :/=: t2) = text "not" <+> parens (naryT qs "=" [t1,t2])
+
+        go qs (Not f) = text "not" <> parens (go qs f)
+
+        go qs (Or fs) = naryF qs "\\/" fs
+        go qs (And fs) = naryF qs "/\\" fs
+
+        go qs Top = text "True"
+        go qs Bottom = text "False"
+
+        go qs (CF t) = fun qs (text "cf") [t]
+        go qs (Min t) = fun qs (text "min") [t]
+
+        goTerm qs (Named n) = goNamed qs n
+        goTerm qs (e1 :@: e2) = fun qs (text "app") [e1,e2]
+        goTerm qs (FullApp f []) = text $ full2TPTP f -- goNamed qs f
+        goTerm qs (FullApp f as) = fun qs (text $ full2TPTP f) as
+
+        goNamed qs (Var v) = text $ named2TPTP $ Var $ goVar qs v
+        goNamed _  vN      = text $ named2TPTP vN
+
+        goQList xs = hsep $ map (\x -> parens $ text x <> text ":" <> text "Term") xs
+
+-- brackets $ hsep $ punctuate comma $ map (text . uppercase) xs
+        -- Uppercase a variable if quantified.
+        goVar qs v = v -- if v `elem` qs then uppercase v else v
+--        uppercase = map toUpper
+
+        -- n-ary infix operator 'op' with recursive pretty printer
+        -- 'rec' and arguments 'fs'.  'n = length fs'.
+        nary rec qs op fs = parens $ sep $ prepunctuate op (map (rec qs) fs)
+        -- specialized to textual operators
+        naryText rec qs t fs = nary rec qs (text t) fs
+        naryF = naryText go
+        naryT = naryText goTerm
+        -- n-ary function application
+        fun qs f args = f <> nary goTerm qs comma args
+
+        quantifier qs q xs f = parens $ hang (text q <+> goQList xs <> text ",")
+                                             2 (go (xs++qs) f)
+
+        prepunctuate sep [d] = [d]
+        prepunctuate sep (d:ds) = d : map (sep <+>) ds
+
