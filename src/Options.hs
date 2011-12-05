@@ -58,10 +58,10 @@ getOpts = cmdArgs $ Conf
     &= help "Add DIR to the paths searched for imports. This option may be specified multiple times. Import dirs are searched in the order specified, with an implicit \".\" (current dir) first."
 
   , ghci = def
-    &= help "Load FILE into GHCi, instead of checking its contracts. Useful to typecheck and to run functions."
+    &= help "Load FILE, and the compilation of FILE's contracts, into GHCi.  Causes GHCi to type-check the functions and contracts, and allows you to run functions.  Use '-k' to keep the temp file with the compiled contracts, or use ':!cat -n <temp file>' in GHCi to examine the temp file."
 
   , type_check = def
-    &= help "Type check FILE using GHC. This includes typechecking the contracts."
+    &= help "Type-check FILE, and the compilation of FILE's contracts, using GHC. Use '-k' to keep the temp file with the compiled contracts."
 
   , no_min = def
     &= help "Don't use the 'min' predicate in the translation. This should degrade performance, but makes the resulting theory file much easier to read, and can be used to debug changes to 'min' placement, e.g. to check if they are too restrictive."
