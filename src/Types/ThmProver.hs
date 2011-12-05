@@ -21,6 +21,7 @@ data Conf = Conf { keep_tmps    :: Bool
                  , type_check   :: Bool
 
                  , no_min       :: Bool
+                 , use_qs       :: Bool
                  , unrolls      :: Int
                  , file         :: FilePath
                  } deriving (Show, Data, Typeable)

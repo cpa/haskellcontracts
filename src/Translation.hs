@@ -147,13 +147,6 @@ dTrans fV vs ce = do
     -- that we generate an equation 'x = K z' for when the scrutinee
     -- 'x' is equal to 'K _'.
     --
-    -- XXX: the free vars could be avoided by using the projections
-    -- here: e.g. instead we make an equation 'x = K(pi^K_1 x)'. I
-    -- have no idea if Equinox would be better or worse for it.
-    --
-    -- XXX, TODO: try the above alternate translation in terms of
-    -- projections.
-    --
     -- Below we translate 'case e of [ci xsi -> ei]' to
     -- 
     --   min e /\ (
@@ -180,6 +173,8 @@ dTrans fV vs ce = do
     -- but the converse implication does not hold.  For us we have,
     -- e.g., A := (e = BAD), B := (f xs = BAD), C := (f xs = UNR).
 
+        -- Quantifier-based translation.
+        --
         -- 'conCase (p,ce)' returns '(e /= p, e = p /\ f xs = ce)',
         -- with the necessary translations and quantifications.
     let conCaseQuantify ((c,vs),ce) = do
@@ -191,6 +186,12 @@ dTrans fV vs ce = do
           return (F.Forall vs' $        eT :/=: fullC
                  ,F.Exists vs' $ F.And [eT :=: fullC, ceT])
 
+        -- Projection-based translation.
+        --
+        -- The quantifiers, and hence free vars, in the
+        -- quantifier-based translation implemented by conCaseQuantify
+        -- are avoided by using projections here: instead we make an
+        -- equation 'x = K(pi^K_1 x)'.
         conCaseProject ((c,vs),ce) = do
               -- [Pi^C_i e / v]_{(i,v) \in enumerate vs}
           let sub = [ ((Named $ Proj i c) :@: eT, v)
@@ -201,7 +202,8 @@ dTrans fV vs ce = do
           ceT <- go fvs $ H.substsCE sub ce
           return (eT :/=: fullC, F.And [eT :=: fullC, ceT])
 
-        conCase = conCaseProject
+    cfg' <- gets cfg
+    let conCase = if use_qs cfg' then conCaseQuantify else conCaseProject
     (nonConCases,conCases) <- unzip <$> mapM conCase pces
     let conCaseIneqs = [ F.Not eq | F.And (eq:_) <- conCases ]
         badCase = F.And [eT :=: bad, full :=: bad]
@@ -363,12 +365,13 @@ phi_total (H.Data t dns) = map f dns where
 -- complicating the generation code.  Would like to see how much if
 -- any it speeds up Equinox in practice.
 trans :: Conf -> H.Program -> H.Program -> [F.LabeledFormula]
-trans cfg checks deps = evalState result startState
+trans cfg' checks deps = evalState result startState
  where
   startState = S { prefix = "Z"
                  , count = 0
                  , arities = H.arities (checks++deps)
                  , getGoals = []
+                 , cfg = cfg'
                  }
   result = do
     let
@@ -437,7 +440,7 @@ trans cfg checks deps = evalState result startState
         -- make the plain function call the first unrollings, the ith
         -- unrolling call the i+1st, and the last unrolling call the
         -- recursive anonymous.
-        nameds = [Var]++map Unroll [1..unrolls cfg]++[Rec]
+        nameds = [Var]++map Unroll [1..unrolls cfg']++[Rec]
         dTranss = mapM trans' neighbors where
           neighbors = zip nameds (tail nameds)
           -- Make a 'dTransSub' for 'c f = ce[c' g/g]_{g in gs}', where
