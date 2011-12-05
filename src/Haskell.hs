@@ -32,7 +32,7 @@ arities ds = concatMap go ds
 
 -- | "Appify" all 'Expression's in a term.
 appify :: [Arity] -> GenericT
-appify = gfmap . appifyExpr
+appify x = gfmap (appifyExpr x)
 
 -- takes a program and a list of arities for each definition
 -- returns the same program but using full application wherever possible
