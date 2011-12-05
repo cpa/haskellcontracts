@@ -21,7 +21,8 @@ import Translation (trans)
 import Haskell
 import FOL (toTPTP,simplify)
 import ThmProver
-import Options (Conf(..),getOpts)
+import Options(getOpts)
+
 
 -- XXX: Might want to put 'cfg' in a 'State'.
 main = do
@@ -172,7 +173,7 @@ check cfg f prog (checks,deps) | all null contracts = return True
   whenNormal $ do
     putStrLn $ "Writing " ++ tmpFile
     putStrLn $ show fs ++ " are mutually recursive. Checking them altogether..."
-  writeFile tmpFile (unlines [header thy defs,out,footer thy])
+  writeFile tmpFile (unlines [header thy cfg defs,out,footer thy])
   hFlush stdout
   res <- if not $ dry_run cfg
     then do 

@@ -9,7 +9,7 @@ import Data.Generics (mkT,everywhere)
 
 import qualified Haskell as H
 import Haskell (appify,getName)
-import Options (Conf(no_min))
+import Types.ThmProver (Conf(no_min,unrolls))
 import Types.FOL
 import Types.Translation
 import Generics (gfmap)
@@ -21,7 +21,7 @@ splitOnAndLabeled :: LabeledFormula -> [LabeledFormula]
 splitOnAndLabeled (LabeledFormula lbl f)
   = [LabeledFormula (lbl++i) f' | (i,f') <- zip labelExtensions (splitOnAnd f)]
  where
-  labelExtensions = "":map (("__splitOnAnd_"++) . show) [1..]
+  labelExtensions = "":map (("_"++) . show) [1..] -- "__splitOnAnd_" was too lengthy
 splitOnAnd :: Formula -> [Formula]
 splitOnAnd (Forall xs (And fs)) = map (Forall xs) fs
 splitOnAnd (Forall xs f) = map (Forall xs) $ splitOnAnd f
@@ -87,10 +87,17 @@ simplify cfg = splitOnAndLabeled
 
 named2TPTP :: Named -> String
 named2TPTP (Var v) = v
-named2TPTP (Con v) = "c_"++v -- "'" ++ v ++ "'"
-named2TPTP (Rec v) = v++"__r"
-named2TPTP (Proj i v) = "'"++v++"__p"++show i++"'"
-named2TPTP (Unroll i v) = v++"__u"++show i
+named2TPTP (Con v) = "k_"++v -- "'" ++ v ++ "'"
+named2TPTP (Rec v) = v++"_r"
+named2TPTP (Proj i v) = "p" ++ show i ++ "_" ++ v
+named2TPTP (Unroll i v) = v++"_u"++show i
+
+
+full2TPTP :: Named -> String
+-- Ugly special-case for constructors, since we emphatically must produce things with "c" in front
+full2TPTP (Con v) = "c_" ++ v
+full2TPTP x = "f__" ++ named2TPTP x
+
 
 toTPTP :: LabeledFormula -> Doc
 toTPTP (LabeledFormula l f) = fof
@@ -148,23 +155,20 @@ toTPTP (LabeledFormula l f) = fof
 
         goTerm qs (Named n) = goNamed qs n
         goTerm qs (e1 :@: e2) = fun qs (text "app") [e1,e2]
-        goTerm qs (FullApp f []) = goNamed qs f
-        goTerm qs (FullApp f as) = fun qs (goFull f) as
+        goTerm qs (FullApp f []) = text $ full2TPTP f -- goNamed qs f
+        goTerm qs (FullApp f as) = fun qs (text $ full2TPTP f) as
 
         goNamed qs (Var v) = text $ named2TPTP $ Var $ goVar qs v
         goNamed _  vN      = text $ named2TPTP vN
 
         -- Uppercase a list of quantified variables.
         goQList xs = brackets $ hsep $ punctuate comma $ map (text . uppercase) xs
-        -- Annotate a full application.  We only fully applied defined
-        -- functions, and defined functions are never quantified over,
-        -- so no 'qs' here.
-        goFull = goNamed [] . gfmap ("f__"++)
         -- Uppercase a variable if quantified.
         goVar qs v = if v `elem` qs then uppercase v else v
         uppercase = map toUpper
 
 toSMTLIB :: Formula -> String
+-- DV: The code below is somewhat outdated: Must fix if you want to use
 toSMTLIB f = header ++ "\n" ++ go f ++ "\n" ++ footer
   where header = "(assert "
         footer = ")\n"
@@ -202,7 +206,7 @@ toSMTLIB f = header ++ "\n" ++ go f ++ "\n" ++ footer
         goFull = goNamed . gfmap ("f__"++)
         annote x = "("++x++" Real)"
 
-showDefsSMTLIB defs = unlines $ cf:app:unr:bad:map showDef arities where
+showDefsSMTLIB _cfg defs = unlines $ cf:app:unr:bad:map showDef arities where
   arities = concat $ map expand $ H.arities defs
   expand (v,k) = if k == 0 then [(v,0),(v++"__R",0)] else vsFun++vsProj
     where
@@ -235,3 +239,48 @@ appifyF :: Formula -> Fresh Formula
 appifyF f = do
   a <- gets arities
   return $ appify a f
+
+showDefsCoq cfg defs
+  = unlines $ 
+     [ term_decl 
+     , cf_decl
+     , app_decl
+     , unr_decl
+     , bad_decl
+     ] ++ (concat $ map declare_def defs)
+  where
+    term_decl = "Variable Term : Set."
+    cf_decl   = "Variable CF   : Set -> Prop."
+    app_decl  = "Variable app  : (Term,Term) -> Term."
+    unr_decl  = "Variable unr  : Term."
+    bad_decl  = "Variable bad  : Term."
+
+    mk_nary 0 = "Term"
+    mk_nary n = "Term -> " ++ mk_nary (n-1)
+
+    mk_full_decl arity nm nmd 
+      = "Variable " ++ full2TPTP (nmd nm) ++ ": " ++ mk_nary arity ++ "."
+    mk_part_decl arity nm nmd 
+      = "Variable " ++ named2TPTP (nmd nm) ++ " : Term."
+
+    declare_def (H.Def fdef)      = declare_fundef fdef
+    declare_def (H.DataType ddef) = declare_datatype ddef
+                         
+    declare_fundef :: H.Definition -> [String]
+    declare_fundef (H.Let nm args body) 
+      = let nameds = [Var] ++ map Unroll [1..unrolls cfg] ++ [Rec]
+            partials = map (mk_part_decl fn_arity nm) nameds
+            fulls    = map (mk_full_decl fn_arity nm) nameds
+        in partials ++ fulls
+      where fn_arity = length args
+
+    declare_datatype :: H.DataType -> [String]
+    declare_datatype (H.Data dt ctors)  
+      = concat $ map declare_ctor ctors
+   
+    declare_ctor :: (Name,Int,H.Contract) -> [String]
+    declare_ctor (con_name,con_arity,ct)
+      = let nameds = [Con] ++ [Proj i | i <- [1..con_arity] ]
+            partials = map (mk_part_decl con_arity con_name) nameds
+            fulls    = map (mk_full_decl con_arity con_name) nameds
+        in partials ++ fulls

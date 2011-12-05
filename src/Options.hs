@@ -8,20 +8,6 @@ import Data.List (intercalate)
 
 import Types.ThmProver
 
-data Conf = Conf { keep_tmps    :: Bool
-                 , only_check   :: [String] 
-                 , dry_run      :: Bool 
-                 , engine       :: ThmProver
-                 , idirs        :: [FilePath] -- "Include" directories
-
-                 , ghci         :: Bool
-                 , type_check   :: Bool
-
-                 , no_min       :: Bool
-                 , unrolls      :: Int
-                 , file         :: FilePath
-                 } deriving (Show, Data, Typeable)
-
 getOpts = cmdArgs $ Conf 
   { keep_tmps = def
     &= help "Keep temporary files. For contract checking, this means write first-order theories to FILE.<f1>-...-<fn>.tptp for each mutually dependent set {<f1>,...<fn>} of functions in FILE. These are the files given as input to the theorem prover (E.g. Equinox).  For type checking, this means write FILE.tc.hs containing FILE and the compiled versions of FILE's contracts."
