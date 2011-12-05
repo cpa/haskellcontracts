@@ -8,6 +8,7 @@ import qualified FOL as F
 import FOL (Formula(..))
 --import Types.Haskell
 import Types.Translation
+import Options (Conf(..))
 
 import Control.Monad.State
 import Data.List (partition, intercalate)
@@ -346,8 +347,8 @@ phi_total (H.Data t dns) = map f dns where
 -- also makes the generated formulas simpler, but at the cost of
 -- complicating the generation code.  Would like to see how much if
 -- any it speeds up Equinox in practice.
-trans :: Int -> H.Program -> H.Program -> [F.LabeledFormula]
-trans unrolls checks deps = evalState result startState
+trans :: Conf -> H.Program -> H.Program -> [F.LabeledFormula]
+trans cfg checks deps = evalState result startState
  where
   startState = S { prefix = "Z"
                  , count = 0
@@ -419,7 +420,7 @@ trans unrolls checks deps = evalState result startState
         -- make the plain function call the first unrollings, the ith
         -- unrolling call the i+1st, and the last unrolling call the
         -- recursive anonymous.
-        nameds = [Var]++map Unroll [1..unrolls]++[Rec]
+        nameds = [Var]++map Unroll [1..unrolls cfg]++[Rec]
         dTranss = mapM trans' neighbors where
           neighbors = zip nameds (tail nameds)
           -- Make a 'dTransSub' for 'c f = ce[c' g/g]_{g in gs}', where

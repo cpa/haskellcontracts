@@ -39,36 +39,24 @@ main = do
       putStrLn $ "There's at least one contract in " ++ f ++ " that doesn't hold."
     exitWith $ ExitFailure 1
  where
+  -- GHC/GHCi args
   args cfg file = [ "-fno-warn-unrecognised-pragmas"
                   , "-XNoImplicitPrelude"
                   , idirs' cfg
                   , file ]
   idirs' cfg = "-i"++intercalate ":" (idirs cfg)
 
-  run cmd args = exitImmediately =<< rawSystem cmd args
+  -- Load 'f' and the compilation of 'f's contracts into GHCi.
+  runGHCi cfg f = do
+    tempFile <- makeTCFile cfg f
+    code <- rawSystem "ghci" (args cfg tempFile)
+    unless (keep_tmps cfg) $
+      removeFile tempFile
+    exitImmediately code
 
-  runGHCi cfg f = run "ghci" (args cfg f)
-  -- Pretty hackish: concatenate the "compiled" contracts to the end
-  -- of the source file containing the "raw" contracts, and then ask
-  -- GHC to typecheck the result.
+  -- Typecheck 'f' and the compilation of 'f's contracts with GHC.
   tc cfg f = do
-    haskell <- readFile f
-    let defs = parse haskell
-    let contracts = [ c | ContSat (Satisfies _ c) <- defs ]
-    let contracts' = map contract2Haskell contracts
-    let haskell' = unlines [ "__contract__"++show i++" = "++s
-                           | s <- contracts'
-                           | i <- [(1::Int)..] ]
-    let tempFile = f++".tc.hs" -- GHC complains if the input file doesn't end in ".hs" :P
-    writeFile tempFile $
-      unlines [ haskell
-              , ""
-              , "{- ##### CONTRACTS ##### -}"
-              , ""
-              , haskell'
-              -- GHC wants a 'main' when I don't use '-c', and '-c'
-              -- caused other problems.
-              , "main = main"]
+    tempFile <- makeTCFile cfg f
     let args' = "-fno-code" : args cfg tempFile
     whenLoud $
       putStrLn $ "Running:\n  ghc "++intercalate " " args'
@@ -80,6 +68,31 @@ main = do
     unless (keep_tmps cfg) $
       removeFile tempFile
     exitImmediately code
+
+  -- Pretty hackish: concatenate the "compiled" contracts to the end
+  -- of the source file containing the "raw" contracts.  Returns the
+  -- name of the tmp file.
+  makeTCFile cfg f = do
+    haskell <- readFile f
+    let defs = parse haskell
+    -- XXX: more helpful to put the contract in the comment too.
+    -- However, we don't have a pretty printer, and we don't retain
+    -- the input src in the contract AST.
+    let haskell' = unlines [ "-- "++show e++"\n"
+                             ++"__contract__"++show i++" = "++contract2Haskell c
+                           | ContSat (Satisfies e c) <- defs
+                           | i <- [(1::Int)..] ]
+    let tempFile = f++".tc.hs" -- GHC complains if the input file doesn't end in ".hs" :P
+    writeFile tempFile $
+      unlines [ haskell
+              , ""
+              , "{- ##### CONTRACTS ##### -}"
+              , ""
+              , haskell'
+              -- GHC wants a 'main' when I don't use '-c', and '-c'
+              -- caused other problems.
+              , "main = main"]
+    return tempFile
 
 -- | Load a source file, recursively loading imports.
 loadFile :: Conf -> FilePath -> IO Program
@@ -152,7 +165,7 @@ check cfg f prog (checks,deps) | all null contracts = return True
           $ assert (deps' == nub deps')
           $ assert (null (checks' `intersect` deps'))
           $ showFormula thy $ simplify cfg
-                              =<< trans (unrolls cfg) checks' deps'
+                              =<< trans cfg checks' deps'
       tmpFile = takeFileName f ++
                 "." ++ intercalate "-" fs ++
                 "." ++ fileExtension thy
