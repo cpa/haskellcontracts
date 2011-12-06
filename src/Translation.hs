@@ -12,7 +12,7 @@ import Types.Translation
 import Types.ThmProver (Conf(..))
 
 import Control.Monad.State
-import Data.List (partition, intercalate)
+import Data.List (partition, intercalate, foldl')
 import Data.Char (toUpper)
 import Control.Applicative
 import Control.Exception (assert)
@@ -489,10 +489,21 @@ trans cfg' checks deps = evalState result startState
     -- because we do a refutation proof.
     goalFormula <- do
       goals <- gets getGoals
+      -- XXX, HERE: only skolemize when the engine is Equinox.  Also,
+      -- generated lemmas when the engine is Coq.
       let labels = map F.getLabel goals
           formulas = map F.getFormula goals
           label = intercalate "_" labels
-          formula = F.Not $ F.And formulas
+          sv = H.Named . H.Skolem
+          -- Freshen the foralls because we will replace them with
+          -- with skolem variables. NB: these foralls are really
+          -- exists', because the goal is negated.
+          formulas' = fst $ foldl' freshen ([],[]) formulas where
+            (phis,fvs) `freshen` (F.Forall xs phi) = (phi':phis, fvs'++fvs) where
+              fvs' = makeFVs fvs xs
+              phi' = H.substsF (zip (map sv fvs') xs) phi
+            (phis,fvs) `freshen` f = (f:phis,fvs)
+          formula = F.Not $ F.And formulas'
       return $ F.LabeledFormula label formula
 
     return . concat $ 

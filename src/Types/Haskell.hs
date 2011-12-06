@@ -18,6 +18,7 @@ type Name = String
 -- application, is the special case.
 data Named
    = Var Name -- ^ Regular variable, including functions.
+   | Skolem Name -- ^ Skolemized variable (we don't have Skolem functions).
    | Con Name -- ^ Constructor
    -- The rest are only relevant to FOL? Could use GADT tricks
    -- to enforce this.

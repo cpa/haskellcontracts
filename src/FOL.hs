@@ -87,6 +87,7 @@ simplify cfg = splitOnAndLabeled
 
 named2TPTP :: Named -> String
 named2TPTP (Var v) = v
+named2TPTP (Skolem v) = "a_"++v
 named2TPTP (Con v) = "k_"++v -- "'" ++ v ++ "'"
 named2TPTP (Rec v) = v++"_r"
 named2TPTP (Proj i v) = "p" ++ show i ++ "_" ++ v
