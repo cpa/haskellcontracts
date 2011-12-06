@@ -279,9 +279,6 @@ tTrans d@(H.Data nm _) = do
   where ptr (H.Data _ cas) = [ptrAxiom (makeVars a "X") (Con c) | (c,a,_) <- cas]
 
 -- | Axiom: Term constructors are invertable (Phi_1 in paper).
---
--- XXX, DESIGN CHOICE: this axiom isn't used, although it could be
--- used to eliminate some quantified variables in other axioms.
 phi_project (H.Data t dns) = map f dns where
   f (c,a,_) =
     let xs = makeVars a "X"
@@ -294,7 +291,7 @@ phi_project (H.Data t dns) = map f dns where
     -- UPDATE: actually, it is :P interest in the constructor
     -- application lets you invert!
         projectCorrect = F.Forall xs $
-          F.And [ F.Or[F.Min (fullProjK i),F.Min(fullC)] 
+          F.And [ F.Min(fullC) -- F.Or[F.Min (fullProjK i),F.Min(fullC)] 
                   :=>: (fullProjK i :=: x)
                 | (x,i) <- zip xsN [1..a]]
         -- XXX,DESIGN CHOICE: no mins. This axiom slowed down Equinox,
