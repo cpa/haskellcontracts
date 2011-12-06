@@ -236,7 +236,30 @@ cTrans' v e (H.Pred x p) =  do
     Plus  -> return $ F.And [F.Min(eT),            F.Min(p'T)] :=>: plain
     Minus -> return $        F.Min(eT)  :=>: F.And [F.Min(p'T),      plain]
 
-cTrans' v e (H.Arr mx c1 c2) = do
+cTrans' v e c@(H.Arr mx c1 c2) = do
+  eT <- eTrans e
+  (xs,cs,c') <- collectArrows c
+  let xsN = map nv xs
+  let app = H.apps (eT : xsN)
+  csT <- sequence [ cTrans' (dual v) xN c | xN <- xsN | c <- cs ]
+  c'T <- cTrans' v app c'
+  return $
+    -- XXX, DESIGN CHOICE: the single 'min' constraint here is only
+    -- adequate because we have a 'min(f x) -> min(f)' axiom (???).
+    -- Moreover, we may get this min anyway in c'T.
+    F.Forall xs $ F.Min app :=>: (F.And csT :=>: c'T)
+ where
+  -- Collect all the variables and contracts for a sequence of
+  -- arrows. Returns '(variables, variable contracts, conclusion contract)'.
+  collectArrows (H.Arr mx c1 c2) = do
+    x <- maybe fresh return mx
+    (xs, cs, c') <- collectArrows c2
+    return $ (x:xs, c1:cs, c')
+  collectArrows c' = return ([],[],c')
+{-
+  -- Simpler cTrans', as in paper, where the arrow sequence is not
+  -- collected.
+
   -- Parser inserts 'Nothing' for unnamed arrow arguments.
   x <- maybe fresh return mx
   let xN = Named $ Var x
@@ -246,6 +269,7 @@ cTrans' v e (H.Arr mx c1 c2) = do
   -- XXX, DESIGN CHOICE: need for 'min' constraint here depends on
   -- whether we have a 'min(f x) -> min(f)' axiom.
   return $ F.Forall [x] $ F.Min app :=>: (f1 :=>: f2)
+-}
 
 cTrans' v e (H.And c1 c2) = do
   f1 <- cTrans' v e c1
