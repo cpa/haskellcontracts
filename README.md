@@ -1,5 +1,7 @@
 # Links
 
+Examples: https://github.com/cpa/haskellcontracts-examples
+
 Mailing list: http://groups.google.com/group/haskellcontracts
 
 Wiki: https://github.com/cpa/haskellcontracts/wiki
