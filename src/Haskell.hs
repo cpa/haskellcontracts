@@ -9,14 +9,6 @@ import Types.Translation (Arity)
 import qualified Types.FOL as F
 import Generics (gfmap,GenericT)
 
--- | Projector for Named
-getName :: Named -> Name
-getName (Var v) = v
-getName (Con v) = v
-getName (Rec v) = v
-getName (Proj _ v) = v
-getName (Unroll _ v) = v
-
 tls2Name :: TopLevelStatement -> Name
 tls2Name (Def (Let f _ _))         = f
 tls2Name (DataType (Data t _))     = t

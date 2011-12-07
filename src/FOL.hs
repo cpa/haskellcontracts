@@ -14,12 +14,15 @@ import Types.FOL
 import Types.Translation
 import Generics (gfmap)
 
-unlabel (LabeledFormula _ e) = e
-
 -- forall a . x && y --> (forall a . x) && (forall a . y)
 splitOnAndLabeled :: LabeledFormula -> [LabeledFormula]
-splitOnAndLabeled (LabeledFormula lbl f)
-  = [LabeledFormula (lbl++i) f' | (i,f') <- zip labelExtensions (splitOnAnd f)]
+splitOnAndLabeled lf@(LabeledFormula lbl f)
+  -- it's not sound to 'splitOnAnd' goals, because they are meant to
+  -- be negated later.
+  | getVariance lbl == Plus = [lf]
+  | otherwise
+    = [ LabeledFormula (lbl { getNameLabel = getName lbl++i }) f'
+      | (i,f') <- zip labelExtensions (splitOnAnd f) ]
  where
   labelExtensions = "":map (("_"++) . show) [1..] -- "__splitOnAnd_" was too lengthy
 splitOnAnd :: Formula -> [Formula]
@@ -113,9 +116,16 @@ toTPTP (LabeledFormula l f) = fof
   -- handles comments/annotations.  Curious to see if it handles
   -- quoting and case conversion automatically.
   where fof = text "fof"
-              <> (parens $ vcat $ punctuate comma [text l,text "axiom",body]) 
+              <> (parens $ vcat $ punctuate comma [text $ getName l,text "axiom",body]) 
               <> text "."
-        body = go [] f
+        body = go [] f' where
+          -- We negate the goals.  We don't use "conjecture", instead
+          -- of "axiom", as opposed to negation, because we skolemize
+          -- the negated goal with special "a_" vars for Equinox.  For
+          -- other provers we could use "conjecture".
+          f' = case getVariance l of
+                 Minus -> f
+                 Plus  -> Not f
 
         -- n-ary infix operator 'op' with recursive pretty printer
         -- 'rec' and arguments 'fs'.  'n = length fs'.
@@ -302,9 +312,12 @@ showDefsCoq cfg defs = unlines $
 
 toCoqAxioms :: LabeledFormula -> Doc
 toCoqAxioms (LabeledFormula l f) = coq
-  where coq = vcat [ text "Axiom" <+> text l <+> text ":" 
+  where coq = vcat [ text (decl $ getVariance l) <+> text (getName l) <+> text ":"
                    , nest 2 $ body <> text "." ]
         body = go [] f
+
+        decl Plus  = "Theorem"
+        decl Minus = "Axiom"
 
         -- 'go qs f' converts formula 'f' to TPTP syntax, assuming
         -- 'qs' are the names of the quantified variables in 'f'.
