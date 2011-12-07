@@ -53,12 +53,23 @@ http://www.cse.chalmers.se/~koen/code/folkung.tar.gz.  You can use the
 ./contracts/Folkung.  There is another version available on github
 (https://github.com/nick8325/equinox/), but I think that one is older.
 
-I couldn't build it with ghc7 (errors related to Random module in
+UPDATE: the most recent Equinox uses dynymic libs not available on `cam-02-unx`.
+To run the precompiled Equinox there you can:
+
+    wget http://ubuntu.mirror.cambrium.nl/ubuntu//pool/main/libf/libffi/libffi6_3.0.11~rc1-2_i386.deb
+    dpkg --extract libffi6_3.0.11\~rc1-2_i386.deb libffi6
+    wget http://ubuntu.mirror.cambrium.nl/ubuntu//pool/main/g/gmp/libgmp10_5.0.1+dfsg-7ubuntu2_i386.deb
+    dpkg --extract libgmp10_5.0.1+dfsg-7ubuntu2_i386.deb libgmp10
+    LD_LIBRARY_PATH=/home/t-nathac/v/haskellcontracts.git/libgmp10/usr/lib:/home/t-nathac/v/haskellcontracts.git/libffi6/usr/lib/i386-linux-gnu/ equinox <equinox args>
+
+I couldn't build Equinox with ghc7 (errors related to Random module in
 hidden package haskell98), but ghc6 worked, after
 
-  cabal install --with-compiler ghc6 mtl syb quickcheck bnfc
+    cabal install --with-compiler ghc6 mtl syb quickcheck bnfc
 
 The GHC executable is specified in Haskell/Makefile. So edit that, or
 try
 
-  make GHC=<path to ghc6>
+    make GHC=`which ghc6`
+    
+NB: the build may fail when compiling Infinox, but Equinox builds successfully.
