@@ -6,13 +6,13 @@ module Translation where
 import qualified Haskell as H
 import Haskell (Name,Named(..),Expression(..))
 import qualified FOL as F
-import FOL (Formula(..))
+import FOL (Formula(..),Variance(..))
 --import Types.Haskell
 import Types.Translation
-import Types.ThmProver (Conf(..))
+import Types.ThmProver (Conf(..),ThmProver(..))
 
 import Control.Monad.State
-import Data.List (partition, intercalate)
+import Data.List (partition, intercalate, foldl')
 import Data.Char (toUpper)
 import Control.Applicative
 import Control.Exception (assert)
@@ -59,7 +59,7 @@ eTrans = return
 --
 -- NB: appification breaks this, so don't 'appify' it!
 ptrAxiom vs f = F.LabeledFormula 
-  ("ptrAxiom__"++F.named2TPTP f)
+  (F.axiom $ "ptrAxiom__"++F.named2TPTP f)
   (if null vs then Top else F.And [eq1Min]) --,eq2Min]
   -- 'null' check above to avoid pointless 'f = f'.
   where vsN = map (Named . Var) vs
@@ -128,7 +128,7 @@ dTrans :: H.Named -> [Name] -> H.Case -> Fresh [F.LabeledFormula]
 dTrans fV vs ce = do
   rhs <- go vs ce
   let eq = F.Forall vs $ F.Min full :=>: rhs
-  mapM appify [F.LabeledFormula ("dTrans__"++F.named2TPTP fV) eq]
+  mapM appify [F.LabeledFormula (F.axiom $ "dTrans__"++F.named2TPTP fV) eq]
  where
   vsN = map nv vs
   --fV = Var f
@@ -202,7 +202,7 @@ dTrans fV vs ce = do
           ceT <- go fvs $ H.substsCE sub ce
           return (eT :/=: fullC, F.And [eT :=: fullC, ceT])
 
-    cfg' <- gets cfg
+    cfg' <- gets getConf
     let conCase = if use_qs cfg' then conCaseQuantify else conCaseProject
     (nonConCases,conCases) <- unzip <$> mapM conCase pces
     let conCaseIneqs = [ F.Not eq | F.And (eq:_) <- conCases ]
@@ -213,7 +213,6 @@ dTrans fV vs ce = do
 -- Contract translation
 -----------------------
 
-data Variance = Plus | Minus
 dual :: Variance -> Variance
 dual Plus = Minus
 dual Minus = Plus
@@ -221,7 +220,7 @@ dual Minus = Plus
 cTrans :: Name -- An identifier for this contract
        -> Variance -> H.Expression -> H.Contract -> Fresh F.LabeledFormula
 cTrans cid v e c 
-  = appify =<< (F.LabeledFormula ("cTrans_" ++ cid) <$> cTrans' v e c)
+  = appify =<< (F.LabeledFormula (F.Label ("cTrans_" ++ cid) v) <$> cTrans' v e c)
 
 cTrans' :: Variance -> H.Expression -> H.Contract -> Fresh F.Formula
 cTrans' _ e H.Any = return Top
@@ -236,7 +235,30 @@ cTrans' v e (H.Pred x p) =  do
     Plus  -> return $ F.And [F.Min(eT),            F.Min(p'T)] :=>: plain
     Minus -> return $        F.Min(eT)  :=>: F.And [F.Min(p'T),      plain]
 
-cTrans' v e (H.Arr mx c1 c2) = do
+cTrans' v e c@(H.Arr mx c1 c2) = do
+  eT <- eTrans e
+  (xs,cs,c') <- collectArrows c
+  let xsN = map nv xs
+  let app = H.apps (eT : xsN)
+  csT <- sequence [ cTrans' (dual v) xN c | xN <- xsN | c <- cs ]
+  c'T <- cTrans' v app c'
+  return $
+    -- XXX, DESIGN CHOICE: the single 'min' constraint here is only
+    -- adequate because we have a 'min(f x) -> min(f)' axiom (???).
+    -- Moreover, we may get this min anyway in c'T.
+    F.Forall xs $ F.Min app :=>: (F.And csT :=>: c'T)
+ where
+  -- Collect all the variables and contracts for a sequence of
+  -- arrows. Returns '(variables, variable contracts, conclusion contract)'.
+  collectArrows (H.Arr mx c1 c2) = do
+    x <- maybe fresh return mx
+    (xs, cs, c') <- collectArrows c2
+    return $ (x:xs, c1:cs, c')
+  collectArrows c' = return ([],[],c')
+{-
+  -- Simpler cTrans', as in paper, where the arrow sequence is not
+  -- collected.
+
   -- Parser inserts 'Nothing' for unnamed arrow arguments.
   x <- maybe fresh return mx
   let xN = Named $ Var x
@@ -246,6 +268,7 @@ cTrans' v e (H.Arr mx c1 c2) = do
   -- XXX, DESIGN CHOICE: need for 'min' constraint here depends on
   -- whether we have a 'min(f x) -> min(f)' axiom.
   return $ F.Forall [x] $ F.Min app :=>: (f1 :=>: f2)
+-}
 
 cTrans' v e (H.And c1 c2) = do
   f1 <- cTrans' v e c1
@@ -303,7 +326,7 @@ phi_project (H.Data t dns) = map f dns where
         y = "ZDEF"
         yN = Named . Var $ y
         projectWrongs = F.And [projectWrong i | i <- [1..a]]
-    in F.LabeledFormula ("phi_project__"++t++"__"++c) 
+    in F.LabeledFormula (F.axiom $ "phi_project__"++t++"__"++c) 
          projectCorrect --F.And [projectCorrect, projectWrongs]
 
 -- Axiom: Term constructors have disjoint ranges (Phi_2 in paper).
@@ -319,7 +342,7 @@ phi_disjoint (H.Data t dns) = map f $ zip dns (tail dns) where
                                    :=>: (fullC1 :/=: fullC2)
     -- XXX: are the 'min's right? Paper uses 'forall a.' here which
     -- means only one 'min'.
-    in F.LabeledFormula ("phi_disjoint__"++t++"__"++c1++"__"++c2) phi
+    in F.LabeledFormula (F.axiom $ "phi_disjoint__"++t++"__"++c1++"__"++c2) phi
     --in F.Forall (xs++ys) $ fullC1 :/=: full c2
 
 -- Axiom: Term constructors are CF (Phi_3 in paper).
@@ -342,14 +365,14 @@ phi_cf (H.Data t dns) = mapM f dns where
     let phi = F.Forall xs $ F.Min full :=>:
                        (F.CF full
                        :=>: (F.And [F.CF x | x <- xsN]))
-    return $ F.LabeledFormula ("phi_cf__"++t++"__"++c) $ F.And [phi,cfc]
+    return $ F.LabeledFormula (F.axiom $ "phi_cf__"++t++"__"++c) $ F.And [phi,cfc]
 -- Axiom: Term constructors are total/lazy (Phi_4 in paper).
 phi_total (H.Data t dns) = map f dns where
   f (c,a,_) =
     let xs = makeVars a "X"
         xsN = map (Named . Var) xs
         full = F.FullApp (Con c) xsN
-    in F.LabeledFormula ("phi_total__"++t++"__"++c) $
+    in F.LabeledFormula (F.axiom $ "phi_total__"++t++"__"++c) $
          F.Forall xs $ F.Min full :=>:
            F.And [full :/=: unr
                  ,full :/=: bad]
@@ -362,13 +385,13 @@ phi_total (H.Data t dns) = map f dns where
 -- complicating the generation code.  Would like to see how much if
 -- any it speeds up Equinox in practice.
 trans :: Conf -> H.Program -> H.Program -> [F.LabeledFormula]
-trans cfg' checks deps = evalState result startState
+trans cfg checks deps = evalState result startState
  where
   startState = S { prefix = "Z"
                  , count = 0
                  , arities = H.arities (checks++deps)
                  , getGoals = []
-                 , cfg = cfg'
+                 , getConf = cfg
                  }
   result = do
     let
@@ -403,7 +426,7 @@ trans cfg' checks deps = evalState result startState
         cTransSub :: Name 
                   -> Variance -> [(Expression,Name)] -> Expression -> H.Contract
                   -> Fresh LabeledFormula
-        dTransSub   ps fV xs ce = dTrans   fV xs (H.substsCE ps ce)
+        dTransSub       ps fV xs ce = dTrans       fV xs (H.substsCE ps ce)
         cTransSub cid v ps fV c     = cTrans cid v fV    (H.substsC  ps c)
 
     -- Translate all the defs.  We treat 'checks' different than
@@ -437,7 +460,7 @@ trans cfg' checks deps = evalState result startState
         -- make the plain function call the first unrollings, the ith
         -- unrolling call the i+1st, and the last unrolling call the
         -- recursive anonymous.
-        nameds = [Var]++map Unroll [1..unrolls cfg']++[Rec]
+        nameds = [Var]++map Unroll [1..unrolls cfg]++[Rec]
         dTranss = mapM trans' neighbors where
           neighbors = zip nameds (tail nameds)
           -- Make a 'dTransSub' for 'c f = ce[c' g/g]_{g in gs}', where
@@ -465,16 +488,41 @@ trans cfg' checks deps = evalState result startState
     -- because we do a refutation proof.
     goalFormula <- do
       goals <- gets getGoals
+      cfg <- gets getConf
+
       let labels = map F.getLabel goals
           formulas = map F.getFormula goals
-          label = intercalate "_" labels
-          formula = F.Not $ F.And formulas
+          label = assert (all (==Plus) $ map F.getVariance labels) $
+                  F.theorem $ intercalate "_" (map F.getName labels)
+
+          -- Freshen the foralls because we will replace them with
+          -- with skolem variables. NB: these foralls are really
+          -- exists', because the goal is negated.
+          skolemize mkNamed = foldl' freshen ([],[]) formulas where
+            (phis,fvs) `freshen` (F.Forall xs phi) = (phi':phis, fvs'++fvs) where
+              fvs' = makeFVs fvs xs
+              phi' = H.substsF (zip (map mkNamed fvs') xs) phi
+            (phis,fvs) `freshen` f = (f:phis,fvs)
+
+          -- For Equinox we skolemize, using 'H.Skolem' vars and
+          -- dropping the (to be negated) forall.  For other engines
+          -- we perform the same lifting of foralls to the top, but
+          -- then we requantify.  We could avoid the lifting all
+          -- together for non Equinox engines, but this way the theory
+          -- is more similar for Equinox and the other engines.
+          formula = case engine cfg of
+            Equinox -> F.And formulas' where 
+              formulas' = fst $ skolemize sv
+              sv = H.Named . H.Skolem
+            _       -> F.Forall fvs $ F.And formulas' where
+              (formulas',fvs) = skolemize nv
+
       return $ F.LabeledFormula label formula
 
     return . concat $ 
                [prelude] : depFormulae ++ checkFormulae ++ [[goalFormula]]
       -- XXX, TODO: add 'min's in prelude
-      where prelude = F.LabeledFormula "prelude" $ 
+      where prelude = F.LabeledFormula (F.axiom "prelude") $ 
                       F.And [
 --                       cf1, cf2
 --                      ,min

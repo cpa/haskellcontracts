@@ -16,7 +16,7 @@ fof = Theory {
       }
 smt2 :: Theory
 smt2 = Theory {
-           showFormula = concatMap (F.toSMTLIB . F.unlabel)
+           showFormula = concatMap (F.toSMTLIB . F.getFormula)
          , header = F.showDefsSMTLIB
          , fileExtension = "smt2"
          , footer = "(check-sat)"

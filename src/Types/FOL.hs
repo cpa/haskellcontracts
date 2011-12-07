@@ -6,14 +6,29 @@ module Types.FOL (module Types.FOL, module Types.Haskell) where
 
 import Data.Data
 
-import Types.Haskell (Name,Named(..),Expression(..))
+import Types.Haskell (Name,Named(..),Expression(..),GetName(..))
 
-type Term = Expression
+-- | Goal / assumption distinction for formulas.
+data Variance
+-- Better to just call these 'Goal' and 'Assumption' ?
+   = Plus  -- ^ Goal
+   | Minus -- ^ Assumption
+     deriving (Show,Eq,Data,Typeable)
 
-type Label = String
+instance GetName Label where
+  getName = getNameLabel
+
+data Label = Label { getNameLabel :: Name, getVariance :: Variance }
+             deriving (Show,Eq,Data,Typeable)
 data LabeledFormula = LabeledFormula { getLabel :: Label, getFormula :: Formula }
                       deriving (Show,Eq,Data,Typeable)
 
+-- | Convenience functions for making labels.
+axiom, theorem :: Name -> Label
+axiom   n = Label n Minus
+theorem n = Label n Plus
+
+type Term = Expression
 infix 7 :<=>:
 infix 7 :=>:
 data Formula 

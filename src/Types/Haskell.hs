@@ -18,6 +18,7 @@ type Name = String
 -- application, is the special case.
 data Named
    = Var Name -- ^ Regular variable, including functions.
+   | Skolem Name -- ^ Skolemized variable (we don't have Skolem functions).
    | Con Name -- ^ Constructor
    -- The rest are only relevant to FOL? Could use GADT tricks
    -- to enforce this.
@@ -72,3 +73,17 @@ data Contract = Arr (Maybe Name) Contract Contract
                     | CF
                     | Any -- XXX: 'Any' is just '{x:True}', yeah?
                     deriving (Show,Eq,Ord,Data,Typeable)
+
+-- Make a class because e.g. 'LabeledFormula's embed names.
+class GetName a where
+  getName :: a -> Name
+
+instance GetName Named where
+  getName (Var v) = v
+  getName (Skolem v) = v
+  getName (Con v) = v
+  getName (Rec v) = v
+  getName (Proj _ v) = v
+  getName (Unroll _ v) = v
+
+

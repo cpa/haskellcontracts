@@ -6,15 +6,8 @@ import Data.Maybe (isJust)
 
 import Types.Haskell
 import Types.Translation (Arity)
+import qualified Types.FOL as F
 import Generics (gfmap,GenericT)
-
--- | Projector for Named
-getName :: Named -> Name
-getName (Var v) = v
-getName (Con v) = v
-getName (Rec v) = v
-getName (Proj _ v) = v
-getName (Unroll _ v) = v
 
 tls2Name :: TopLevelStatement -> Name
 tls2Name (Def (Let f _ _))         = f
@@ -61,10 +54,11 @@ appifyExpr a e = go e []
 
 -- | Perform many substitutions, rightmost first.
 substs :: [(Expression, Name)] -> Expression -> Expression
-substs subs e    = foldr (uncurry subst) e subs
-substsC subs c   = foldr (uncurry substC) c subs
+-- XXX: this is screaming "type class"
+substs   subs e  = foldr (uncurry subst)   e  subs
+substsC  subs c  = foldr (uncurry substC)  c  subs
 substsCE subs ce = foldr (uncurry substCE) ce subs
-
+substsF  subs f  = foldr (uncurry substF)  f  subs
 -- | 'subst e1 y e2' = e2[e1/y]
 --
 -- NB: only Var, and not Con or Rec, can be substituted for.  The idea
@@ -103,7 +97,23 @@ substCE e y (Case e' pces) = Case (subst e y e') (map substP pces) where
                            then pce
                            else ((c,vs), substCE e y ce)
 
-
+-- | Substitution for formulas.
+substF :: Expression -> Name -> F.Formula -> F.Formula
+substF e x f = go f where
+  goT = subst e x
+  go f@(F.Forall xs f') = if x `elem` xs then f else F.Forall xs $ go f'
+  go f@(F.Exists xs f') = if x `elem` xs then f else F.Exists xs $ go f'
+  go (f1 F.:=>: f2) = go f1 F.:=>: go f2
+  go (f1 F.:<=>: f2) = go f1 F.:<=>: go f2
+  go (F.Not f) = F.Not $ go f
+  go (F.Or fs) = F.Or $ map go fs
+  go (F.And fs) = F.And $ map go fs
+  go F.Top = F.Top
+  go F.Bottom = F.Bottom
+  go (t1 F.:=: t2) = goT t1 F.:=: goT t2
+  go (t1 F.:/=: t2) = goT t1 F.:/=: goT t2
+  go (F.CF t) = F.CF $ goT t
+  go (F.Min t) = F.Min $ goT t
 
 -- | Generate a Haskell function 'f' from a contract 'c', s.t. if 'f'
 -- type checks then 'c' would too.
