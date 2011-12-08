@@ -10,6 +10,7 @@ import FOL (Formula(..),Variance(..))
 --import Types.Haskell
 import Types.Translation
 import Types.ThmProver (Conf(..),ThmProver(..))
+import qualified Types.ThmProver as O
 
 import Control.Monad.State
 import Data.List (partition, intercalate, foldl')
@@ -177,14 +178,14 @@ dTrans fV vs ce = do
         --
         -- 'conCase (p,ce)' returns '(e /= p, e = p /\ f xs = ce)',
         -- with the necessary translations and quantifications.
-    let conCaseQuantify ((c,vs),ce) = do
+    let conCaseQuantify q con ((c,vs),ce) = do
           let vs' = makeFVs fvs vs
               vs'N = map nv vs'
               fullC = F.FullApp (Con c) vs'N
           -- substitute the fresh pattern variables before recursing.
           ceT <- go (vs'++fvs) $ H.substsCE (zip vs'N vs) ce
-          return (F.Forall vs' $        eT :/=: fullC
-                 ,F.Exists vs' $ F.And [eT :=: fullC, ceT])
+          return (F.Forall vs' $ eT :/=: fullC
+                 ,q vs' $ (eT :=: fullC) `con` ceT)
 
         -- Projection-based translation.
         --
@@ -192,7 +193,7 @@ dTrans fV vs ce = do
         -- quantifier-based translation implemented by conCaseQuantify
         -- are avoided by using projections here: instead we make an
         -- equation 'x = K(pi^K_1 x)'.
-        conCaseProject ((c,vs),ce) = do
+        conCaseProject con ((c,vs),ce) = do
               -- [Pi^C_i e / v]_{(i,v) \in enumerate vs}
           let sub = [ ((Named $ Proj i c) :@: eT, v)
                     | v <- vs
@@ -200,15 +201,31 @@ dTrans fV vs ce = do
               -- C (Pi^C_1 e) ... (Pi^C_n e)
               fullC = F.FullApp (Con c) (map fst sub)
           ceT <- go fvs $ H.substsCE sub ce
-          return (eT :/=: fullC, F.And [eT :=: fullC, ceT])
+          return (eT :/=: fullC
+                 ,(eT :=: fullC) `con` ceT)
 
-    cfg' <- gets getConf
-    let conCase = if use_qs cfg' then conCaseQuantify else conCaseProject
+        -- What the old translation used: quantifiers for matching
+        -- branches, and projectors in the case no branch matched.
+        conCaseHybrid q con pece = do
+          (_,conCase) <- conCaseQuantify q con pece
+          (nonConCase,_) <- conCaseProject con pece
+          return (nonConCase, conCase)
+
+    cfg <- gets getConf
+    let (q,cIn,cOut) =
+            if case_implies cfg
+            then (F.Forall, (F.:=>:), F.And)
+            else (F.Exists, and2,     F.Or)
+          where p `and2` q = F.And [p,q]
+    let conCase = case case_qs cfg of
+          O.Project  -> conCaseProject    cIn
+          O.Quantify -> conCaseQuantify q cIn
+          O.Hybrid   -> conCaseHybrid   q cIn
     (nonConCases,conCases) <- unzip <$> mapM conCase pces
-    let conCaseIneqs = [ F.Not eq | F.And (eq:_) <- conCases ]
-        badCase = F.And [eT :=: bad, full :=: bad]
-        unrCase = F.And [eT :/=: bad, F.And nonConCases, full :=: unr]
-    return $ F.And [F.Min eT, F.Or $ [badCase] ++ conCases ++ [unrCase]]
+    let badCase = (eT :=: bad) `cIn` (full :=: bad)
+        unrCase = (F.And [eT :/=: bad, F.And nonConCases]) `cIn` (full :=: unr)
+        allCases = [badCase] ++ conCases ++ [unrCase]
+    return $ F.And [F.Min eT, cOut allCases]
 
 -- Contract translation
 -----------------------

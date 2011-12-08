@@ -1,12 +1,15 @@
 {-# OPTIONS_GHC -fno-cse #-} -- For CmdArgs. See
 -- http://hackage.haskell.org/packages/archive/cmdargs/latest/doc/html/System-Console-CmdArgs-Implicit.html
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, ScopedTypeVariables #-}
 module Options where
 
 import System.Console.CmdArgs
 import Data.List (intercalate)
 
 import Types.ThmProver
+
+showAll :: forall a. (Bounded a, Enum a, Show a) => a -> String
+showAll _ = intercalate ", " $ map show [(minBound::a)..maxBound]
 
 getOpts = cmdArgs $ Conf 
   { keep_tmps = def
@@ -34,7 +37,7 @@ getOpts = cmdArgs $ Conf
     -- ??? E.g. you can say '--engine equinox'.
   , engine = Equinox -- The default option.
     &= typ "PROVER"
-    &= help ("Use the specified theorem prover. The default is Equinox. The available provers are "++(intercalate ", " $ map show [(minBound::ThmProver)..maxBound])
+    &= help ("Use the specified theorem prover. The default is Equinox. The available provers are "++showAll Equinox
 ++". The prover configurations are in ThmProver.hs.")
 
   , idirs = ["."] -- Always check current dir first.
@@ -52,10 +55,15 @@ getOpts = cmdArgs $ Conf
   , no_min = def
     &= help "Don't use the 'min' predicate in the translation. This should degrade performance, but makes the resulting theory file much easier to read, and can be used to debug changes to 'min' placement, e.g. to check if they are too restrictive."
 
-  , use_qs = def
+  , case_qs = Project
     &= explicit
-    &= name "use-qs"
-    &= help "Use quantifiers to axiomatizing pattern matching in case expressions.  The default is to instead use projection."
+    &= name "case-qs"
+    &= help ("How many quantifiers to use in case-expression translation.  The choices are "++showAll Project++". Default is Project. Hybrid means use quantifiers for standard branches, and projections for the UNR branch.")
+
+  , case_implies = def
+    &= explicit
+    &= name "case-implies"
+    &= help "Use \"old\"-style case-expression translation which conjoins implications.  The default is to disjoin conjunctions."
 
   , unrolls = def
     &= help "Specify the number of additional unrollings to perform when translating function definitions."

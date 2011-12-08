@@ -10,6 +10,8 @@ import Data.Data
 import Types.Haskell as H
 import Types.FOL as F
 
+data CaseQs = Project | Quantify | Hybrid
+              deriving (Show, Data, Typeable, Bounded, Enum, Eq)
 
 data Conf = Conf { keep_tmps    :: Bool
                  , only_check   :: [String] 
@@ -21,7 +23,8 @@ data Conf = Conf { keep_tmps    :: Bool
                  , type_check   :: Bool
 
                  , no_min       :: Bool
-                 , use_qs       :: Bool
+                 , case_qs      :: CaseQs
+                 , case_implies :: Bool
                  , unrolls      :: Int
                  , file         :: FilePath
                  } deriving (Show, Data, Typeable)
