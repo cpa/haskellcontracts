@@ -22,7 +22,7 @@ egs:
 #
 # You need GHC6 to build it, but there is (well, last I checked) a
 # precompiled up-to-date version in the tarball.
-equinox: Folkung
+equinox:
 	wget http://www.cse.chalmers.se/~koen/code/folkung.tar.gz	
 	tar xf folkung.tar.gz
 	@echo
