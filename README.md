@@ -49,8 +49,8 @@ Equinox.
 
 The Equinox source is available at
 http://www.cse.chalmers.se/~koen/code/folkung.tar.gz.  You can use the
-'make equinox' in ./contracts to download the source into
-./contracts/Folkung.  There is another version available on github
+'make equinox' in ./ to download the source into
+./Folkung.  There is another version available on github
 (https://github.com/nick8325/equinox/), but I think that one is older.
 
 UPDATE: the most recent Equinox uses dynymic libs not available on `cam-02-unx`.
@@ -67,9 +67,8 @@ hidden package haskell98), but ghc6 worked, after
 
     cabal install --with-compiler ghc6 mtl syb quickcheck bnfc
 
-The GHC executable is specified in Haskell/Makefile. So edit that, or
-try
+The GHC executable is specified in ./Folkung/Haskell/Makefile.  In ./Folkung you can do
 
-    make GHC=`which ghc6`
-    
-NB: the build may fail when compiling Infinox, but Equinox builds successfully.
+    make -C Haskell GHC=ghc6 equinox
+
+to build equinox with GHC 6.
