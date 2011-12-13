@@ -40,7 +40,7 @@ appifyExpr a e = go e []
           where e' = go e []
                 args' = e':args
 
-        go (e1 :@: e2) args = go e1 (args++[go e2 []])
+        go (e1 :@: e2) args = go e1 (go e2 [] : args)
 
         -- There should be no enclosing applications in these case, so no args.
         go (FullApp v es) [] = FullApp v $ map (\e -> go e []) es
