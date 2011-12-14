@@ -136,7 +136,7 @@ checkFile cfg f = do
       fs = only_check cfg
       sccs' = if null fs
               then sccs
-              -- The SCCs are '(checks,defs)', so we look for 'fs' in
+              -- The SCCs are '(checks,deps)', so we look for 'fs' in
               -- the 'checks'.
               else filter (any (`elem` fs) . map tls2Name . fst) sccs
   whenNormal $ unless (null fs) $
@@ -159,11 +159,25 @@ check cfg f prog (checks,deps) | all null contracts = return True
       prover = fromJust $ lookup (engine cfg) provers
       thy = theory prover
       -- Add contracts to the 'checks' and 'deps'.
-      checks' = checks ++ (getContracts prog =<< checks)
-      deps' = deps ++ (getContracts prog =<< deps)
+      checks' = nub $ checks ++ (getContracts prog =<< checks)
+      deps'   = nub $ deps   ++ (getContracts prog =<< deps)
+
+      -- DEBUG
+      -- show' = show . map concise where
+      --   concise d@(Def _) = "D "++tls2Name d
+      --   concise t@(DataType _) = "T "++tls2Name t
+      --   concise c@(ContSat _) = "C "++tls2Name c
+
+          -- = (trace (unlines [ "checks': "++show' checks'
+          --                   , "checks: "++show' checks
+          --                   , "deps': "++show' deps'
+          --                   , "deps: "++show' deps ])
+          -- $ assert (checks == nub checks))
+
       -- Check the minimality of 'checks' and 'deps'.
-      out = assert (checks' == nub checks')
-          $ assert (deps' == nub deps')
+      out = assert (checks == nub checks)
+          $ assert (deps == nub deps)
+          $ assert (null (checks `intersect` deps))
           $ assert (null (checks' `intersect` deps'))
           $ showFormula thy $ simplify cfg
                               =<< trans cfg checks' deps'

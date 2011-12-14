@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 -- Compute the defs that generate the theory to check.
 --
 -- 1. Build a graph G of dependencies, with function and datatype defs
@@ -24,7 +25,7 @@ import qualified Data.Graph as G
 -- http://hackage.haskell.org/packages/archive/GraphSCC/1.0.2/doc/html/Data-Graph-SCC.html
 import Data.Graph.SCC (sccGraph)
 import Data.Maybe (fromJust,catMaybes)
-import Data.List (nub,delete)
+import Data.List (nub)
 
 import Haskell
 
@@ -53,8 +54,9 @@ instance Show a => Show (G.SCC a) where
 {- End examples -}
 
 -- (1)
-adjacencies defs = funAdjs ++ typeAdjs
+adjacencies (nub -> defs) = map (on_2_3 nub) $ funAdjs ++ typeAdjs
  where
+  on_2_3 f (a,b,c) = (a,b,f c)
   -- Adjacency of a single function, but with term constructors still
   -- to be substituted.
   adj d@(Def (Let f xs ce)) = (d,f,deps) where
@@ -113,8 +115,8 @@ orderedChecks defs = checkDeps where
               ]
    where
     -- The '(checks,deps)' pairs of SCC vertices.
-    sccCheckDeps = [ (v,delete v (G.reachable q v)) -- 'delete' in case of self-edge.
-                   | (_,k,_) <-qAdjs,  Just v <- [qKey2MaybeVertex k]
+    sccCheckDeps = [ (v,filter (/=v) (G.reachable q v)) -- Remove self in case of self-edge.
+                   | (_,k,_) <- qAdjs,  Just v <- [qKey2MaybeVertex k]
                    ]
     -- Recover the definitions from an SCC vertex.  There are two levels
     -- of indirection here, because each graph abtracts nodes via keys.
