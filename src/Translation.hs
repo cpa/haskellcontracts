@@ -195,7 +195,7 @@ dTrans fV vs ce = do
         -- equation 'x = K(pi^K_1 x)'.
         conCaseProject con ((c,vs),ce) = do
               -- [Pi^C_i e / v]_{(i,v) \in enumerate vs}
-          let sub = [ ((Named $ Proj i c) :@: eT, v)
+          let sub = [ (F.FullApp (Proj i c) [eT], v)
                     | v <- vs
                     | i <- [1..] ]
               -- C (Pi^C_1 e) ... (Pi^C_n e)

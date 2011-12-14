@@ -23,6 +23,21 @@ arities ds = concatMap go ds
         go (DataType (Data _ vacs)) = [(v,a) | (v,a,_) <- vacs]
         go _ = []
 
+lookupArity :: Named -> [Arity] -> Maybe Int
+-- Not 'lookup . getName' because that's too permissive.  E.g. it
+-- allows looking up arity of projections, which masked a bug of NC.
+lookupArity n a | hasArity n = lookup (getName n) a
+                | otherwise  = Nothing
+ where
+  -- Writing out all the cases so future additions to 'Named' type
+  -- will require updating this function.
+  hasArity (Var _)      = True
+  hasArity (Skolem _)   = False -- Could just as well be 'True': these should be fresh.
+  hasArity (Con _)      = True
+  hasArity (Rec _)      = True
+  hasArity (Proj _ _)   = error "Projections should only appear fully applied!"
+  hasArity (Unroll _ _) = True
+
 -- | "Appify" all 'Expression's in a term.
 appify :: [Arity] -> GenericT
 appify x = gfmap (appifyExpr x)
@@ -32,7 +47,7 @@ appify x = gfmap (appifyExpr x)
 appifyExpr :: [Arity] -> Expression -> Expression
 appifyExpr a e = go e []
   -- 'a' is the arities, 'args' is the arguments to the enclosing applications.
-  where go (n@(Named v) :@: e) args = case lookup (getName v) a of
+  where go (n@(Named v) :@: e) args = case lookupArity v a of
           Just k -> if length args' == k
                     then FullApp v args'
                     else apps (n : e' : args)
@@ -45,7 +60,7 @@ appifyExpr a e = go e []
         -- There should be no enclosing applications in these case, so no args.
         go (FullApp v es) [] = FullApp v $ map (\e -> go e []) es
         go (n@(Named v)) []
-            = case lookup (getName v) a of
+            = case lookupArity v a of
                 Just 0  -> FullApp v []
                 _ -> n -- If Nothing means it's not a declared function
                        -- If Just of non-zero means its a partially applied user-declared function
