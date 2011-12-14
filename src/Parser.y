@@ -94,9 +94,11 @@ AExpr : AExpr Atom  { $1 :@: $2 }
       | Atom        { $1 }
 -- Infix expression.
 --
--- No associativity for `infix` application: use parens to
--- disambiguate.
-Expr : AExpr '`' Named '`' AExpr { (Named $3 :@: $1) :@: $5 }
+-- Default left-associativity for `infix` application.  This is
+-- consistent with Haskell's default of 'infixl 9' hopefully ...  we
+-- have associativity because it's annoying to parenthesize
+-- '... `using` lem `using` lem ...'
+Expr : Expr '`' Named '`' AExpr { (Named $3 :@: $1) :@: $5 }
      | AExpr                     { $1 }
 
 -- Q: there was a commented out FullApp rule.  Might be better to

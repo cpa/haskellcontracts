@@ -14,3 +14,9 @@ Parser.hs: Parser.y
 # Make TAGS for emacs.
 etags:
 	find ./ -name '*.hs' -exec hasktags --etags {} +
+
+clean-src:
+	-rm -f ./tmp/* ./tmp/Types/* Parser.hs
+
+clean: clean-src
+	-rm hcc TAGS
