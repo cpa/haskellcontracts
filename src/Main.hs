@@ -80,7 +80,7 @@ main = do
     -- However, we don't have a pretty printer, and we don't retain
     -- the input src in the contract AST.
     let haskell' = unlines [ "-- "++show e++"\n"
-                             ++"__contract__"++show i++" = "++contract2Haskell c
+                             ++"__contract__"++show i++" = "++contract2Haskell e c
                            | ContSat (Satisfies e c) <- defs
                            | i <- [(1::Int)..] ]
     let tempFile = f++".tc.hs" -- GHC complains if the input file doesn't end in ".hs" :P

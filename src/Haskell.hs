@@ -135,7 +135,7 @@ substF e x f = go f where
 --
 -- This is a simple hack.  We compile binders in contracts to lambda
 -- binders, ignore CF and Any, and compile predicates to themselves.
-contract2Haskell = go where
+contract2Haskell e c = "( "++e++" , "++go c++" )" where
   go CF             = "()"
   go Any            = "()"
   go (Or c1 c2)     = "("++go c1++", "++go c2++")"
