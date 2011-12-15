@@ -18,17 +18,17 @@ data Conf = Conf { keep_tmps    :: Bool
                  , dry_run      :: Bool 
                  , engine       :: ThmProver
                  , idirs        :: [FilePath] -- "Include" directories
+                 , file         :: FilePath
 
                  , ghci         :: Bool
                  , type_check   :: Bool
 
                  , no_min       :: Bool
+                 , no_ptr       :: Bool
                  , case_qs      :: CaseQs
                  , case_implies :: Bool
                  , unrolls      :: Int
-                 , file         :: FilePath
                  } deriving (Show, Data, Typeable)
-
 
 data ThmProverConf = ThmProverConf
   { path   :: FilePath

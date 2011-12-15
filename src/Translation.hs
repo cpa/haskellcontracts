@@ -59,9 +59,13 @@ eTrans = return
 -- forall [x1, ..., xn]. f(x1, ..., xn) = f@x1@...@xn
 --
 -- NB: appification breaks this, so don't 'appify' it!
-ptrAxiom vs f = F.LabeledFormula 
-  (F.axiom $ "ptrAxiom__"++F.named2TPTP f)
-  (if null vs then Top else F.And [eq1Min]) --,eq2Min]
+ptrAxiom :: [Name] -> Named -> Fresh F.LabeledFormula
+ptrAxiom vs f = do
+  cfg <- gets getConf
+  let isTrivial = no_ptr cfg || null vs
+  return $ F.LabeledFormula
+    (F.axiom $ "ptr__"++F.named2TPTP f)
+    (if isTrivial then Top else eq1Min) -- F.And[eq1Min,eq2Min]
   -- 'null' check above to avoid pointless 'f = f'.
   where vsN = map (Named . Var) vs
         fN = Named f
@@ -309,14 +313,16 @@ cTrans' v e (H.CF) = do
 ------------------------
 
 tTrans :: H.DataType -> Fresh [F.LabeledFormula]
-tTrans d@(H.Data nm _) = do
-           phi_cfd <- phi_cf d
-           let phis = concat [ phi_project d
-                             , phi_disjoint d
-                             , phi_total d]
-                      ++ phi_cfd ++ ptr d
-           return $ phis
-  where ptr (H.Data _ cas) = [ptrAxiom (makeVars a "X") (Con c) | (c,a,_) <- cas]
+tTrans d@(H.Data nm cas) = do
+  phi_cfd <- phi_cf d
+  ptr_d <- sequence [ ptrAxiom (makeVars a "X") (Con c)
+                    | (c,a,_) <- cas ]
+  let phis = concat [ phi_project d
+                    , phi_disjoint d
+                    , phi_total d]
+             ++ phi_cfd
+             ++ ptr_d
+  return phis
 
 -- | Axiom: Term constructors are invertable (Phi_1 in paper).
 phi_project (H.Data t dns) = map f dns where
@@ -461,7 +467,7 @@ trans cfg checks deps = evalState result startState
       H.Def d@(H.Let f xs ce) -> assert (ce == ce') $
          -- No 'Rec' or 'Unroll' for dependencies, since we assume
          -- them correct.
-         (ptrAxiom xs fN:) <$> dTrans fN xs ce
+         (:) <$> (ptrAxiom xs fN) <*> dTrans fN xs ce
        where
         ce' = H.substsCE (substitution H.Rec) ce
         fN = Var f
@@ -470,7 +476,7 @@ trans cfg checks deps = evalState result startState
     checkFormulae <- forM checks $ \d -> case d of
       H.DataType t                 -> tTrans t
       H.Def d@(H.Let f xs ce) ->
-        ((ptrAxiomss++) . concat) <$> dTranss
+        (++) <$> ptrAxiomss <*> (concat <$> dTranss)
        where
         -- The order here is important: if 'nameds = [...,c,c',...]',
         -- then we will define 'c f' with 'c' f' in the body.  So, we
@@ -484,7 +490,7 @@ trans cfg checks deps = evalState result startState
           -- 'gs' is the SCC of 'f'.
           trans' (c,c') = dTransSub ps (c f) xs ce where
             ps = substitution c'
-        ptrAxiomss = map (ptrAxiom xs . ($f)) nameds
+        ptrAxiomss = mapM (ptrAxiom xs . ($f)) nameds
       -- XXX, ???: should 'f' be allowed to occur in 'c' at all? The
       -- 'recSubstC' below indicates this is expected.  An example is
       -- the symmetry of equality:
@@ -540,14 +546,11 @@ trans cfg checks deps = evalState result startState
                [prelude] : depFormulae ++ checkFormulae ++ [[goalFormula]]
       -- XXX, TODO: add 'min's in prelude
       where prelude = F.LabeledFormula (F.axiom "prelude") $ 
-                      F.And [
---                       cf1, cf2
---                      ,min
-                             min
-
-                           , F.Not $ F.CF bad
-                           , F.CF unr
-                           ]
+                      -- 'cf1' and 'cf2', the "CF = CF -> CF" axioms,
+                      -- are not included.
+                      F.And [ if no_ptr cfg then Top else min
+                            , F.Not $ F.CF bad
+                            , F.CF unr ]
             -- forall f,x. cf(f) /\ cf(x) -> cf(f x)
             cf1 = F.Forall [f,x]
                   $ F.And [F.CF fN, F.CF xN]

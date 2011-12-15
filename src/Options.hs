@@ -46,6 +46,10 @@ getOpts = cmdArgs $ Conf
     &= typDir
     &= help "Add DIR to the paths searched for imports. This option may be specified multiple times. Import dirs are searched in the order specified, with an implicit \".\" (current dir) first."
 
+  , file = def
+    &= argPos 0
+    &= typFile
+
   , ghci = def
     &= help "Load FILE, and the compilation of FILE's contracts, into GHCi.  Causes GHCi to type-check the functions and contracts, and allows you to run functions.  Use '-k' to keep the temp file with the compiled contracts, or use ':!cat -n <temp file>' in GHCi to examine the temp file."
 
@@ -54,6 +58,9 @@ getOpts = cmdArgs $ Conf
 
   , no_min = def
     &= help "Don't use the 'min' predicate in the translation. This should degrade performance, but makes the resulting theory file much easier to read, and can be used to debug changes to 'min' placement, e.g. to check if they are too restrictive."
+
+  , no_ptr = def
+    &= help "Don't generate any pointer axioms.  This is a poor-mans approximation to Koen's suggestion to only generate the necessary pointer axioms.  NB: IT'S THE USER'S PROBLEM TO ENSURE THERE ARE NO 'app'S."
 
   , case_qs = Project
     &= explicit
@@ -68,9 +75,6 @@ getOpts = cmdArgs $ Conf
   , unrolls = def
     &= help "Specify the number of additional unrollings to perform when translating function definitions."
 
-  , file = def
-    &= argPos 0
-    &= typFile
   } &= 
   verbosity &=
   program "hcc" &=
