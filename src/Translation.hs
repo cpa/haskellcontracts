@@ -317,15 +317,15 @@ tTrans d@(H.Data nm cas) = do
   phi_cfd <- phi_cf d
   ptr_d <- sequence [ ptrAxiom (makeVars a "X") (Con c)
                     | (c,a,_) <- cas ]
-  let phis = concat [ phi_project d
+  let phis = concat [ phi_injective d
                     , phi_disjoint d
-                    , phi_total d]
+                    , phi_lazy d]
              ++ phi_cfd
              ++ ptr_d
   return phis
 
 -- | Axiom: Term constructors are invertable (Phi_1 in paper).
-phi_project (H.Data t dns) = map f dns where
+phi_injective (H.Data t dns) = map f dns where
   f (c,a,_) =
     let xs = makeVars a "X"
         xsN = map (Named . Var) xs
@@ -349,7 +349,7 @@ phi_project (H.Data t dns) = map f dns where
         y = "ZDEF"
         yN = Named . Var $ y
         projectWrongs = F.And [projectWrong i | i <- [1..a]]
-    in F.LabeledFormula (F.axiom $ "phi_project__"++t++"__"++c) 
+    in F.LabeledFormula (F.axiom $ "phi_injective__"++t++"__"++c) 
          projectCorrect --F.And [projectCorrect, projectWrongs]
 
 -- Axiom: Term constructors have disjoint ranges (Phi_2 in paper).
@@ -390,12 +390,12 @@ phi_cf (H.Data t dns) = mapM f dns where
                        :=>: (F.And [F.CF x | x <- xsN]))
     return $ F.LabeledFormula (F.axiom $ "phi_cf__"++t++"__"++c) $ F.And [phi,cfc]
 -- Axiom: Term constructors are total/lazy (Phi_4 in paper).
-phi_total (H.Data t dns) = map f dns where
+phi_lazy (H.Data t dns) = map f dns where
   f (c,a,_) =
     let xs = makeVars a "X"
         xsN = map (Named . Var) xs
         full = F.FullApp (Con c) xsN
-    in F.LabeledFormula (F.axiom $ "phi_total__"++t++"__"++c) $
+    in F.LabeledFormula (F.axiom $ "phi_lazy__"++t++"__"++c) $
          F.Forall xs $ F.Min full :=>:
            F.And [full :/=: unr
                  ,full :/=: bad]
