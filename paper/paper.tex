@@ -29,7 +29,7 @@
 
 \def\ruleform#1{{\setlength{\fboxrule}{1.2pt}\fbox{\normalsize $#1$}}}
 \newcommand{\dtrans}[1]{\mathcal{D} \llbracket #1 \rrbracket}
-\newcommand{\ktrans}[1]{\mathcal{K} \llbracket #1 \rrbracket}
+\newcommand{\ttrans}[1]{\mathcal{T} \llbracket #1 \rrbracket}
 \newcommand{\ctrans}[1]{\mathcal{C} \llbracket #1 \rrbracket}
 \newcommand{\trans}[1]{\llbracket #1 \rrbracket}
 
@@ -57,6 +57,8 @@
 \newcommand{\cfc}{\texttt{CF}}
 \newcommand{\cf}[1]{\texttt{CF}(#1)}
 \renewcommand{\min}[1]{\mbox{min}(#1)}
+\newcommand{\proj}[2]{\pi_{#1}^{#2}}% the #1^th projection of constructor #2
+
 
 \newcommand{\designChoice}{(DESIGN CHOICE/OPTIONAL)}
 
@@ -122,17 +124,17 @@ Nil \neq \unr
 Finally, we define projections for $Cons$. \annote[nc]{It is not
   strictly necessary, but it will be handy:}{??? Why is it handy? It
   doesn't seem to play any role in formal part of this paper (besides
-  being specified in axioms $\phi_\text{projection}$). In the current
+  being specified in axioms $\phi_\text{injective}$). In the current
   implementation it's used to avoid introducing existentially
   quantified variables in the $\bigvee_i$ part of $\dtrans{}$ for
   functions defined by case expressions. Equation \eqref{unrnotnull}
   below uses it that way. ??? Does Equinox care?}
 \begin{equation*}
-\forall xs,y,ys.~sel_{1,Cons}~Cons~y~ys = xs \implies xs = y 
+\forall xs,y,ys.~\proj{1}{Cons}~Cons~y~ys = xs \implies xs = y 
 \end{equation*}
 \begin{equation*}
-\forall xs,y,ys.~sel_{2,Cons}~Cons~y~ys = xs \implies xs = ys 
-\end{equation*}\note[nc]{??? Why not the simpler \[\forall y,ys.~sel_{2,Cons}~Cons~y~ys = ys\]? Same question in Figure \ref{dtrans}.  (Equinox does have a built in notion of equality, e.g. running equinox on
+\forall xs,y,ys.~\proj{2}{Cons}~Cons~y~ys = xs \implies xs = ys 
+\end{equation*}\note[nc]{??? Why not the simpler \[\forall y,ys.~\proj{2}{Cons}~Cons~y~ys = ys\]? Same question in Figure \ref{dtrans}.  (Equinox does have a built in notion of equality, e.g. running equinox on
 \center{\texttt{fof(\_,theorem,? [X,Y] : (X = Y \& f(X) != f(Y))).}}\\
  results in ``Unsatisfiable'', so support for equality reasoning is not the reason.)}
 %% \[
@@ -164,7 +166,7 @@ not $Nil$ or $Cons$ or $\bad$ then the result is $\unr$.
 \begin{align}
   \label{unrnotnull}
   \forall xs.~xs \neq \bad \land xs \neq Nil  \notag \\
-  \land xs \neq Cons~(sel_{1,Cons}~xs)~(sel_{2,Cons}~xs) \to  \notag \\
+  \land xs \neq Cons~(\proj{1}{Cons}~xs)~(\proj{2}{Cons}~xs) \to  \notag \\
   notnull(xs) = \unr 
 \end{align}
 
@@ -175,12 +177,12 @@ The translation of $head$ follows the same pattern:
     \forall xs.~xs=\bad \to head~xs = \bad \notag
 \end{align}\note[nc]{??? Why not use the same project+construct trick from the last equation?  I.e., why not
 \[
-\forall xs.~ xs=Cons~(sel_{Cons,1}~xs)~(sel_{Cons,2}~xs) \implies head~xs = sel_{Cons,1}~xs
+\forall xs.~ xs=Cons~(\proj{Cons}{1}~xs)~(\proj{Cons}{2}~xs) \implies head~xs = \proj{Cons}{1}~xs
 \]?  Because it's ugly?  Would Equinox care?}
 
 \begin{align*}
  \forall xs.~xs \neq \bad \land xs \neq Nil \notag \\
- \land xs \neq Cons~(sel_{1,Cons}~xs)~(sel_{2,Cons}~xs) \to  \notag \\
+ \land xs \neq Cons~(\proj{1}{Cons}~xs)~(\proj{2}{Cons}~xs) \to  \notag \\
  head~xs = \unr
 \end{align*}
 
@@ -446,21 +448,21 @@ no value $val$ such that $e \to^* val$
 
 \begin{definition}[Syntactic safety]
 A (possibly open) expression $e$ is \emph{syntactically safe} iff $\bad \not
-\in_s e$. Similarly a context $\mathcal{C}$ is \emph{syntactically safe} iff $\bad
-\not \in_s \mathcal{C}$.
+\in_s e$. Similarly a context $\mathcal{C}[\cdot]$ is \emph{syntactically safe} iff $\bad
+\not \in_s \mathcal{C}[\cdot]$.
 \end{definition}
 
 The notation $\bad \notin_s e$ means that $\bad$ does not appear
-anywhere in $e$\note[nc]{,including the definitions of the function symbols used in $e$}, similarly for $\bad \not \in_s \mathcal{C}$. For
+anywhere in $e$ or $e$'s (transitive) dependencies.  For
 example, $Just ~3$ is syntactically safe whereas $Just ~\bad$ is not.
 
 \begin{definition}[Crash-free]\label{def:cf}
 An expression $e$ is said to be \emph{crash-free} iff 
-for all $\mathcal{C}$, $\bad \not \in_s \mathcal{C}$ and $\emptyset \vdash
-\mathcal{C} \llbracket e \rrbracket :: ()$ implies $\mathcal{C} \llbracket e \rrbracket \not \to^* \bad$
+for all $\mathcal{C}[\cdot]$, $\bad \not \in_s \mathcal{C}[\cdot]$ and $\emptyset \vdash
+\mathcal{C}[e] :: ()$ implies $\mathcal{C}[e] \not \to^* \bad$
 \end{definition}
-The notation $\emptyset \vdash \mathcal{C} \llbracket e \rrbracket :: ()$ means that
-$\mathcal{C} \llbracket e \rrbracket$ is closed and well-typed.  Note
+The notation $\emptyset \vdash \mathcal{C}[e] :: ()$ means that
+$\mathcal{C}[e]$ is closed and well-typed.  Note
 that there are crash-free expressions that are not syntactically safe,
 for example $fst(Nil,\bad)$.
 
@@ -528,7 +530,7 @@ For an overview of the different translations we define, see figure~\ref{trans}
  \begin{center}
   \[  \begin{array}{rcl}
     \dtrans{def} &\to& \phi~(\mbox{formula}) \\
-    \ktrans{\mbox{data } T = \dots} &\to& \phi~(\mbox{formula}) \\
+    \ttrans{\mbox{data } T = \dots} &\to& \phi~(\mbox{formula}) \\
     \ctrans{f \in c} &\to& \phi~(\mbox{formula}) \\
   \end{array} \]
   \end{center}
@@ -565,7 +567,7 @@ $\unr$.\note[nc]{This text does not agree with the figure.  In
 \[
 \begin{array}{rcl}
   \multicolumn{3}{c}{\ruleform{\dtrans{def} = \phi}} \\[2.5mm]
-  \dtrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} &=& \ktrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} \\
+  \dtrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} &=& \ttrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} \\
   \dtrans{f \in c} &=& \ctrans{f \in c}\\
   \dtrans{f~\vec{x} = e} &=& \forall \vec{x},a.~ (\min{a} \land a =
   \full{f}(\vec{x})) \to a = e \\
@@ -589,14 +591,14 @@ $\unr$.\note[nc]{This text does not agree with the figure.  In
 
 
 
-\subsection{$\ktrans{}$ -- Datatypes}
+\subsection{$\ttrans{}$ -- Datatypes}
 We break down the translation for datatypes in four parts, described in figure~\ref{ktrans}
-$$\ktrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phi_\text{projection} \land \phi_\text{disjoint} \land \phi_\text{cf} \land \phi_\text{lazy}$$
+$$\ttrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phi_\text{injective} \land \phi_\text{disjoint} \land \phi_\text{cf} \land \phi_\text{lazy}$$
 
 \begin{itemize}
-\item $(\phi_\text{projection})$ For each $K_i$ of arity $a_i$ we introduce selectors
-  $sel_{k,K_i}$, which are the projection of $K_i~x_1~\dots~x_{a_i}$
-  on its $k$-th component, $k = 1\text{ to }a_i$.
+\item $(\phi_\text{injective})$ For each $K_i$ of arity $a_i$ we introduce selectors
+  $\proj{k}{K_i}$, which are the projection of $K_i~x_1~\dots~x_{a_i}$
+  on its $k$-th component, for $k = 1\text{ to }a_i$.
 \item $(\phi_\text{disjoint})$ Distinct constructors have disjoint ranges.
 \item $(\phi_\text{cf})$ Then, we have to give crash-freeness conditions for each $K_i$:
   Notice that we have a equivalence.
@@ -643,12 +645,12 @@ $$\ktrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phi_\text{projection} \la
 \end{itemize}
 
 \begin{figure*}
-  $$ \ruleform{\ktrans{data~def} = \Phi} $$
-$$\ktrans{\mbox{data } T = K_1 ~a_1, \dots, K_n ~a_n} = \phi_\text{projection} \land \phi_\text{disjoint} \land \phi_\text{cf} \land \phi_\text{lazy}$$
+  $$ \ruleform{\ttrans{data~def} = \Phi} $$
+$$\ttrans{\mbox{data } T = K_1 ~a_1, \dots, K_n ~a_n} = \phi_\text{injective} \land \phi_\text{disjoint} \land \phi_\text{cf} \land \phi_\text{lazy}$$
  \hspace{5.6cm}where
   \begin{center}
     \[  \begin{array}{rcl}
-      \phi_\text{projection} &=& \bigwedge_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = \full{K}_i(\vec{x})) \to \bigwedge_{1 \leq j \leq a_i} x_j = sel_{j,K_i}(a) \text{\note[nc]{ $\min{a}$, not $\min{sel_{j,K_i}(a)}$.}\\
+      \phi_\text{injective} &=& \bigwedge_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = \full{K}_i(\vec{x})) \to \bigwedge_{1 \leq j \leq a_i} x_j = \proj{j}{K_i}(a) \text{\note[nc]{ $\min{a}$, not $\min{\proj{j}{K_i}(a)}$.}}\\
       \phi_\text{disjoint} &=& \bigwedge_{1 \leq i < j \leq n}~\forall \vec{x},\vec{y},a.~ \lnot (\min{a} \land a = \full{K}_i(\vec{x}) \land a = \full{K}_j(\vec{y})) \\
       \phi_\text{cf} &=& 
         \bigwedge_{1 \leq i \leq n}~\ctrans{K_i \in \cfc^{a_i} \to \cfc}^- 
@@ -657,10 +659,10 @@ $$\ktrans{\mbox{data } T = K_1 ~a_1, \dots, K_n ~a_n} = \phi_\text{projection} \
       \phi_\text{lazy} &=& \bigwedge_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = \full{K}_i(\vec{x})) \to a \neq \unr \land a \neq \bad 
     \end{array} \]
   \end{center}
-  \caption{$\ktrans{}$ -- Data type translation\note[nc]{Need
+  \caption{$\ttrans{}$ -- Data type translation\note[nc]{Need
       $\min{a}$ to be sufficient for unfolding in
-      $\phi_\text{projection}$ to get invertability of constructors!
-      I thought we needed $\min{sel_{j,K_i}(a)}$ to be sufficient when
+      $\phi_\text{injective}$ to get invertability of constructors!
+      I thought we needed $\min{\proj{j}{K_i}(a)}$ to be sufficient when
       we use a projection based translation of case expressions, but
       as Koen pointed out this is not true.
       }}
@@ -680,7 +682,7 @@ assumptions/axioms and $\ctrans{}^+$
 for conclusions/theorems.  The choice of minus and 
 plus comes from the negative and positive
 positions in an implication: $- \to +$.  The goal of the $\min$'s is to limit the
-applicability of the axioms ($\ctrans{}^-$ and $\dtrans{}$ and $\ktrans{}$), 
+applicability of the axioms ($\ctrans{}^-$ and $\dtrans{}$ and $\ttrans{}$), 
 in order to prune 
 the search space.  So, $\min$'s
 appear as obligations (the premises in implications) 
