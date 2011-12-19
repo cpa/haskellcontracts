@@ -251,10 +251,14 @@ cTrans' v e (H.Pred x p) =  do
   eT <- eTrans e
   p'T <- eTrans p'
   -- XXX, DESIGN CHOICE: could also do 'F.Or[p'T :=: unr, p'T :=: true]'
-  let plain = F.And [F.Or [(eT :=: unr), F.And [p'T :/=: bad, p'T :/=: false]]]
+  --
+  -- Or, use 'in {unr,true}' in for assumptions and 'not-in
+  -- {bad,false}' for goals.
+  let plainM = F.Or [(eT :=: unr), F.Or  [p'T :=:  unr, p'T :=:  true ]]
+  let plainP = F.Or [(eT :=: unr), F.And [p'T :/=: bad, p'T :/=: false]]
   case v of
-    Plus  -> return $ F.And [F.Min(eT),            F.Min(p'T)] :=>: plain
-    Minus -> return $        F.Min(eT)  :=>: F.And [F.Min(p'T),      plain]
+    Plus  -> return $ F.And [F.Min(eT),             F.Min(p'T)] :=>: plainP
+    Minus -> return $        F.Min(eT)  :=>: F.And [F.Min(p'T),      plainM]
 
 cTrans' v e c@(H.Arr mx c1 c2) = do
   eT <- eTrans e
@@ -267,7 +271,11 @@ cTrans' v e c@(H.Arr mx c1 c2) = do
     -- XXX, DESIGN CHOICE: the single 'min' constraint here is only
     -- adequate because we have a 'min(f x) -> min(f)' axiom (???).
     -- Moreover, we may get this min anyway in c'T.
-    F.Forall xs $ F.Min app :=>: (F.And csT :=>: c'T)
+    --
+    -- UPDATE: getting rid of the 'min(f x)'
+    --
+    -- F.Forall xs $ F.Min app :=>: (F.And csT :=>: c'T)
+    F.Forall xs $ F.And csT :=>: c'T
  where
   -- Collect all the variables and contracts for a sequence of
   -- arrows. Returns '(variables, variable contracts, conclusion contract)'.
@@ -307,6 +315,7 @@ cTrans' v e (H.CF) = do
   -- the 'Minus' case.
   return $ case v of
     Plus  -> F.Min eT :=>: F.CF eT
+    --Minus -> F.Min eT :=>: F.CF eT
     Minus -> F.CF eT
 
 -- Data decl translation
