@@ -293,26 +293,29 @@ derive $\cf{head~xs}$. QED.
 \section{Languages}
 \subsection{$\hprime:~\lambda$-calculus variant}
 
-The syntax of $\mathcal{H}'$ is defined in figure~\ref{hprime-stx}. A module
-is a list of toplevel definitions, claims that functions statisfy
-contracts and data definitions.
+The syntax of $\hprime$ is defined in figure~\ref{hprime-stx}. A
+module is a list of toplevel definitions, claims that functions
+statisfy contracts and data definitions.  The $\hprime$ language we
+present is minimalistic, but the implementation supports a little
+more.
 
 \begin{itemize}
-\item There's no $\lambda$-abstraction, because we can always lift
-  them to a toplevel declaration.
-\item We do not allow nested case expressions, because once again, we
-  can always lift them to the toplevel.
-\item Until section~\ref{ho} we will only consider full application of
-  functions ($\full{f}(x,y)$),\note[nc]{
+\item $\hprime$ doesn't include $\lambda$-abstractions, only top-level
+  function definitions, because nested $\lambda$s can be lifted to the
+  top-level.
+\item $\hprime$ doesn't include nested case expressions, because
+  nested case expressions can be lifted to the top-level.  The
+  implementation actually supports nested case expressions.
 
-Not true: the definition of satisfaction for arrow contracts
+\note[nc]{
+Not true that we only consider full application of functions: the definition of satisfaction for arrow contracts
 $x:c_1 \to c_2$ already includes partial applications.  We could add a
 special cases for each function arity, e.g.
 \begin{eqnarray*}
-&&\ctrans{f \in x_1:c_1 \to \cdots \to x_n:c_n \to c} \\
+&&\ctrans{f \in x_1:c_1 \to \cdots \to x_n:c_n \to c}^v \\
 &&      :=\forall x_1, \ldots, x_n. \min{\full{f}(x_1, \ldots, x_n)} \\
-&&\quad   \to \left( \bigvee_{i=1}^n \ctrans{x_i \notin c_i} \right)
-              \lor \ctrans{\full{f}(x_1, \ldots, x_n) \in c}
+&&\quad   \to \left( \bigwedge_{i=1}^n \ctrans{x_i \in c_i}^{\bar{v}} \right)
+              \to \ctrans{\full{f}(x_1, \ldots, x_n) \in c}^v
 \end{eqnarray*}
 for functions of arity $n$, to make the claim true, but that would add
 more clutter.
@@ -515,7 +518,7 @@ We use first-order logic with equality, defined in figure \ref{fol-stx}.\note[nc
 \begin{figure}
  \centering
   \[  \begin{array}{rcl}
-    \phi &:=& \forall x.\phi \mid \text{\add[nc]{$\exists x.\phi \mid$}} \lnot \phi \mid \phi \lor \phi \mid \top \mid \bot \mid t=t \mid \mbox{CF}(t) \mid \min{t} \\
+    \phi &:=& \forall x.\phi \mid \exists x.\phi \mid \lnot \phi \mid \phi \lor \phi \mid \top \mid \bot \mid t=t \mid \mbox{CF}(t) \mid \min{t} \\
     && \mid \phi \land \phi \mid \phi \to \phi \mid \phi \tot \phi
   \end{array} \]
   \caption{First-order logic syntax}
@@ -596,29 +599,30 @@ We break down the translation for datatypes in four parts, described in figure~\
 $$\ttrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phi_\text{injective} \land \phi_\text{disjoint} \land \phi_\text{cf} \land \phi_\text{lazy}$$
 
 \begin{itemize}
-\item $(\phi_\text{injective})$ For each $K_i$ of arity $a_i$ we introduce selectors
-  $\proj{k}{K_i}$, which are the projection of $K_i~x_1~\dots~x_{a_i}$
-  on its $k$-th component, for $k = 1\text{ to }a_i$.
+\item $(\phi_\text{injective})$ Constructors are injective.  That is, for
+  each term constructor $K$,
+  if $K e_1 \cdots e_n = K e'_1 \cdots e'_n$, then $e_i = e'_i$ for
+  all $i$.  We axiomitize this via projections $\proj{i}{K}$: for each $i$,
+  $\proj{i}{K}(K e_1 \cdots e_n) = e_i$.
 \item $(\phi_\text{disjoint})$ Distinct constructors have disjoint ranges.
 \item $(\phi_\text{cf})$ Then, we have to give crash-freeness conditions for each $K_i$:
   Notice that we have a equivalence.
   \begin{itemize}
   \item $\gets$: if we pack crash-free values in a data constructor,
-    the resulting value is crash-free. \note[nc]{We use the contract
-    translation for arrows, and this translation is principled.}
+    the resulting value is crash-free.  For $K$ has arity $n$
+    we assert $\ctrans{K \in \cfc^n \to \cfc}^-$.
+
   \item $\to$: a value $t$ of type $T$\note[nc]{
     ``type'' is used loosely here: it means the constructor head is of type $T$.
     } is crash-free implies
-    that every value packed in it is crash-free. Recall that one can
-    define projection on any argument of a value of type $t$. So if
-    the $k$-th argument of $t$ is not crash-free, then the $k$-th
-    projection is a crash-free context that throws an expression that
-    is not crash-free. \note[nc]{XXX: This translation is ad-hoc.}
+    that every value packed in it is crash-free, since we can use
+    a case expression to extract any packed value.
+    \note[nc]{XXX: This translation is ad-hoc.}
 
   Note that this is not true for functions: a function is not required
   to use all of its arguments. \texttt{fst} is crash-free if and only
   if the first argument of the pair is crash-free. The second argument
-  being crash-free or not doesn't matter.
+  is irrelevant.
 
   \note[nc]{Things become more interesting when we add $\min$'s.  For
     the $\gets$ direction, we are asserting that $K_i \in \cfc^{a_i} \to
