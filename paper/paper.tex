@@ -293,7 +293,7 @@ derive $\cf{head~xs}$. QED.
 \section{Languages}
 \subsection{$\hprime:~\lambda$-calculus variant}
 
-The syntax of $\hprime$ is defined in figure~\ref{hprime-stx}. A
+The syntax of $\hprime$ is defined in figure~\ref{fig:hprime-syntax}. A
 module is a list of toplevel definitions, claims that functions
 statisfy contracts and data definitions.  The $\hprime$ language we
 present is minimalistic, but the implementation supports a little
@@ -327,7 +327,7 @@ more clutter.
   \centering
   \[
   \begin{array}{rclr}
-    mod &:=& def_1,\dots,def_n &\\
+    \hprime module &:=& def_1,\dots,def_n &\\
     def &\in& \mbox{Definition} & \\
     def &:=& \texttt{data } T = K_1 a_1 \mid \cdots \mid K_n a_n& \mbox{Data definition}\\
     &\mid& f \in c & \mbox{Contract claim}\\
@@ -357,13 +357,13 @@ more clutter.
   \end{array} \]
 
 \caption{Syntax of the language $\hprime$}
-\label{hprime-stx}
+\label{fig:hprime-syntax}
 \end{figure}
 
 
 \subsection{Contracts}
 Contract syntax is described in figure \ref{cont-stx}. The predicates
-we use in our contracts can be any boolean $\hprime$ expression. We
+$p$ in contracts range over boolean $\hprime$ expressions. We
 only consider pairs of contract for simplicity, although there is no
 issue with generalisation to arbitrary tuples.\note[nc]{
 %
@@ -457,7 +457,8 @@ A (possibly open) expression $e$ is \emph{syntactically safe} iff $\bad \not
 
 The notation $\bad \notin_s e$ means that $\bad$ does not appear
 anywhere in $e$ or $e$'s (transitive) dependencies.  For
-example, $Just ~3$ is syntactically safe whereas $Just ~\bad$ is not.
+example, $Just ~3$ is syntactically safe whereas $Just ~jb$ is 
+not, for $jb$ defined in a separate declaration as $jb = Just~\bad$.
 
 \begin{definition}[Crash-free]\label{def:cf}
 An expression $e$ is said to be \emph{crash-free} iff 
@@ -513,7 +514,10 @@ type-checking mecanism directly in our first-order theory.}{This is OK, because 
 
 \subsection{First-order logic with equality}
 We use first-order logic with equality, defined in figure \ref{fol-stx}.\note[nc]{I guess ``with equality'' means that the proof theory has an axiom schema for substition, i.e. forall $\phi$, $\forall x,y.x=y \to (\phi \tot \phi[y/x])$, axioms making $=$ an equality relation, and the requirement that all models interpret $=$ as true equality on the carrier.}
-\note[nc]{See Section~\ref{sec:contracts} for a discussion of the $\min{}$ predicate.} The expression language in our logic is \hprime.
+\note[nc]{See Section~\ref{sec:contracts} for a discussion of the $\min{}$ predicate.} 
+The expression language in our logic is the expression language of 
+\hprime (Figure~\ref{fig:hprime-syntax}).  Note that curried application in \hprime
+corresponds to a binary function symbol in FOL, which we denote by juxtaposition.
 
 \begin{figure}
  \centering
@@ -676,8 +680,8 @@ $$\ttrans{\mbox{data } T = K_1 ~a_1, \dots, K_n ~a_n} = \phi_\text{injective} \l
 
 \subsection{$\ctrans{}$ -- Contracts}\label{sec:contracts}
 \note[nc]{%
-Figure~\ref{fig:newCTrans} contains the new min contract translation, and
-Figure~\ref{fig:naiveCTrans} contains the naive contract translation
+Figure~\ref{fig:newCTrans} contains the $\min$-translation of contracts, and
+Figure~\ref{fig:naiveCTrans} contains the naive contract translation,
 with no $\min$'s.  The min translation reduces to the naive translation when
 all $\min$'s are assumed true, i.e. when an axiom $\forall x.\min{x}$ is added.
 
@@ -685,10 +689,11 @@ The min translation has two forms, $\ctrans{}^-$ for
 assumptions/axioms and $\ctrans{}^+$
 for conclusions/theorems.  The choice of minus and 
 plus comes from the negative and positive
-positions in an implication: $- \to +$.  The goal of the $\min$'s is to limit the
+positions in an implication: $- \to +$.  The goal of the $\min$'s twofold: 
+(1) to allow finite counter models when the theory 
+does not prove the contracts; (2) to limit the
 applicability of the axioms ($\ctrans{}^-$ and $\dtrans{}$ and $\ttrans{}$), 
-in order to prune 
-the search space.  So, $\min$'s
+in order to prune the proof search space.  The $\min$'s
 appear as obligations (the premises in implications) 
 in contract and definition axioms. The mnemonic is ``(a)m in(terested)'',
 and the translation is designed so that $\min{e}$ is introduced whenever
@@ -713,12 +718,12 @@ so the the initial $\min{\full{f}(\vec{x})}$
 is an obligation: we aren't allowed to 
 ``unfold the definition'' of the function unless we prove
 that we're interested in a particular application.  
-Once that obligation is satisfied, interest ($\min{e}$) in the
+Once that $\min$ obligation is satisfied, interest ($\min{e}$) in the
 scrutinee of the case match may be concluded, because the function
 must inspect the scrutinee to compute the result.
 
 Finally, consider $\ctrans{e \in \{x|p\}}^+$ and $\ctrans{e \in \{x|p\}}^-$, in
-Figure~\ref{fig:newCTrans}.  To prove that $e \in \{x|p\}$, we get to
+Figure~\ref{fig:newCTrans}.  When proving that $e \in \{x|p\}$, we get to
 assume interest in $e$ and $p[e/x]$, whereas, to use $e \in \{x|p\}$,
 we need to prove we're interested in $e$.  The $\min{e}$ constraint
 here is not optional, because in addition to concluding 
@@ -740,95 +745,27 @@ we guard it with $\min{e}$.
 
 \begin{figure*}
 \begin{verbatim}
-[[e in {x|p}]]+ := min(e) /\ min(p[e/x]) -> [[e in {x|p}]]
-[[e in {x|p}]]- := min(e) -> min(p[e/x]) /\ [[e in {x|p}]]
-[[e in {x|p}]]  := e /= unr -> p[e/x] in {true, unr}
+-- Need 'min(e)' and 'min(p[e/x])' here to unfold defs.
+[| e ::: {x|p} |]+ = min(e) /\ min(p[e/x]) ->
+                     (e /= unr -> p[e/x] not-in {false, bad})
+-- Need 'min(e)' here to guard 'min(p[e/x])'.
+-- Need 'min(p[e/x])' here to unfold defs.
+[| e ::: {x|p} |]- = min(e) -> min(p[e/x]) /\
+                     (e /= unr -> p[e/x]     in {true, unr})
 
-[[e in cf]]+ :=  min(e) ->  cf(e)
-[[e in cf]]- := [min(e) ->] cf(e)
+ -- Need 'min(e)' here to unfold defs.
+[[e in cf]]+ := min(e) ->  cf(e)
+[[e in cf]]- := cf(e)
 
--- 'min's optional if a
--- 'forall f,x. min(f x) -> min(f)' axiom
--- is added to prelude.
-[[e in x:c1 -> c2]]+
-  := forall x. [min(e x) ->] [[x in c1]]- -> [[e x in c2]]+   
-[[e in x:c1 -> c2]]-
-  := forall x. [min(e x) ->] [[x in c1]]+ -> [[e x in c2]]-
+ -- No auxiliary mins.
+[[e in x:c1 -> c2]]v
+  := forall x. [[x in c1]](dual v) -> [[e x in c2]]v
 \end{verbatim}
 \caption{$\ctrans{}$ -- New contract translation. Design choices, in the form
 of optional parts, are enclosed in single square brackets.}
 \label{fig:newCTrans}
 \end{figure*}
 
-We give in figure~\ref{ctrans} the translation of contract satisfaction.
-\remove[nc]{Note that we define the translation of $f \in c$ and of $f \not \in
-c$. We have to do that because one is not the negation of the other,
-even though $\lnot (f \not \in c)$ implies $f \in c$.}\note[nc]{
-
-The contract translation, $\ctrans{}$, introduces a new predicate,
-$\min{}$, and contract non-satisfaction, $f \notin c$.  The formula
-$\min{e}$, short for ``(a)m in(terested) in $e$'' (?), is used to
-guide the proof search, by restricting proofs to follow the evaluation
-order when instantiating hypotheses (Is this meaningful? Is it even
-correct?).  To understand the translation intuitively, simply ignore
-all $\min{}$'s (I.e., assume $\forall x. \min{x}$).  The
-non-satisfaction form, $f \notin c$, is introduced to make the
-$\min{}$'s appear positively in translations in negative/contravariant
-positions; Ignoring $\min{}$'s, we have $\ctrans{f \notin c} \equiv
-\lnot \ctrans{f \in c}.$ (Well, after I change the definitions of
-$\ctrans{}$ for $e \in \{x | p\}$ and $e \notin \{x|p\}$ \ldots)
-
-Dimitrios gave an example where defining $\ctrans{f \notin c}$ as
-$\lnot \ctrans{f \in c}$ is problematic: prove $\ctrans{g ~Z \in
-  \cfc}$, assuming $\min{g ~Z}$, for an abstract function $g \in \cfc
-\to \cfc$.  If we define 
-\protect \[ 
-\ctrans{g \in x:c1 \to c2} :=
-\forall x. \min{g x} \to \ctrans{x \in c1} \to \ctrans{g x \in c2},
-\]
-then we get stuck, because we must prove $\min{Z}$ to satisfy
-$\ctrans{x \in c1}$ (i.e. $\min{Z} \land \cf{Z}$; we have $\cf{Z}$ by
-definition).  (UPDATE: Actually, this is probably just more evidence
-that $\ctrans{e \in \cfc}$ is defined incorrectly: we were already
-worried about that $\min{}$, because it stops us from proving
-$\cf{Z}$, even when no arrows are involved).  On the other hand, if we
-define the arrow case as in Figure~\ref{ctrans}, namely
-\protect \[
-\ctrans{g \in x:c1 \to c2} 
-:= \forall x. \min{g x} \to \lnot \ctrans{x \notin c1} \to \ctrans{g x \in c2},
-\]
-then we succeed, because $\min{Z}$ is irrelevant to us in satisfying
-$\ctrans{x \in c1}$ (i.e. $\lnot \min{Z} \lor \cf{Z}$. UPDATE: when you
-notice that that implies $\min{Z} \to \cf{Z}$, (and the reverse follows from EM), the next 
-paragraph might become a little dubious.  I still think the second form 
-is more intuitive.).
-
-The irrelevance of $\lnot \min{Z}$ above leads to the question, can we
-do away with the $\min{}$'s altogether in such positions?  It turns
-out the answer is ``No'', when we consider proving $g ~(g ~Z) \in
-\cfc$, but I have some ideas for an alternative translation where the
-answer is ``Yes''.  But first $g ~(g ~Z)$: to use $g$'s contract
-assumption we need to prove $\lnot \min{g ~Z} \lor \cf{g ~Z}$, and to
-prove $\cf{g ~Z}$ we in turn need to use $g$'s contract again.  To use
-$g$'s contract again we need $\min{g ~Z}$, and so $\min{}$ is relevant
-again.  The solution is to invoke excluded middle on $\min{g ~Z}$:
-either $\min{g ~Z}$, and we're done, or $\lnot \min{g ~Z}$, in which
-case we satisfy $g$'s preconditions \emph{without} showing $g$'s
-argument to be crash free.  This seems a little surprising to me,
-making a translation with no $\min{}$ here even more appealing.
-
-Here's a start at such a translation.  I
-think it's more natural to think about variance, so write
-$\ctrans{}^+$ for conclusions and $\ctrans{}^-$ for assumptions.  Then
-a system that works for these $\cfc$ examples is
-\protect \begin{eqnarray*}
-\ctrans{x \in \cfc}^+ &:=& \min{x} \to \cf{x} \\
-\ctrans{x \in \cfc}^- &:=& \cf{x}\\
-\ctrans{f \in x:c1 \to c2}^+ &:=& \forall x.               
-  \ctrans{x \in c1}^- \to \ctrans{f x \in c2}^+\\
-\ctrans{f \in x:c1 \to c2}^- &:=& \forall x. \min{f x} \to 
-  \ctrans{x \in c1}^+ \to \ctrans{f x \in c2}^-
-\end{eqnarray*}
 Because $\Gamma,\phi \vdash \psi \equiv \Gamma \vdash \phi \to \psi$,
 it's natural to think of contract assumptions in the theory as
 negative, and contract goals as positive.  An example is helpful:
@@ -840,45 +777,26 @@ negative, and contract goals as positive.  An example is helpful:
 Now, given $\ctrans{g \in \cfc \to \cfc}^-$, we may 
 want to prove $\ctrans{g ~(g ~Z) \in \cfc}^+$.
 So, our goal is $\min{g ~(g ~Z)} \to \cf{g ~(g ~Z)}$.
-This time the proof proceeds more naturally (no EM).  
 From $g$'s contract, we get $\cf{g ~(g ~Z)}$ if we can prove 
-$\min{g ~Z} \to \cf{g ~Z}$ (UPDATE: this is actually the same as 
-before, up to using EM to rewrite the implication).
+$\min{g ~Z} \to \cf{g ~Z}$
 But that follows by instantiating $g$'s contract again, and 
 then using $\cf{Z}$ to get $\min{Z} \to \cf{Z}$.
 
-Notice the assymetry between the positive and negative arrow
-translations: the positive case has no $\min{f ~x}$ assumption.  I
-left this $\min{}$ out because it's already in the 
-conclusion of the $\cf$ example, but I certainly haven't
-worked enough examples to justify it.  Moreover, this fragment
-(no $e \in \{x|p\}$ yet) already fails to have a standard
-property of bidirectional systems: that you can check/verify what you assume/use.
-In other words, we can't prove that, forall $e$ and $c$,
-\protect \[
-  \ctrans{e \in c}^- \text{ implies } \ctrans{e \in c}^+.
-\]
-The trouble seems to come down to needing to prove $\min{e ~x}$ implies 
-$\min{e}$, which is not true a priori.  But, it's easy to add the $\min{g ~x}$ 
-assumption to the positive arrow translation to recover the
- ``negative implies positive'' property. (UPDATE: the symmetric $\min{}$
-may also be necessary when reasoning about functions that return functions: if
-$f ~x = g$ then $f ~x ~y = g ~y$, but we'd need a $\min{f ~x}$ to unfold $f$'s def).
+
+
 
 Going back to the current translation, we consider some of its
 metatheoretic properties.
 \protect \begin{enumerate}
-\item $\lnot \ctrans{e \notin c}$ should behave like a double-negation
-  translation, in the sense that $\ctrans{e \in c}$ should imply
-  $\lnot \ctrans{e \notin c}$.  This becomes true if we modify the
-  predicate case so that the implication holds (e.g. by more accurately
-  modeling the operation semantics of contracts), and add a symmetric 
-  $\min{f ~x}$ assumption to $\ctrans{f \notin x:c_1 \to c_2}$.  Note that
-  reverse implication does not hold, e.g. $\lnot \ctrans{x \in \cfc}$ does
-  not imply $\ctrans{x \in \cfc}$.
+\item A standard
+  property of bidirectional systems: that you can check/verify what you assume/use.
+  In other words, forall $e$ and $c$,
+  \protect \[
+  \ctrans{e \in c}^- \text{ implies } \ctrans{e \in c}^+.
+  \]
 \item The ``fancy'' $\min{}$-ified translation should 
   degenerate to the ``naive'' translation when we assume $\forall x. \min{x}$.
-  This is trivially true if we define the ``naive'' translatino as the ``min'' tranlation
+  This is trivially true if we define the ``naive'' translatino as the ``min'' translation
   plus that axiom.  In symbols, we have
   \protect \[
   \Gamma^\text{min} \vdash \phi \implies \Gamma^\text{naive} \vdash \phi.
@@ -892,178 +810,14 @@ metatheoretic properties.
   completeness theorem without some work, since we're purposefully 
   restricting the proof search to follow
   evaulation strategy, and it's far from obvious that all proofs can proceed this way.
-
 \end{enumerate}
 
-Concerns about the current translation
-\protect \begin{enumerate}
-\item The changes needed to make the first property above hold (a $\min{}$ in the negative
-  arrow case and symmetric predicate contract cases).
-  I had trouble proving
-  \protect \[
-  (\lambda x. \text{case $x$ of $\true \to \true$; $\false \to \bad$})
-  \in \{x|x==\true\} \to \cfc
-  \]
-  , after adding $p = \unr$ to $\ctrans{x \in \{x|p\}}$, but I need to think about it more.
+  the theory $T$ should consist of $\in^-$ axioms.
+  We want to prove $\Gamma^{\in^-} \vdash \ctrans{e \in c}^+$.  
+  But
+  that's equivalent to $\Gamma^{\in^-},\lnot\ctrans{e \in c}^+ \vdash \bot$.  
 
-\item There may need to be some $\min{}$ assumptions in the prelude.  E.g. right now 
-  it's impossble to prove $\ctrans{\true \in \cfc}$, because you can't prove
-  $\min{\true}$ a priori.  On the other hand, we don't need any extra
-  $\min{}$ assumption in the arrow case, since it's already assumed, at least in
-  very simple examples (checked on the simple
-  example that $id \in \cfc \to \cfc$). (UPDATE: removing the $\min{x} \land$ in $cfc$, 
-  or changing it to $\min{x} \to$, is probably the solution).
 
-\item A related question, is what do we feed to Equinox?  Equinox is a 
-  refutation prover, so to prove $\Gamma \vdash \phi$ we ask if 
-  $\Gamma,\lnot \phi \vdash \bot$.  So, for us, when $\phi$ is $\ctrans{e \in c}$, do
-  give Equinox $\Gamma,\lnot \ctrans{e \in c}$ or $\Gamma, \ctrans{e \notin c}$.  I think
-  we want the former, since ignoring Equinox our goal is $\Gamma \vdash \ctrans{e \in c}$.
-\end{enumerate}
-}
-
-\note[nc]{Here's a more fleshed out alternate translation, and a
-  comparison with the current translation.}
-\small
-\begin{verbatim}
-new translation
-===============
-
--- you can assume both min()s when proving e in {x|p} 
-[[e in {x|p}]]+ := min(e) /\ min(p[e/x]) -> [[e in {x|p}]]
--- you need to prove min(e) but then get min(p[e/x])
-[[e in {x|p}]]- := min(e) -> min(p[e/x]) /\ [[e in {x|p}]]
--- could also write this as 'e /= unr -> p[e/x] in {true,unr}'
-[[e in {x|p}]]  := e = unr \/ p[e/x] in {true, unr}
-
-[[e in cf]]+ := min(e) -> cf(e)
--- i think we can add a 'min(e) ->' here without losing anything.
-[[e in cf]]- :=           cf(e)
-
--- should add a 'min(e x) ->' here as discussed above.
-[[e in x:c1 -> c2]]+
-  := forall x.             [[x in c1]]- -> [[e x in c2]]+   
-[[e in x:c1 -> c2]]-
-  := forall x. min(e x) -> [[x in c1]]+ -> [[e x in c2]]-
-
-old translation (written in implication style)
-==============================================
-
-[[e in {x|p}]]       
-  := min(p[e/x]) /\ (e = unr \/ p[e/x] = true)
-not[[e notin {x|p}]] 
-  := min(p[e/x]) -> (e /= bad /\ p[e/x] /= false)
-
-[[e in cf]]       := min(e) /\ cf(e)
-not[[e notin cf]] := min(e) -> cf(e)
-
-[[e in x:c1 -> c2]] 
-  := forall x. min(e x) -> not[[x notin c1]] -> [[e x in c2]]
-not[[e notin x:c1 -> c2]]
-  := forall x.             [[x in c1]] -> not[[e x notin c2]]
-
-updated cf and {x|p} rules for old translation
-==============================================
-
-[[e in {x|p}]]       
-  := min(p[e/x]) /\ (e = unr \/ p[e/x] in {true,unr})
-not[[e notin {x|p}]] 
-  := min(p[e/x]) -> (e = unr \/ p[e/x] in {true,unr})
-
--- what we actually discussed was 
--- adding a top level min(e) assumption, but
--- removing the min(e) goal has a similar effect.
-[[e in cf]]       :=           cf(e)
-not[[e notin cf]] := min(e) -> cf(e)
-\end{verbatim}
-\note[nc]{And what do we see?
-If we identify $\in^+$ with $\lnot\notin$ and $\in^-$ with $\in$, 
-then the ``new'' translation looks almost the same,
-except it has more $\min{}$'s in the predicate rules.  So, have we learned
-anything? Probably:
-\protect \begin{enumerate}
-  \item We're more confident about our suggested changes to the old translation,
-        including adding a symmetric $\min{}$ assumption to the $\notin$ arrow case. 
-  \item The new translation is more intuitive / we might understand how Koen came up
-        with the old translation.
-  \item We can answer the question about what we give as input to Equinox: for the
-        new translation, it's obvious that the theory $T$ should consist of $\in^-$ axioms.
-        That is consistent with giving Equinox $\in$ axioms.  
-        What to give as the goal is maybe
-        less obvious, since Equinox is a refutation prover, but consider: ignoring the
-        strategy (refutation), we want to prove $\Gamma^{\in^-} \vdash \ctrans{e \in c}^+$.  
-        But
-        that's equivalent to $\Gamma^{\in^-},\lnot\ctrans{e \in c}^+ \vdash \bot$.  
-        And going back
-        to the old translation, the analogy is 
-        $\Gamma^{\in}, \ctrans{e \notin c} \vdash \bot$.
-\end{enumerate}
-
-The predicate case for the new translation came from an example:
-}
-\begin{verbatim}
-try:
-
-[[e in {x|p} ]]+ = min(e) -> min(p[e/x]) -> [[e in {x|p}]]-
-[[e in {x|p} ]]- = e = unr \/ p[e/x] in {true, unr}
-
-example: 
-
-e := (\x.case x of True -> True) -- so e false = bad
-c := {x|x==True} -> CF
-[[e in c]]+ = forall x. min(e x) 
-              -> [[x in {x|x==True}]]- -> [[e x in CF]]+
-            = forall x. min(e x) 
-              -> (x = unr \/ p in {true,unr})
-              -> (min(e x) -> CF(e x))
-
-min(e x) -> min(x) /\ (
-         \/ (x = bad /\ (e x) = bad) 
-         \/ (x = True /\ (e x) = true) 
-         \/ (x = False /\ (e x) = bad)
- -- better to add the redundant x /= bad, true, false here?
-         \/ (e x) = unr
-         )
-
-if x = unr then (e x) = unr and so CF(unr) and done
-
-if x /= unr /\ p = true then we're stuck, since we can't 
-unroll the definition of ==true in p
-
-so, change the defs:
-
-[[e in {x|p}]]+ := min(e) /\ min(p[e/x]) -> [[e in {x|p}]]
-[[e in {x|p}]]- := min(e) -> min(p[e/x]) /\ [[e in {x|p}]]
-[[e in {x|p}]]  := e = unr \/ p[e/x] in {true, unr}
-
-starting again, we have min(x) from D[[]] so we get 
-
-min(p) /\ (x = unr \/ p in {true,unr})
-
-now
-
- - x = unr gives (e x) = unr as before
-
- - for x/=unr and p in {true,unr} we unroll def (==true) 
-   using min(p), for p = ((==True) x):
-
-   min((==True) x) -> min(x) /\ ( -- e' is (==True) here
-         \/ (x = bad /\ (e' x) = bad) 
-         \/ (x = True /\ (e' x) = true) 
-         \/ (x = False /\ (e' x) = bad)
-         \/ (e' x) = unr
-         )
-
-for p = unr, we get x notin {bad,true,false}, 
-and hence (e x) = unr, and we're done.
-
-for p = true, we get x = true, 
-and hence (e x) = true, and we're done.
-\end{verbatim}
-\note[nc]{That example also has an alternate version of the
- definition translation for functions defined by case
-matching.  It's a little more concise than the old translation.
-}
 \begin{verbatim}
 In any case, another question: 
 does equinox distinguish between D[[]] like
