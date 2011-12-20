@@ -205,6 +205,19 @@ formula serves a specific purpose.\note[nc]{
   model for the resulting formulas is a language with the syntax used
   in this paper ($\mathcal{H}'$ below).
 
+  The following argument has major problems:\begin{enumerate}
+  \item it's not clear what ``terminating terms'' means, since our
+    language is lazy.
+  \item consistency of $\trans{}^+$ (checking) does not imply
+    consistency of the $\trans{}^-$ (assuming), e.g. because the function
+    definitions change (we only use anonymous recursive functions in
+    $\trans{}^+$).  Do we need to argue that our induction is sound? We
+    can't simply define assumed ($\trans{}^-$) functionss as $\unr$,
+    since e.g. $\unr \neq S ~x$ for all $x$.
+  \item the presentation of $\cfc$ is wrong: asking if something is
+    equal to $\bad$ only works in a strict language.
+  \end{enumerate}
+
   The carrier consists of all closed (i.e. variable free / grounded)
   programs that can be written using the functions and constructors in
   $T$, using the expression syntax of $\mathcal{H}'$ below, and
@@ -307,8 +320,12 @@ more.
   nested case expressions can be lifted to the top-level.  The
   implementation actually supports nested case expressions.
 
-\note[nc]{
-Not true that we only consider full application of functions: the definition of satisfaction for arrow contracts
+  \note[nc]{ UPDATE: actually, this is true now, but we still want to
+    talk about collapsing arrows, because the implementation does
+    that?
+
+Not true that we only consider full application of functions: 
+the definition of satisfaction for arrow contracts
 $x:c_1 \to c_2$ already includes partial applications.  We could add a
 special cases for each function arity, e.g.
 \begin{eqnarray*}
@@ -360,10 +377,55 @@ more clutter.
 \label{fig:hprime-syntax}
 \end{figure}
 
+\subsection{BAD and UNR}
+There are two types of problematic expressions: those that cannot
+happen during a run of the program and those that can.  We call
+infinite loops, and expressions of the first type, such as type
+errors, \emph{unreachable} and equate them to the special value $\unr$
+in our FOL theory.\footnote{
+%
+In particular, ill-typed expressions are $\unr$, not $\bad$
+%
+} We call expressions of the second type \emph{bad} and equate them to
+the special value $\bad$ in our FOL theory.
+
+Although we only consider well-typed programs, 
+our FOL theory is not typed,\footnote{
+%
+  We could encode types with predicates.  Will Sonnex (Zeno) did this 
+  when encoding examples in ACL2s, in order to improve performance.  E.g.
+  \[
+  \forall x,y. isNat(x) \land isNat(y) \to isNat(add(x,y)) \land \text{ standard stuff}.
+  \]
+  Things might become more complicated for higher order functions, e.g.
+  \begin{align*}
+  \forall f,xs,a,b.& isType(a) \land isType(b) \\
+                   &\land hasType(f,arrowType(a,b)) \\
+                   &\land hasType(xs,listType(a))\\
+                   &\to hasType(map(f,xs),listType(b)) \land \text{ standard stuff}.
+  \end{align*}
+%
+}
+and so quantifiers in FOL range over \emph{all}\footnote{
+%
+  Well, technically, in \hprime we have both $f$ and $\full{f}$ for
+  each declared function $f$, and the quantifier only includes $f$.
+%
+} expressions in \hprime.
+This is OK, because the axioms are designed so that scrutinizing an
+ill-typed constructor-head results in $\unr$.  On the other hand,
+some ill-typed expressions are not $\unr$, e.g. we can prove
+that $tail~(Cons~Nil~Z) = Z$.\footnote{
+%
+  Basically, if we discover that an expression is ill-typed, then we return $\unr$, but
+  we do this lazily.
+%
+}
+
 
 \subsection{Contracts}
 Contract syntax is described in figure \ref{cont-stx}. The predicates
-$p$ in contracts range over boolean $\hprime$ expressions. We
+$p$ in predicate contracts range over boolean $\hprime$ expressions. We
 only consider pairs of contract for simplicity, although there is no
 issue with generalisation to arbitrary tuples.\note[nc]{
 %
@@ -470,51 +532,13 @@ $\mathcal{C}[e]$ is closed and well-typed.  Note
 that there are crash-free expressions that are not syntactically safe,
 for example $fst(Nil,\bad)$.
 
-\subsection{BAD and UNR}
-Consider the following piece of code:
-\begin{verbatim}
-a = 0 + True
-
-b ::: CF
-b = undefined
-
-c = error "foo"
-\end{verbatim}
-
-
-\begin{itemize}
-\item $a$ is ill-typed
-\item $b$'s implementation is not correct wrt its contract
-\item $c$ goes through the whole toolchain (compiler, typechecker, contractchecker)
-\end{itemize}
-
-One thing to notice is that $a$ and $b$ are things that ``should not
-happen'' but are caught statically whereas $c$ should not happen but
-can only be dealt with dynamically.\note[nc]{
-I find this example confusing: \texttt{error} calls should be just as
-easy to find as \texttt{undefined} calls statically.}
-
-We can now define two types of problematic expressions: those that
-cannot happen during a run of the program and those that can.
-Expressions of the first type are called unreachable (and equated to
-the special value $\unr$ in our first-order theory)\note[nc]{
-%
-In particular, ill-typed expressions are $\unr$, not $\bad$
-%
-}, whilst
-expressions of the latter type are called bad (and equated to the
-special value $\bad$).
-
-We said earlier that we only considered syntactically correct and
-well-typed programs as input. That implies that the ``$a$'' case
-cannot happen. But given that our first-order logic is not typed, the
-theorem prover may decide to instanciate a variable with an ill-typed
-value! \change[nc]{In order to prevent this, we will need to encode some basic
-type-checking mecanism directly in our first-order theory.}{This is OK, because the axioms are designed so that scrutinizing an ill-typed constructor-head results in $\unr$.  On the other hand, some ill-typed expressions are not $\unr$, e.g. we can prove that $tail~(Cons~Nil~Z) = Z$.}
 
 \subsection{First-order logic with equality}
-We use first-order logic with equality, defined in figure \ref{fol-stx}.\note[nc]{I guess ``with equality'' means that the proof theory has an axiom schema for substition, i.e. forall $\phi$, $\forall x,y.x=y \to (\phi \tot \phi[y/x])$, axioms making $=$ an equality relation, and the requirement that all models interpret $=$ as true equality on the carrier.}
-\note[nc]{See Section~\ref{sec:contracts} for a discussion of the $\min{}$ predicate.} 
+We use first-order logic with equality, defined in figure \ref{fol-stx}.\footnote{
+%
+I guess ``with equality'' means that the proof theory has an axiom schema for substition, i.e. forall $\phi$, $\forall x,y.x=y \to (\phi \tot \phi[y/x])$, axioms making $=$ an equality relation, and the requirement that all models interpret $=$ as true equality on the carrier.
+%
+}
 The expression language in our logic is the expression language of 
 \hprime (Figure~\ref{fig:hprime-syntax}).  Note that curried application in \hprime
 corresponds to a binary function symbol in FOL, which we denote by juxtaposition.
@@ -551,40 +575,33 @@ Expressions are the same in \hprime and FOL, so no translation is
 necessary.
 
 \subsection{$\dtrans{}$ -- Definitions}
-We give in figure~\ref{dtrans} the two translations of function
-definitions.
-
-figure~\ref{dtrans} gives the translation of function not defined by
-pattern matching, which is really easy: we just have to state the
-equality between le left-hand side and the right-hand side.
-
-Translating definitions that use pattern-matching is more challenging
-and is described in figure~\ref{dtrans}.  The first line says that
-when applied to an argument that matches a pattern of the case
-expression, we should equate the function call to the corresponding
-expression. The second line states that if the pattern-matching failed
-or if we pattern-matched on $\bad$ then the result should be
-$\unr$.\note[nc]{This text does not agree with the figure.  In
-  particular, the axiom says nothing about the result of scrutinizing
-  $\bad$.  I think the correct behavior is that scrutinizing $\bad$
-  results in $\bad$, \emph{not} $\unr$.}
+We give in figure~\ref{dtrans} the translation of function
+definitions. The first line says that when applied to an argument that
+matches a pattern of the case expression, we should equate the
+function call to the corresponding expression. The second line states
+that if the pattern-matching failed or if we pattern-matched on $\bad$
+then the result should be $\unr$.\note[nc]{This text does not agree
+  with the figure.  In particular, the axiom says nothing about the
+  result of scrutinizing $\bad$.  I think the correct behavior is that
+  scrutinizing $\bad$ results in $\bad$, \emph{not} $\unr$.}
 
 
+\newcommand{\fullfxs}{\full{f}(\vec{x})}
 \begin{figure*}
 \[
 \begin{array}{rcl}
   \multicolumn{3}{c}{\ruleform{\dtrans{def} = \phi}} \\[2.5mm]
   \dtrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} &=& \ttrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} \\
   \dtrans{f \in c} &=& \ctrans{f \in c}\\
-  \dtrans{f~\vec{x} = e} &=& \forall \vec{x},a.~ (\min{a} \land a =
-  \full{f}(\vec{x})) \to a = e \\
+  \dtrans{f~\vec{x} = e} &=& \forall \vec{x}.\min{\fullfxs} 
+                                              \to \fullfxs = e \\
    \raisebox{ 0.5 cm }{$\dtrans{f~\vec{x} = \mbox{case } e \mbox{ of } [K_i~\vec{x_i} = e_i]}$} &\raisebox{0.5cm}{=}&  \hspace{-0.18cm} \begin{array}{rclcl}
-     \forall \vec{x},a.~(\mbox{min}(a) \land a = \full{f}(\vec{x})) &\to&
-     \multicolumn{3}{c}{  \texttt{min}(e) \land (e = \texttt{BAD} \lor
-       \left(\bigvee_i \exists \vec{x_i}.~e = \full{K}_i(\vec{x_i})\right) \lor a = \texttt{UNR})} \\
-     &\land& \forall \vec{x_1}.~e = \full{K}_1(\vec{x_1}) &\to& a = e_1 \\
+     \forall \vec{x}. \min{\fullfxs} &\to&
+     \multicolumn{3}{c}{  \min{e} \land (e = \texttt{BAD} \lor
+       \left(\bigvee_i \exists \vec{x_i}.~e = \full{K}_i(\vec{x_i})\right) \lor \fullfxs = \texttt{UNR})} \\
+     &\land& \forall \vec{x_1}.~e = \full{K}_1(\vec{x_1}) &\to& \fullfxs = e_1 \\
      &\land& & \cdots & \\
-     &\land& \forall \vec{x_n}.~e = \full{K}_n(\vec{x_n}) &\to& a = e_n \\
+     &\land& \forall \vec{x_n}.~e = \full{K}_n(\vec{x_n}) &\to& \fullfxs = e_n \\
    \end{array} 
 \end{array}
 \]
@@ -613,18 +630,19 @@ $$\ttrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phi_\text{injective} \lan
   Notice that we have a equivalence.
   \begin{itemize}
   \item $\gets$: if we pack crash-free values in a data constructor,
-    the resulting value is crash-free.  For $K$ has arity $n$
-    we assert $\ctrans{K \in \cfc^n \to \cfc}^-$.
+    the resulting value is crash-free.  If $K$ has arity $n$
+    then we assert $\ctrans{K \in \cfc^n \to \cfc}^-$.
 
-  \item $\to$: a value $t$ of type $T$\note[nc]{
-    ``type'' is used loosely here: it means the constructor head is of type $T$.
+  \item $\to$: a value $t$ of type $T$\footnote{
+    ``type'' is used loosely here: it means the constructor 
+      head is from the type $T$.
     } is crash-free implies
     that every value packed in it is crash-free, since we can use
     a case expression to extract any packed value.
     \note[nc]{XXX: This translation is ad-hoc.}
 
   Note that this is not true for functions: a function is not required
-  to use all of its arguments. \texttt{fst} is crash-free if and only
+  to use all of its arguments. For example, \texttt{fst} is crash-free if and only
   if the first argument of the pair is crash-free. The second argument
   is irrelevant.
 
@@ -646,10 +664,8 @@ $$\ttrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phi_\text{injective} \lan
   \cfc}^-$, saves the day.}
   \end{itemize}
 
-\item $(\phi_\text{lazy})$ No full application of a constructor $K_i$ is unreachable or crashing.
-\item One may want to also state that if for all $j$, $x_j \neq \bad$ then
-  $\full{K}_i(\vec{x}) \neq \bad$. It is already implied by the fact that
-  $\left(\forall j. \cf{x_j}\right) \to \cf{\full{K}_i(\vec{x})}$.
+\item $(\phi_\text{lazy})$ No full application of a constructor
+  $K_i$ is unreachable or crashing.
 \end{itemize}
 
 \begin{figure*}
