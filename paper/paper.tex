@@ -792,9 +792,11 @@ we guard it with $\min{e}$.
 [| e ::: {x|p} |]- = min(e) -> min(p[e/x]) /\
                      (e /= unr -> p[e/x]     in {true, unr})
 
- -- Need 'min(e)' here to unfold defs.
-[[e in cf]]+ := min(e) ->  cf(e)
-[[e in cf]]- := cf(e)
+-- Need 'min(e)' here in the (+)-case to unfold defs.
+-- The 'min(e)' in the (-)-case doesn't seem strictly
+-- necessary, but it gives a big performance improvement for
+-- 'yes/add-symmetric.hs', from 48s to 30s for a full check.
+[[e in cf]]v := min(e) ->  cf(e)
 
  -- No auxiliary mins.
 [[e in x:c1 -> c2]]v
