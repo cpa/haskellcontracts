@@ -312,11 +312,13 @@ cTrans' v e (H.Or c1 c2) = do
 cTrans' v e (H.CF) = do
   eT <- eTrans e
   -- XXX, DESIGN CHOICE: the 'min' constraint should be optional in
-  -- the 'Minus' case.
+  -- the 'Minus' case.  However, the 'min' version is significantly
+  -- faster for the 'yes/add-symmetric.hs' example: full check goes
+  -- from 48s without 'min' to 30s with 'min'.
   return $ case v of
     Plus  -> F.Min eT :=>: F.CF eT
-    --Minus -> F.Min eT :=>: F.CF eT
-    Minus -> F.CF eT
+    Minus -> F.Min eT :=>: F.CF eT
+    --Minus -> F.CF eT
 
 -- Data decl translation
 ------------------------
@@ -394,9 +396,26 @@ phi_cf (H.Data t dns) = mapM f dns where
        -- translation, by treating the constructor as a function
        -- (which, of course, it is).
     cfc <- F.appifyF =<< cTrans' Minus cN contract
+    -- The 'min' here is essential: w/o it the 'lem_eqNat_trans'
+    -- is not provable (after 4 minutes), and Paradox does not
+    -- find counter models to 'lem_add_symmetric', with
+    -- 'lem_eqNat_trans ::: CF^3 -> CF' removed.  I waited up
+    -- to size 9 counter model attempts.
+    --
+    -- This is interesting: I've been arguing that we don't need
+    -- to guard the conclusion of 'CF', since 'CF' doesn't let us
+    -- unfold defs.  But here, in 'phi', we only conclude 'CF',
+    -- and yet it causes problems when unguarded.
     let phi = F.Forall xs $ F.Min full :=>:
                        (F.CF full
                        :=>: (F.And [F.CF x | x <- xsN]))
+    -- This 'phi'' is more conservative than 'phi', but it also
+    -- performs worse on the 'yes/add-symmetric.hs', by two to four
+    -- seconds. I guess it's possible it could perform *better* on
+    -- other tests???
+    let phi' = F.Forall xs $ F.Min full :=>:
+                       (F.CF full
+                       :=>: (F.And [F.Min x :=>: F.CF x | x <- xsN]))
     return $ F.LabeledFormula (F.axiom $ "phi_cf__"++t++"__"++c) $ F.And [phi,cfc]
 -- Axiom: Term constructors are total/lazy (Phi_4 in paper).
 phi_lazy (H.Data t dns) = map f dns where
