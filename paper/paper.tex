@@ -635,11 +635,11 @@ $$\ttrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phi_\text{injective} \lan
   $\min{\proj{1}{S}(S~x_1)}$ here, so such a min-constraint would
   block us.
 
-  We also use projectors in some versions of the case-expression
+  We also use projections in some versions of the case-expression
   translation, to Skolemize, but this is just a happy coincidence.  In
-  particular, user programs will never contain explicit projections.
-  If a user wants to project they need to write a projection function
-  using pattern matching.
+  particular, user programs will never contain projections.  If a user
+  wants to project then they need to write there own projection
+  function using pattern matching.
 \item $(\phi_\text{disjoint})$ Distinct term constructors have
   disjoint ranges.  Note that we don't axiomitize disjointness of term
   constructors from distinct \emph{data types}.
@@ -650,15 +650,15 @@ $$\ttrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phi_\text{injective} \lan
     the resulting value is crash-free.  If $K$ has arity $n$
     then we assert $\ctrans{K \in \cfc^n \to \cfc}^-$.
 
-  \item $\to$: a value $t$ of type $T$\footnote{
+  \item $\to$: if a value $t$ of type $T$\footnote{
     ``type'' is used loosely here: it means the constructor 
       head is from the type $T$.
-    } is crash-free implies
-    that every value packed in it is crash-free, since we can use
+    } is crash-free then
+    every value packed in it is crash-free, since we can use
     a case expression to extract any packed value.
     \note[nc]{XXX: This translation is ad-hoc.}
 
-  Note that this is not true for functions: a function is not required
+  Note that this is not true for arbitrary functions: a function is not required
   to use all of its arguments. For example, \texttt{fst} is crash-free if and only
   if the first argument of the pair is crash-free. The second argument
   is irrelevant.
@@ -690,23 +690,18 @@ $$\ttrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phi_\text{injective} \lan
 $$\ttrans{\mbox{data } T = K_1 ~a_1, \dots, K_n ~a_n} = \phi_\text{injective} \land \phi_\text{disjoint} \land \phi_\text{cf} \land \phi_\text{lazy}$$
  \hspace{5.6cm}where
   \begin{center}
-    \[  \begin{array}{rcl}
-      \phi_\text{injective} &=& \bigwedge_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = \full{K}_i(\vec{x})) \to \bigwedge_{1 \leq j \leq a_i} x_j = \proj{j}{K_i}(a) \text{\note[nc]{ $\min{a}$, not $\min{\proj{j}{K_i}(a)}$.}}\\
-      \phi_\text{disjoint} &=& \bigwedge_{1 \leq i < j \leq n}~\forall \vec{x},\vec{y},a.~ \lnot (\min{a} \land a = \full{K}_i(\vec{x}) \land a = \full{K}_j(\vec{y})) \\
-      \phi_\text{cf} &=& 
-        \bigwedge_{1 \leq i \leq n}~\ctrans{K_i \in \cfc^{a_i} \to \cfc}^- 
-          \land \forall \vec{x},a.~(\min{a} \land a = \full{K}_i(\vec{x})) 
-                  \to \cf{a} \to (\bigwedge_{1 \leq j \leq a_i} \cf{x_j}) \\
-      \phi_\text{lazy} &=& \bigwedge_{1 \leq i \leq n}~\forall \vec{x},a.~(\min{a} \land a = \full{K}_i(\vec{x})) \to a \neq \unr \land a \neq \bad 
-    \end{array} \]
+    \newcommand{\fullkxs}[1]{\full{K}_#1(\vec{x})}
+    \begin{align*}
+      \phi_\text{injective} &= \bigwedge_{1 \leq i \leq n}~\left( \forall \vec{x}.~\min{\fullkxs i} \to \bigwedge_{1 \leq j \leq a_i} x_j = \proj{j}{K_i}(\fullkxs i) \right) \\
+      \phi_\text{disjoint} &= \!\!\!\bigwedge_{1 \leq i < j \leq n}\!\!\!~\left(\forall \vec{x},\vec{y}.~ (\min{\fullkxs i} \lor \min{\fullkxs j}) \to \fullkxs {i} \neq \fullkxs {j} \right)\\
+      \phi_\text{cf} &= 
+        \bigwedge_{1 \leq i \leq n}~\left( \ctrans{K_i \in \cfc^{a_i} \to \cfc}^- 
+          \land \forall \vec{x}.~\min{\fullkxs i}
+                  \land \cf{\fullkxs i} \to \bigwedge_{1 \leq j \leq a_i} \cf{x_j} \right) \\
+      \phi_\text{lazy} &= \bigwedge_{1 \leq i \leq n}~\left( \forall \vec{x}.~(\min{\fullkxs i} \to \fullkxs {i} \neq \unr \land \fullkxs {i} \neq \bad \right)
+    \end{align*}
   \end{center}
-  \caption{$\ttrans{}$ -- Data type translation\note[nc]{Need
-      $\min{a}$ to be sufficient for unfolding in
-      $\phi_\text{injective}$ to get invertability of constructors!
-      I thought we needed $\min{\proj{j}{K_i}(a)}$ to be sufficient when
-      we use a projection based translation of case expressions, but
-      as Koen pointed out this is not true.
-      }}
+  \caption{$\ttrans{}$ -- Data type translation}
   \label{ktrans}
 \end{figure*}
 
