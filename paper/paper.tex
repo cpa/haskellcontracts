@@ -616,16 +616,33 @@ then the result should be $\unr$.\note[nc]{This text does not agree
 
 
 \subsection{$\ttrans{}$ -- Datatypes}
-We break down the translation for datatypes in four parts, described in figure~\ref{ktrans}
+We break down the translation for datatypes in four parts, described in Figure~\ref{ktrans}
 $$\ttrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phi_\text{injective} \land \phi_\text{disjoint} \land \phi_\text{cf} \land \phi_\text{lazy}$$
 
 \begin{itemize}
-\item $(\phi_\text{injective})$ Constructors are injective.  That is, for
-  each term constructor $K$,
-  if $K e_1 \cdots e_n = K e'_1 \cdots e'_n$, then $e_i = e'_i$ for
-  all $i$.  We axiomitize this via projections $\proj{i}{K}$: for each $i$,
-  $\proj{i}{K}(K e_1 \cdots e_n) = e_i$.
-\item $(\phi_\text{disjoint})$ Distinct constructors have disjoint ranges.
+\item $(\phi_\text{injective})$ Constructors are injective.  That is,
+  for each term constructor $K$, if $K e_1 \cdots e_n = K e'_1 \cdots
+  e'_n$, then $e_i = e'_i$ for all $i$.  We axiomitize this via
+  projections $\proj{i}{K}$: for each $i$, $\proj{i}{K}(K e_1 \cdots
+  e_n) = e_i$.  NB: unlike for user defined functions, the $\min{}$
+  constraint on unfolding projections is on the \emph{argument}, and
+  not the \emph{function application} itself.  I.e., instead of
+  $\min{\proj{i}{K}(K e_1 \cdots e_n)}$ we have $\min{K e_1 \cdots
+    e_n}$.  We guard with the latter, not the former, because the
+  primary purpose of projectors is to axiomitize the injectivity of
+  constructors.  E.g., given $S~x_1 = S~x_2$, and $\min{S~x_1}$, we
+  want to conclude that $x_1 = x_2$.  We won't, in general, have
+  $\min{\proj{1}{S}(S~x_1)}$ here, so such a min-constraint would
+  block us.
+
+  We also use projectors in some versions of the case-expression
+  translation, to Skolemize, but this is just a happy coincidence.  In
+  particular, user programs will never contain explicit projections.
+  If a user wants to project they need to write a projection function
+  using pattern matching.
+\item $(\phi_\text{disjoint})$ Distinct term constructors have
+  disjoint ranges.  Note that we don't axiomitize disjointness of term
+  constructors from distinct \emph{data types}.
 \item $(\phi_\text{cf})$ Then, we have to give crash-freeness conditions for each $K_i$:
   Notice that we have a equivalence.
   \begin{itemize}
