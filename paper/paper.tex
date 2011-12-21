@@ -647,18 +647,29 @@ $$\ttrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phi_\text{injective} \lan
   Notice that we have a equivalence.
   \begin{itemize}
   \item $\gets$: if we pack crash-free values in a data constructor,
-    the resulting value is crash-free.  If $K$ has arity $n$
-    then we assert $\ctrans{K \in \cfc^n \to \cfc}^-$.
+    the resulting value is crash-free.  If $K$ has arity $n$ then we
+    assert $\ctrans{K \in \cfc^n \to \cfc}^-$.  I.e., we simply treat
+    K as a strict \cfc function.
 
-  \item $\to$: if a value $t$ of type $T$\footnote{
-    ``type'' is used loosely here: it means the constructor 
-      head is from the type $T$.
-    } is crash-free then
-    every value packed in it is crash-free, since we can use
-    a case expression to extract any packed value.
-    \note[nc]{XXX: This translation is ad-hoc.}
+  \item $\to$: if a value $t$ of type $T$\footnote{ ``type'' is used
+      loosely here: it means the constructor head is from the type
+      $T$.  } is crash-free then every value packed in it is
+    crash-free, since we can use a case expression to extract any
+    packed value.  More precisely, we assert
+    \[
+    \forall \vec{x}. \min{K~\vec{x}} \land \cf{K~\vec{x}}
+    \to \bigwedge_{1 \le i \le n} \cf{x_i}.
+    \]
+    Unlike the $\gets$-direction of the translation, where we use
+    $\ctrans{}$ (principled), this direction of the translation is
+    ad-hoc.  Interestingly, dropping the $\min$ here causes
+    problems. The \texttt{lem\_eqNat\_trans} in
+    \texttt{yes/add-symmetric.hs} becomes unprovable (or at least,
+    really slow), and Paradox is no longer able to find small
+    counter-models to \texttt{lem\_add\_symmetric} when
+    \texttt{lem\_eqNat\_trans}'s $\cfc^3 \to \cfc$ contract is removed.
 
-  Note that this is not true for arbitrary functions: a function is not required
+  Note that $\phi_\text{cf}$ is not true for arbitrary functions: a function is not required
   to use all of its arguments. For example, \texttt{fst} is crash-free if and only
   if the first argument of the pair is crash-free. The second argument
   is irrelevant.
@@ -690,7 +701,7 @@ $$\ttrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phi_\text{injective} \lan
 $$\ttrans{\mbox{data } T = K_1 ~a_1, \dots, K_n ~a_n} = \phi_\text{injective} \land \phi_\text{disjoint} \land \phi_\text{cf} \land \phi_\text{lazy}$$
  \hspace{5.6cm}where
   \begin{center}
-    \newcommand{\fullkxs}[1]{\full{K}_#1(\vec{x})}
+    \newcommand{\fullkxs}[1]{\full{K}_#1~\vec{x}}
     \begin{align*}
       \phi_\text{injective} &= \bigwedge_{1 \leq i \leq n}~\left( \forall \vec{x}.~\min{\fullkxs i} \to \bigwedge_{1 \leq j \leq a_i} x_j = \proj{j}{K_i}(\fullkxs i) \right) \\
       \phi_\text{disjoint} &= \!\!\!\bigwedge_{1 \leq i < j \leq n}\!\!\!~\left(\forall \vec{x},\vec{y}.~ (\min{\fullkxs i} \lor \min{\fullkxs j}) \to \fullkxs {i} \neq \fullkxs {j} \right)\\
