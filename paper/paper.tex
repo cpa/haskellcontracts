@@ -59,6 +59,10 @@
 \renewcommand{\min}[1]{\mbox{min}(#1)}
 \newcommand{\proj}[2]{\pi_{#1}^{#2}}% the #1^th projection of constructor #2
 
+\newcommand{\phiLazy}{\phi_\text{lazy}}
+\newcommand{\phiCF}{\phi_\text{CF}}
+\newcommand{\phiInjective}{\phi_\text{injective}}
+\newcommand{\phiDisjoint}{\phi_\text{disjoint}}
 
 \newcommand{\designChoice}{(DESIGN CHOICE/OPTIONAL)}
 
@@ -119,12 +123,12 @@ can't think of a good way to explain it right now.
 \end{equation*}
 \begin{equation*}
 Nil \neq \unr 
-\end{equation*}\note[nc]{\unr means ``infinite loop'', approximately (it's also the result of pattern matches on non-loop expressions with the wrong constructor head), and so these rules ($\phi_\text{lazy}$) say that constructors are ``lazy'' or ``total''.}
+\end{equation*}\note[nc]{\unr means ``infinite loop'', approximately (it's also the result of pattern matches on non-loop expressions with the wrong constructor head), and so these rules ($\phiLazy$) say that constructors are ``lazy'' or ``total''.}
 
 Finally, we define projections for $Cons$. \annote[nc]{It is not
   strictly necessary, but it will be handy:}{??? Why is it handy? It
   doesn't seem to play any role in formal part of this paper (besides
-  being specified in axioms $\phi_\text{injective}$). In the current
+  being specified in axioms $\phiInjective$). In the current
   implementation it's used to avoid introducing existentially
   quantified variables in the $\bigvee_i$ part of $\dtrans{}$ for
   functions defined by case expressions. Equation \eqref{unrnotnull}
@@ -134,7 +138,7 @@ Finally, we define projections for $Cons$. \annote[nc]{It is not
 \end{equation*}
 \begin{equation*}
 \forall xs,y,ys.~\proj{2}{Cons}~Cons~y~ys = xs \implies xs = ys 
-\end{equation*}\note[nc]{??? Why not the simpler \[\forall y,ys.~\proj{2}{Cons}~Cons~y~ys = ys\]? Same question in Figure \ref{dtrans}.  (Equinox does have a built in notion of equality, e.g. running equinox on
+\end{equation*}\note[nc]{??? Why not the simpler \[\forall y,ys.~\proj{2}{Cons}~Cons~y~ys = ys\]? Same question in Figure \ref{fig:dtrans}.  (Equinox does have a built in notion of equality, e.g. running equinox on
 \center{\texttt{fof(\_,theorem,? [X,Y] : (X = Y \& f(X) != f(Y))).}}\\
  results in ``Unsatisfiable'', so support for equality reasoning is not the reason.)}
 %% \[
@@ -540,7 +544,11 @@ I guess ``with equality'' means that the proof theory has an axiom schema for su
 %
 }
 The expression language in our logic is the expression language of 
-\hprime (Figure~\ref{fig:hprime-syntax}).  Note that curried application in \hprime
+\hprime (Figure~\ref{fig:hprime-syntax}).\footnote{
+  %
+  Note that this does \emph{not} include \texttt{case} expressions.
+  %
+}  Note that curried application in \hprime
 corresponds to a binary function symbol in FOL, which we denote by juxtaposition.
 
 \begin{figure}
@@ -555,7 +563,8 @@ corresponds to a binary function symbol in FOL, which we denote by juxtaposition
 
 
 \section{Translations}
-For an overview of the different translations we define, see figure~\ref{trans}
+For an overview of the different translations we define, see
+Figure~\ref{fig:all-trans}.
 
 \begin{figure}
  \begin{center}
@@ -566,16 +575,47 @@ For an overview of the different translations we define, see figure~\ref{trans}
   \end{array} \]
   \end{center}
   \caption{Translations}
-  \label{trans}
+  \label{fig:all-trans}
 \end{figure}
 
+\subsection{The $\min$ predicate}
+
+We introduce a predicate $\min$, short for ``am interested'', and use
+it both to guide proof search and guarantee (?) the existence of
+finite models.  Dimitrios says that such use of a predicate, at least
+the guiding of proof search part, is related to the concept of
+``triggers''.  We are particularly interested in finite
+\emph{counter}-models, which exist when the contracts aren't provable
+(i.e. when our refutation theory is counter satisfiable).
+
+The $\min$ predicate guides proof search by restricting the use of
+axioms. Axioms are guarded by $\min$ preconditions, and in some cases
+introduce new $\min$s.  The rough idea is that $\min$ corresponds to
+evaluation: you have $\min(e)$ when you force the value of $e$ in our
+lazy language.  For example, the axioms for function definitions in
+Figure~\ref{fig:dtrans} require interest $\min{f x}$ to unfold the
+definition of $f$, but then introduce $\min{e}$ if $f$ is defined by
+\texttt{case}-matching $e$, because \texttt{case}-matching forces the
+scrutinee.
+
+The $\min$ predicate guarantees finite models by preventing us from
+proving all models are infinite (recall the completeness theorem for
+FOL).  Without $\min$, the axiomitization of any infinite datatype $T$
+would allow us to prove $T$, and hence the domain of our models, was
+infinite.  Namely, we axiomitize the injectivity and disjointness of
+$T$'s term constructors, and without $\min$ these axioms prove that
+inductive term constructors are injective, but not surjective, and
+hence the domain is infinite.  However, we guard these axioms, namely
+$\phiInjective$ and $\phiDisjoint$ in Figure~\ref{fig:dtrans}, with
+$\min$ predicates, to restrict their use to interesting constructor
+applications.
 
 \subsection{Expressions}
 Expressions are the same in \hprime and FOL, so no translation is
 necessary.
 
 \subsection{$\dtrans{}$ -- Definitions}
-We give in figure~\ref{dtrans} the translation of function
+We give in figure~\ref{fig:dtrans} the translation of function
 definitions. The first line says that when applied to an argument that
 matches a pattern of the case expression, we should equate the
 function call to the corresponding expression. The second line states
@@ -595,32 +635,34 @@ then the result should be $\unr$.\note[nc]{This text does not agree
   \dtrans{f \in c} &=& \ctrans{f \in c}\\
   \dtrans{f~\vec{x} = e} &=& \forall \vec{x}.\min{\fullfxs} 
                                               \to \fullfxs = e \\
-   \raisebox{ 0.5 cm }{$\dtrans{f~\vec{x} = \mbox{case } e \mbox{ of } [K_i~\vec{x_i} = e_i]}$} &\raisebox{0.5cm}{=}&  \hspace{-0.18cm} \begin{array}{rclcl}
-     \forall \vec{x}. \min{\fullfxs} &\to&
-     \multicolumn{3}{c}{  \min{e} \land (e = \texttt{BAD} \lor
-       \left(\bigvee_i \exists \vec{x_i}.~e = \full{K}_i(\vec{x_i})\right) \lor \fullfxs = \texttt{UNR})} \\
-     &\land& \forall \vec{x_1}.~e = \full{K}_1(\vec{x_1}) &\to& \fullfxs = e_1 \\
-     &\land& & \cdots & \\
-     &\land& \forall \vec{x_n}.~e = \full{K}_n(\vec{x_n}) &\to& \fullfxs = e_n \\
-   \end{array} 
+   \dtrans{f~\vec{x} = \mbox{case } e \mbox{ of } [K_i~\vec{x_i} = e_i]}
+    &=&
+    \begin{array}{ll}
+      \forall \vec{x}. \min{\fullfxs} 
+      &\to \min{e} \\
+      &\land \left(
+        \bigwedge_i \left(
+                      \forall \vec{x_i}.~e = \full{K}_i(\vec{x_i}) \to \fullfxs = e_i
+                    \right)
+             \right) \\
+      &\land \left( e = \bad \to \fullfxs = \bad \right) \\
+      &\land \left( e = \bad \lor 
+                    \left(\bigvee_i \exists \vec{x_i}.~e = \full{K}_i(\vec{x_i}) \right) 
+                    \lor \fullfxs = \unr
+             \right) \\
+    \end{array} 
 \end{array}
 \]
-\caption{$\dtrans{}$ -- Defintions translation}
- \label{dtrans}
- \note[nc]{??? Why do we introduce the extra quantified variable $a$,
-   representing the result (``answer''?), instead of just using the result directly
-   (which is logically equivalent)? Same question for the next
-   Figure.  Does this make a difference to Equinox?}
+\caption{$\dtrans{}$ -- Definition translation}
+ \label{fig:dtrans}
 \end{figure*}
-
-
 
 \subsection{$\ttrans{}$ -- Datatypes}
 We break down the translation for datatypes in four parts, described in Figure~\ref{ktrans}
-$$\ttrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phi_\text{injective} \land \phi_\text{disjoint} \land \phi_\text{cf} \land \phi_\text{lazy}$$
+$$\ttrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phiInjective \land \phiDisjoint \land \phiCF \land \phiLazy$$
 
 \begin{itemize}
-\item $(\phi_\text{injective})$ Constructors are injective.  That is,
+\item $(\phiInjective)$ Constructors are injective.  That is,
   for each term constructor $K$, if $K e_1 \cdots e_n = K e'_1 \cdots
   e'_n$, then $e_i = e'_i$ for all $i$.  We axiomitize this via
   projections $\proj{i}{K}$: for each $i$, $\proj{i}{K}(K e_1 \cdots
@@ -640,10 +682,10 @@ $$\ttrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phi_\text{injective} \lan
   particular, user programs will never contain projections.  If a user
   wants to project then they need to write there own projection
   function using pattern matching.
-\item $(\phi_\text{disjoint})$ Distinct term constructors have
+\item $(\phiDisjoint)$ Distinct term constructors have
   disjoint ranges.  Note that we don't axiomitize disjointness of term
   constructors from distinct \emph{data types}.
-\item $(\phi_\text{cf})$ Then, we have to give crash-freeness conditions for each $K_i$:
+\item $(\phiCF)$ Then, we have to give crash-freeness conditions for each $K_i$:
   Notice that we have a equivalence.
   \begin{itemize}
   \item $\gets$: if we pack crash-free values in a data constructor,
@@ -669,7 +711,7 @@ $$\ttrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phi_\text{injective} \lan
     counter-models to \texttt{lem\_add\_symmetric} when
     \texttt{lem\_eqNat\_trans}'s $\cfc^3 \to \cfc$ contract is removed.
 
-  Note that $\phi_\text{cf}$ is not true for arbitrary functions: a function is not required
+  Note that $\phiCF$ is not true for arbitrary functions: a function is not required
   to use all of its arguments. For example, \texttt{fst} is crash-free if and only
   if the first argument of the pair is crash-free. The second argument
   is irrelevant.
@@ -692,24 +734,24 @@ $$\ttrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phi_\text{injective} \lan
   \cfc}^-$, saves the day.}
   \end{itemize}
 
-\item $(\phi_\text{lazy})$ No full application of a constructor
+\item $(\phiLazy)$ No full application of a constructor
   $K_i$ is unreachable or crashing.
 \end{itemize}
 
 \begin{figure*}
   $$ \ruleform{\ttrans{data~def} = \Phi} $$
-$$\ttrans{\mbox{data } T = K_1 ~a_1, \dots, K_n ~a_n} = \phi_\text{injective} \land \phi_\text{disjoint} \land \phi_\text{cf} \land \phi_\text{lazy}$$
+$$\ttrans{\mbox{data } T = K_1 ~a_1, \dots, K_n ~a_n} = \phiInjective \land \phiDisjoint \land \phiCF \land \phiLazy$$
  \hspace{5.6cm}where
   \begin{center}
     \newcommand{\fullkxs}[1]{\full{K}_#1~\vec{x}}
     \begin{align*}
-      \phi_\text{injective} &= \bigwedge_{1 \leq i \leq n}~\left( \forall \vec{x}.~\min{\fullkxs i} \to \bigwedge_{1 \leq j \leq a_i} x_j = \proj{j}{K_i}(\fullkxs i) \right) \\
-      \phi_\text{disjoint} &= \!\!\!\bigwedge_{1 \leq i < j \leq n}\!\!\!~\left(\forall \vec{x},\vec{y}.~ (\min{\fullkxs i} \lor \min{\fullkxs j}) \to \fullkxs {i} \neq \fullkxs {j} \right)\\
-      \phi_\text{cf} &= 
+      \phiInjective &= \bigwedge_{1 \leq i \leq n}~\left( \forall \vec{x}.~\min{\fullkxs i} \to \bigwedge_{1 \leq j \leq a_i} x_j = \proj{j}{K_i}(\fullkxs i) \right) \\
+      \phiDisjoint &= \!\!\!\bigwedge_{1 \leq i < j \leq n}\!\!\!~\left(\forall \vec{x},\vec{y}.~ (\min{\fullkxs i} \lor \min{\fullkxs j}) \to \fullkxs {i} \neq \fullkxs {j} \right)\\
+      \phiCF &= 
         \bigwedge_{1 \leq i \leq n}~\left( \ctrans{K_i \in \cfc^{a_i} \to \cfc}^- 
           \land \forall \vec{x}.~\min{\fullkxs i}
                   \land \cf{\fullkxs i} \to \bigwedge_{1 \leq j \leq a_i} \cf{x_j} \right) \\
-      \phi_\text{lazy} &= \bigwedge_{1 \leq i \leq n}~\left( \forall \vec{x}.~(\min{\fullkxs i} \to \fullkxs {i} \neq \unr \land \fullkxs {i} \neq \bad \right)
+      \phiLazy &= \bigwedge_{1 \leq i \leq n}~\left( \forall \vec{x}.~(\min{\fullkxs i} \to \fullkxs {i} \neq \unr \land \fullkxs {i} \neq \bad \right)
     \end{align*}
   \end{center}
   \caption{$\ttrans{}$ -- Data type translation}
@@ -752,7 +794,7 @@ of $\cf{e}$: we'd need to prove $\min{e}$ anyway before instantiating
 another axiom at $e$).
 
 As another example, consider the $\dtrans{}$ for functions defined by pattern matching,
-in Figure~\ref{dtrans}.  Definition translations are axioms, 
+in Figure~\ref{fig:dtrans}.  Definition translations are axioms, 
 so the the initial $\min{\full{f}(\vec{x})}$
 is an obligation: we aren't allowed to 
 ``unfold the definition'' of the function unless we prove
@@ -774,9 +816,9 @@ we guard it with $\min{e}$.
 
 \begin{figure*}
 \begin{verbatim}
-[[e in {x|p}]]      := e /= unr -> p[e/x] in {true, unr}
-[[e in cf]]         := cf(e)
-[[e in x:c1 -> c2]] := forall x. [[x in c1]] -> [[e x in c2]]
+[|e in {x|p}|]      := e /= unr -> p[e/x] in {true, unr}
+[|e in cf|]         := cf(e)
+[|e in x:c1 -> c2|] := forall x. [|x in c1|] -> [|e x in c2|]
 \end{verbatim}
 \caption{$\ctrans{}$ -- Naive (no $\min$) contract translation.}
 \label{fig:naiveCTrans}
@@ -785,22 +827,22 @@ we guard it with $\min{e}$.
 \begin{figure*}
 \begin{verbatim}
 -- Need 'min(e)' and 'min(p[e/x])' here to unfold defs.
-[| e ::: {x|p} |]+ = min(e) /\ min(p[e/x]) ->
-                     (e /= unr -> p[e/x] not-in {false, bad})
+[| e in {x|p} |]+ = min(e) /\ min(p[e/x]) ->
+                      (e /= unr -> p[e/x] not-in {false, bad})
 -- Need 'min(e)' here to guard 'min(p[e/x])'.
 -- Need 'min(p[e/x])' here to unfold defs.
-[| e ::: {x|p} |]- = min(e) -> min(p[e/x]) /\
-                     (e /= unr -> p[e/x]     in {true, unr})
+[| e in {x|p} |]- = min(e) -> min(p[e/x]) /\
+                      (e /= unr -> p[e/x]     in {true, unr})
 
 -- Need 'min(e)' here in the (+)-case to unfold defs.
 -- The 'min(e)' in the (-)-case doesn't seem strictly
 -- necessary, but it gives a big performance improvement for
 -- 'yes/add-symmetric.hs', from 48s to 30s for a full check.
-[[e in cf]]v := min(e) ->  cf(e)
+[|e in cf|]v := min(e) ->  cf(e)
 
  -- No auxiliary mins.
-[[e in x:c1 -> c2]]v
-  := forall x. [[x in c1]](dual v) -> [[e x in c2]]v
+[|e in x:c1 -> c2|]v
+  := forall x. [|x in c1|](dual v) -> [|e x in c2|]v
 \end{verbatim}
 \caption{$\ctrans{}$ -- New contract translation. Design choices, in the form
 of optional parts, are enclosed in single square brackets.}
@@ -823,12 +865,8 @@ $\min{g ~Z} \to \cf{g ~Z}$
 But that follows by instantiating $g$'s contract again, and 
 then using $\cf{Z}$ to get $\min{Z} \to \cf{Z}$.
 
-
-
-
-Going back to the current translation, we consider some of its
-metatheoretic properties.
-\protect \begin{enumerate}
+Metatheoretic properties of the translation
+\begin{enumerate}
 \item A standard
   property of bidirectional systems: that you can check/verify what you assume/use.
   In other words, forall $e$ and $c$,
@@ -844,7 +882,7 @@ metatheoretic properties.
   \]  I.e., ``\min{} is sound for `naive'''.
 \item We'd like to have a result  like: given some validity or consistency 
   assumptions on $\Gamma$ and $e \in c$,
-  \protect \[
+  \[
     \Gamma^\text{naive} \vdash \ctrans{e \in c}^\text{naive} \implies \Gamma^\text{min} \vdash \ctrans{e \in c}^\text{min}.
   \]  I.e., ``\min{} is complete for `naive', under some assumptions about 
   what we're proving''.  However, Dimitrios points out that we shouldn't expect this
@@ -926,15 +964,7 @@ translations.  We
   \item state that $\bad$ is not crash-free with the formula:
 $\lnot \cf{\bad}$.
 
-  \item \add[nc]{state that $\unr$ is crash-free: $\cf{\unr}$.}\note[nc]{
-This is already present in the implementation, and assumed in the
-consistency proof.}
-
-  \item give formulae for the boolean datatype, equivalent to
-translating
-\begin{verbatim}
-data Bool = True 0 | False 0
-\end{verbatim}
+  \item state that $\unr$ is crash-free: $\cf{\unr}$.
 
   \item \designChoice state that interest in an application implies
   interest in the function: $\forall f,x. \min{f ~x} \to \min{f}$.  This axiom can
@@ -952,15 +982,17 @@ data Bool = True 0 | False 0
 \end{itemize}
 
 \begin{figure}\label{fig:prelude}
+  The implementation enables
   \begin{itemize}
     \item $\lnot \cf{\bad}$
     \item $\cf{\unr}$
-    \item $\dtrans{data~Bool = \true~0 | \false~0}$
     \item \designChoice\\ $\forall f,x. \min{f ~x} \to \min{f}$
+  \end{itemize}
+  and disables
+  \begin{itemize}
     \item \designChoice\\ $\forall x. \min{\bad ~x} \to \bad ~x = \bad$ 
     \item \designChoice\\ $\forall x. \min{\unr ~x} \to \unr ~x = \unr$
     \item \designChoice\\ $\forall f. \cfc(f) \to \ctrans{f \in \cfc \to \cfc}^-$
-    \item 
   \end{itemize}
   \caption{Prelude -- Axioms common to all translations.}
 \end{figure}
