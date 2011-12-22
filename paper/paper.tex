@@ -581,7 +581,19 @@ Figure~\ref{fig:all-trans}.
 \subsection{The $\min$ predicate}
 
 We introduce a predicate $\min$, short for ``am interested'', and use
-it both to guide proof search and guarantee (?) the existence of
+it both to guide proof search and guarantee (?)\footnote{
+  % 
+  Do we really guarantee finite models?  I think Koen said ``yes'',
+  but I don't see how to prove this.  Namely, I don't see how to prove
+  we never have $S : M \to M$ for $M \subseteq \{ x \mid \min{x} \}$ and
+  $M \neq \emptyset$.
+
+  I think I wrote down an example where we have $\min{Z}$,
+  $\min{S~Z}$, $\min{S~(S~Z)}$, etc, but it seems I'd need an
+  induction axiom to prove that $S$ really took $M$ to $M$, for $M$
+  the naturals.
+  % 
+} the existence of
 finite models.  Dimitrios says that such use of a predicate, at least
 the guiding of proof search part, is related to the concept of
 ``triggers''.  We are particularly interested in finite
@@ -598,7 +610,7 @@ definition of $f$, but then introduce $\min{e}$ if $f$ is defined by
 \texttt{case}-matching $e$, because \texttt{case}-matching forces the
 scrutinee.
 
-The $\min$ predicate guarantees finite models by preventing us from
+The $\min$ predicate guarantees (?) finite models by preventing us from
 proving all models are infinite (recall the completeness theorem for
 FOL).  Without $\min$, the axiomitization of any infinite datatype $T$
 would allow us to prove $T$, and hence the domain of our models, was
@@ -609,6 +621,11 @@ hence the domain is infinite.  However, we guard these axioms, namely
 $\phiInjective$ and $\phiDisjoint$ in Figure~\ref{fig:dtrans}, with
 $\min$ predicates, to restrict their use to interesting constructor
 applications.
+
+The $\min$ predicate complicates the translation of contracts,
+requiring us to define separate contract translations for goals and
+axioms.  The only actual difference is for predicate-contract, but we
+have considered many minor variations.
 
 \subsection{Expressions}
 Expressions are the same in \hprime and FOL, so no translation is
@@ -624,7 +641,6 @@ then the result should be $\unr$.\note[nc]{This text does not agree
   with the figure.  In particular, the axiom says nothing about the
   result of scrutinizing $\bad$.  I think the correct behavior is that
   scrutinizing $\bad$ results in $\bad$, \emph{not} $\unr$.}
-
 
 \newcommand{\fullfxs}{\full{f}(\vec{x})}
 \begin{figure*}
@@ -734,8 +750,9 @@ $$\ttrans{\mbox{data } T = K_1~a_1, \dots, K_n~a_n} = \phiInjective \land \phiDi
   \cfc}^-$, saves the day.}
   \end{itemize}
 
-\item $(\phiLazy)$ No full application of a constructor
-  $K_i$ is unreachable or crashing.
+\item $(\phiLazy)$ No full application of a constructor $K_i$ is
+  unreachable or crashing.  In other words, term constructors don't
+  scrutinize their arguments / are lazy.
 \end{itemize}
 
 \begin{figure*}
@@ -760,7 +777,6 @@ $$\ttrans{\mbox{data } T = K_1 ~a_1, \dots, K_n ~a_n} = \phiInjective \land \phi
 
 
 \subsection{$\ctrans{}$ -- Contracts}\label{sec:contracts}
-\note[nc]{%
 Figure~\ref{fig:newCTrans} contains the $\min$-translation of contracts, and
 Figure~\ref{fig:naiveCTrans} contains the naive contract translation,
 with no $\min$'s.  The min translation reduces to the naive translation when
@@ -770,7 +786,11 @@ The min translation has two forms, $\ctrans{}^-$ for
 assumptions/axioms and $\ctrans{}^+$
 for conclusions/theorems.  The choice of minus and 
 plus comes from the negative and positive
-positions in an implication: $- \to +$.  The goal of the $\min$'s twofold: 
+positions in an implication
+\[
+- \to +.
+\]
+The goal of the $\min$'s twofold: 
 (1) to allow finite counter models when the theory 
 does not prove the contracts; (2) to limit the
 applicability of the axioms ($\ctrans{}^-$ and $\dtrans{}$ and $\ttrans{}$), 
@@ -812,7 +832,6 @@ $e \neq \unr \to p[e/x] \in \{\true,\unr\}$, we also conclude $\min{p[e/x]}$.
 The $\min{p[e/x]}$ is necessary to unfold definitions in $p[e/x]$ and prove
 $p[e/x] \in \{\true,\unr\}$, and because it can be used to unfold definitions,
 we guard it with $\min{e}$.
-}
 
 \begin{figure*}
 \begin{verbatim}
@@ -851,19 +870,21 @@ of optional parts, are enclosed in single square brackets.}
 
 Because $\Gamma,\phi \vdash \psi \equiv \Gamma \vdash \phi \to \psi$,
 it's natural to think of contract assumptions in the theory as
-negative, and contract goals as positive.  An example is helpful:
-\protect \begin{eqnarray*}
-\ctrans{g \in \cfc \to \cfc}^+ &=& \forall x. \cf{x} \to (\min{g ~x} \to \cf{g ~x}),\\
-&&\text{whereas}\\
-\ctrans{g \in \cfc \to \cfc}^- &=& \forall x. \min{g ~x} \to (\min{x} \to \cf{x}) \to \cf{g ~x}.
-\end{eqnarray*}
-Now, given $\ctrans{g \in \cfc \to \cfc}^-$, we may 
+negative, and contract goals as positive. So, the theory
+consists of $\ctrans{}^-$ axioms, so call it $\Gamma^{\in^-}$.
+We want to prove $\Gamma^{\in^-} \vdash \ctrans{e \in c}^+$.  
+But that's equivalent to $\Gamma^{\in^-},\lnot\ctrans{e \in c}^+ \vdash \bot$,
+and that is the refutation we feed to the theorem prover.
+
+An example: 
+given $\ctrans{g \in \cfc \to \cfc}^-$, we may 
 want to prove $\ctrans{g ~(g ~Z) \in \cfc}^+$.
 So, our goal is $\min{g ~(g ~Z)} \to \cf{g ~(g ~Z)}$.
 From $g$'s contract, we get $\cf{g ~(g ~Z)}$ if we can prove 
-$\min{g ~Z} \to \cf{g ~Z}$
+$\min{g ~Z} \to \cf{g ~Z}$.
 But that follows by instantiating $g$'s contract again, and 
-then using $\cf{Z}$ to get $\min{Z} \to \cf{Z}$.
+then using $\phiCF$ for $Z$, which is $\ctrans{Z \in \cfc}^-$, 
+i.e. $\min{Z} \to \cf{Z}$, exactly what we need.
 
 Metatheoretic properties of the translation
 \begin{enumerate}
@@ -890,41 +911,6 @@ Metatheoretic properties of the translation
   restricting the proof search to follow
   evaulation strategy, and it's far from obvious that all proofs can proceed this way.
 \end{enumerate}
-
-  the theory $T$ should consist of $\in^-$ axioms.
-  We want to prove $\Gamma^{\in^-} \vdash \ctrans{e \in c}^+$.  
-  But
-  that's equivalent to $\Gamma^{\in^-},\lnot\ctrans{e \in c}^+ \vdash \bot$.  
-
-
-\begin{verbatim}
-In any case, another question: 
-does equinox distinguish between D[[]] like
-
-  (x = Nil /\ f x = eNil)
-  \/
-  (exists y,ys. x = Cons(y,ys) /\ f x = eCons)
-
-and D[[]] like
-
-  (x = Nil /\ f x = eNil)
-  \/
-  (x = Cons(cons_1 x,cons_2 x)
-   /\ f x = eCons[cons_1 x/y, cons_2 x/ys])
-
-the latter is nice because we don't need 
-to invent names (consider
-
-  f x = case x of
-          K x -> x
-
-we can't write
-
-  (exists x. x = K x /\ f x = x)
-
-since the two x's equated are not the same!). 
-the former is nice because it's more concise?
-\end{verbatim}
 
 \begin{figure*}
   $$ \ruleform{\ctrans{contract} = \phi} $$
@@ -1118,6 +1104,91 @@ include $f$ and $g$ translations, and we would ask equinox:
 $$ \dtrans{f},\dtrans{g},\dtrans{a},\ctrans{f},\ctrans{g} \vdash
 \ctrans{a}$$
 
+\section{Implementation}
+
+\subsection{Case translations}
+XXX: describe the various case translations here.
+
+\begin{verbatim}
+In any case, another question: 
+does equinox distinguish between D[[]] like
+
+  (x = Nil /\ f x = eNil)
+  \/
+  (exists y,ys. x = Cons(y,ys) /\ f x = eCons)
+
+and D[[]] like
+
+  (x = Nil /\ f x = eNil)
+  \/
+  (x = Cons(cons_1 x,cons_2 x)
+   /\ f x = eCons[cons_1 x/y, cons_2 x/ys])
+
+the latter is nice because we don't need 
+to invent names (consider
+
+  f x = case x of
+          K x -> x
+
+we can't write
+
+  (exists x. x = K x /\ f x = x)
+
+since the two x's equated are not the same!). 
+the former is nice because it's more concise?
+\end{verbatim}
+
+\section{Lemmas}
+
+It's possible to encode, prove, and apply lemmas in our system,
+without adding any extensions.  The application of lemmas can change
+the termination behavior of programs (although so far I think we've
+only used lemmas in other lemmas), and it's up to the user to look out
+for this.  
+
+Before presenting the solution we have to understand the problem: the
+FOL prover requires finite axiomitizations, and hence there is no
+general induction support (FOL does not allow quantification over
+formulas, and so induction can only be axiomitized with a schema).
+Each inductive proof of a universal property $\forall x. \phi(x)$
+requires its own induction axiom, and the system does not attempt to
+discover these (a separate problem).  When checking the contract of a
+recursive function, we axiomitize induction for that function,
+following the structure of its recursion.  But a contract may depend
+on a lemma, itself requiring an inductive proof, and so we need a
+facility for introduces auxiliary inductions.  Of course, we also need
+to be able to state the lemmas themselves, because the system does not
+discover them.
+
+Our solution is to define ``dummy'' recursive functions, whose
+recursion structure follows the induction needed to prove the lemma.
+We don't actually care what these functions compute, so we define a
+unit type, $QED$, and return that in the base cases.  E.g., if we want
+to prove that $Z$ is a right identity for addition, then we can define
+a dummy function \texttt{lem\_add\_Z\_r}
+\begin{verbatim}
+lem_add_Z_r x = case x of
+  Zero -> QED
+  Succ x_ -> lem_add_Z_r x_
+
+\end{verbatim}
+and give it a contract stating the property in question
+\begin{verbatim}
+lem_add_Z_r ::: x:CF -> CF&&{qed: x `eqNat` (x `add` Zero)}
+\end{verbatim}
+
+To use the lemma we, need to have $\min$ on it's instantiation.  To
+get this we introduce another dummy function, $using$,
+s.t. $e `using` l$ scrutinizes $l$ and returns $e$.  I.e.
+\begin{verbatim}
+e `using` lem = case lem of
+  QED -> e
+\end{verbatim}
+The \texttt{case} match in $using$ introduces $\min$ for the lemma,
+allowing it's contracts to be unfolded.
+
+XXX: Koen has a long and detailed writeup of lemmas in the his google
+doc.
 
 \section{Correctness of the translation}
 For the translation to be useful, $\trans{M} \vdash \ctrans{f \in c} $
@@ -1143,8 +1214,12 @@ on their $ptr$ counterpart.
 \begin{figure*}
 $$ \forall x_1,\dots,x_n.~\full{f}(x_1,\dots,x_n) = f~x_1~x_2~\dots~x_n$$
 $$ \cf{f} \tot \forall x_1,\dots,x_n.~\cf{x_1} \land \dots \land \cf{x_n} \to \cf{\full{f}(x_1,\dots,x_n)}$$
-$$\forall g,x.~\cf{f} \land \cf{x} \to \cf{g~x}$$
-\caption{Encoding of higher-orderness}
+$$\forall g,x.~\cf{g} \land \cf{x} \to \cf{g~x}$$
+\caption{Encoding of higher-orderness.
+%
+XXX: need 'min's.
+%
+XXX: i don't think the second and third formulas are implemented.}
 \label{ho-fig}
 \end{figure*}
 
