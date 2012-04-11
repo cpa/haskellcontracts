@@ -53,8 +53,14 @@ http://www.cse.chalmers.se/~koen/code/folkung.tar.gz.  You can use the
 ./Folkung.  There is another version available on github
 (https://github.com/nick8325/equinox/), but I think that one is older.
 
-UPDATE: the most recent Equinox uses dynymic libs not available on `cam-02-unx`.
-To run the precompiled Equinox there you can:
+UPDATE: the most recent Equinox uses dynymic libs not available on
+`cam-02-unx` or older versions of Ubuntu.
+
+Manually installing the .debs for the missing libs works for me in
+Ubuntu 11.04.  I.e., download libffi6 and libgmp10 .debs for 11.10,
+and then install manually with `dpkg -i`.
+
+To run the precompiled Equinox on `cam-02-unx` you can:
 
     wget http://ubuntu.mirror.cambrium.nl/ubuntu//pool/main/libf/libffi/libffi6_3.0.11~rc1-2_i386.deb
     dpkg --extract libffi6_3.0.11\~rc1-2_i386.deb libffi6

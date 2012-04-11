@@ -27,4 +27,4 @@ equinox:
 	tar xf folkung.tar.gz
 	@echo
 	@echo
-	@echo "ADD '`readlink -f Folkung/Haskell/equinox`' TO YOUR PATH"
+	@echo "ADD '`readlink -f Folkung/Haskell`' TO YOUR PATH"
