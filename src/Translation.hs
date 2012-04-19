@@ -257,7 +257,7 @@ cTrans' v e (H.Pred x p) =  do
   let plainM = F.Or [(eT :=: unr), F.Or  [p'T :=:  unr, p'T :=:  true ]]
   let plainP = F.Or [(eT :=: unr), F.And [p'T :/=: bad, p'T :/=: false]]
   case v of
-    Plus  -> return $ F.And [F.Min(eT),             F.Min(p'T)] :=>: plainP
+    Plus  -> return $ F.And [F.Min(eT),             F.Min(p'T)] :=>: plainM
     Minus -> return $        F.Min(eT)  :=>: F.And [F.Min(p'T),      plainM]
 
 cTrans' v e c@(H.Arr mx c1 c2) = do
@@ -578,7 +578,14 @@ trans cfg checks deps = evalState result startState
                       -- are not included.
                       F.And [ if no_ptr cfg then Top else min
                             , F.Not $ F.CF bad
-                            , F.CF unr ]
+                            , F.CF unr
+-- ??? !!!: added this obvious and redundant axiom makes the run time
+-- of the ./no/mult-gt.hs test go from ~20 second to ~40 seconds.  The
+-- outcome of all tests is unchanged, and the run time of all others
+-- tests remains similar (some increase or decrease by ~.5 seconds).
+--
+--                          , F.Not (bad :=: unr)
+                            ]
             -- forall f,x. cf(f) /\ cf(x) -> cf(f x)
             cf1 = F.Forall [f,x]
                   $ F.And [F.CF fN, F.CF xN]
